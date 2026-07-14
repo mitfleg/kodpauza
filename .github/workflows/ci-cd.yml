@@ -313,10 +313,26 @@ jobs:
           compose up -d --remove-orphans
           compose ps
 
-          if ! curl --fail --silent --show-error --retry 12 --retry-delay 5 \
-            http://127.0.0.1:4000/ready >/dev/null ||
-            ! curl --fail --silent --show-error --retry 12 --retry-delay 5 \
-            http://127.0.0.1:3000/ >/dev/null; then
+          wait_for_url() {
+            local name="$1"
+            local url="$2"
+            local attempt
+
+            for attempt in {1..24}; do
+              if curl --fail --silent --show-error --max-time 10 \
+                "$url" >/dev/null; then
+                echo "$name is ready"
+                return 0
+              fi
+              echo "Waiting for $name ($attempt/24)..." >&2
+              sleep 5
+            done
+
+            return 1
+          }
+
+          if ! wait_for_url API http://127.0.0.1:4000/ready ||
+            ! wait_for_url Web http://127.0.0.1:3000/; then
             echo "Healthcheck failed; rolling back images" >&2
             if test -f release.previous.env; then
               cp release.previous.env release.env
