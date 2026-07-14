@@ -187,6 +187,7 @@ jobs:
           sbom: true
 
       - name: Attest API image
+        if: github.event.repository.visibility == 'public'
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4
         with:
           subject-name: ${{ steps.image_names.outputs.api }}
@@ -224,6 +225,7 @@ jobs:
           sbom: true
 
       - name: Attest web image
+        if: github.event.repository.visibility == 'public'
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4
         with:
           subject-name: ${{ steps.image_names.outputs.web }}
