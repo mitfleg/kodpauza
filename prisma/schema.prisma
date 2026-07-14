@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  developer
+  advertiser
+  admin
+}
+
+enum PayoutStatus {
+  mock
+  pending
+  blocked
+}
+
+enum DeveloperPayoutStatus {
+  requested
+  paid
+  rejected
+  canceled
+}
+
+enum Surface {
+  vscode_status_bar
+  claude_code_vscode
+  codex_vscode
+}
+
+enum CampaignFormat {
+  standard
+  premium
+}
+
+enum CampaignStatus {
+  draft
+  pending
+  active
+  paused
+  rejected
+}
+
+enum AdEventType {
+  impression
+  click
+}
+
+enum FraudStatus {
+  clean
+  suspicious
+  rejected
+}
+
+enum FraudSeverity {
+  low
+  medium
+  high
+}
+
+enum LedgerEntryType {
+  impression_reward
+  advertiser_charge
+  advertiser_credit
+  adjustment
+  payout_mock
+  payout_reserved
+  payout_succeeded
+  payout_released
+}
+
+enum PaymentStatus {
+  pending
+  succeeded
+  canceled
+  failed
+}
+
+model User {
+  id                             String             @id @default(cuid())
+  email                          String             @unique
+  passwordHash                   String
+  role                           Role
+  displayName                    String?
+  emailVerifiedAt                DateTime?
+  emailVerificationCodeHash      String?
+  emailVerificationCodeExpiresAt DateTime?
+  emailVerificationCodeSentAt    DateTime?
+  emailVerificationAttempts      Int                @default(0)
+  createdAt                      DateTime           @default(now())
+  updatedAt                      DateTime           @updatedAt
+  developerProfile               DeveloperProfile?
+  advertiserProfile              AdvertiserProfile?
+  adEvents                       AdEvent[]
+  adServes                       AdServe[]
+  fraudFlags                     FraudFlag[]
+  ledgerEntries                  LedgerEntry[]
+  extensionInstalls              ExtensionInstall[]
+  extensionSessions              ExtensionSession[]
+  adminAuditLogs                 AdminAuditLog[]
+
+  @@index([emailVerifiedAt])
+}
+
+model ExtensionSession {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  lastUsedAt DateTime  @default(now())
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, revokedAt, expiresAt])
+}
+
+model DeveloperProfile {
+  id               String            @id @default(cuid())
+  userId           String            @unique
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installId        String            @unique
+  eventSecret      String            @unique
+  balanceKopecks   Int               @default(0)
+  reservedKopecks  Int               @default(0)
+  paidKopecks      Int               @default(0)
+  totalImpressions Int               @default(0)
+  totalClicks      Int               @default(0)
+  payoutStatus     PayoutStatus      @default(mock)
+  payouts          DeveloperPayout[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+model DeveloperPayout {
+  id                String                @id @default(cuid())
+  developerId       String
+  developer         DeveloperProfile      @relation(fields: [developerId], references: [id], onDelete: Restrict)
+  clientRequestId   String
+  idempotenceKey    String                @unique
+  amountKopecks     Int
+  currency          String                @default("RUB")
+  status            DeveloperPayoutStatus @default(requested)
+  provider          String                @default("manual")
+  externalReference String?
+  reviewNote        String?
+  requestedAt       DateTime              @default(now())
+  reviewedAt        DateTime?
+  paidAt            DateTime?
+  canceledAt        DateTime?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  ledgerEntries     LedgerEntry[]
+
+  @@unique([developerId, clientRequestId])
+  @@unique([provider, externalReference])
+  @@index([developerId, createdAt])
+  @@index([status, createdAt])
+}
+
+model AdvertiserProfile {
+  id             String              @id @default(cuid())
+  userId         String              @unique
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyName    String
+  inn            String?
+  balanceKopecks Int                 @default(0)
+  campaigns      Campaign[]
+  payments       AdvertiserPayment[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+model AdvertiserPayment {
+  id                String            @id @default(cuid())
+  advertiserId      String
+  advertiser        AdvertiserProfile @relation(fields: [advertiserId], references: [id], onDelete: Restrict)
+  provider          String            @default("yookassa")
+  providerPaymentId String?           @unique
+  clientRequestId   String
+  idempotenceKey    String            @unique
+  amountKopecks     Int
+  currency          String            @default("RUB")
+  status            PaymentStatus     @default(pending)
+  confirmationUrl   String?
+  providerTest      Boolean?
+  providerCreatedAt DateTime?
+  paidAt            DateTime?
+  canceledAt        DateTime?
+  failureCode       String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  ledgerEntry       LedgerEntry?
+
+  @@unique([advertiserId, clientRequestId])
+  @@index([advertiserId, createdAt])
+  @@index([status, createdAt])
+}
+
+model Campaign {
+  id                 String            @id @default(cuid())
+  advertiserId       String
+  advertiser         AdvertiserProfile @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  name               String
+  text               String
+  url                String
+  erid               String?
+  status             CampaignStatus    @default(draft)
+  cpmKopecks         Int
+  billableCpmKopecks Int
+  format             CampaignFormat    @default(standard)
+  budgetKopecks      Int
+  spentKopecks       Int               @default(0)
+  impressionsLimit   Int?
+  impressionsServed  Int               @default(0)
+  clicks             Int               @default(0)
+  events             AdEvent[]
+  adServes           AdServe[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([status, billableCpmKopecks])
+  @@index([advertiserId, createdAt])
+}
+
+model AdServe {
+  id                   String         @id @default(cuid())
+  adId                 String         @unique
+  userId               String
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  campaignId           String
+  campaign             Campaign       @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  surface              Surface
+  cpmKopecks           Int
+  billableCpmKopecks   Int
+  format               CampaignFormat
+  costKopecks          Int
+  rewardKopecks        Int
+  expiresAt            DateTime
+  impressionRecordedAt DateTime?
+  clickRecordedAt      DateTime?
+  createdAt            DateTime       @default(now())
+  events               AdEvent[]
+
+  @@index([userId, createdAt])
+  @@index([campaignId, expiresAt])
+}
+
+model AdEvent {
+  id            String        @id @default(cuid())
+  eventId       String        @unique
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaignId    String
+  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  adServeId     String?
+  adServe       AdServe?      @relation(fields: [adServeId], references: [id], onDelete: Restrict)
+  adId          String
+  type          AdEventType
+  surface       Surface
+  visibleMs     Int?
+  rewardKopecks Int           @default(0)
+  ipHash        String?
+  userAgentHash String?
+  clientVersion String
+  toolName      String
+  toolVersion   String
+  fraudStatus   FraudStatus   @default(clean)
+  createdAt     DateTime      @default(now())
+  fraudFlags    FraudFlag[]
+  ledgerEntries LedgerEntry[]
+
+  @@index([userId, type, createdAt])
+  @@index([campaignId, type, createdAt])
+  @@index([adServeId, type])
+}
+
+model FraudFlag {
+  id        String        @id @default(cuid())
+  userId    String?
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  eventId   String?
+  event     AdEvent?      @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  reason    String
+  severity  FraudSeverity
+  metadata  Json?
+  createdAt DateTime      @default(now())
+}
+
+model LedgerEntry {
+  id            String             @id @default(cuid())
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventId       String?
+  event         AdEvent?           @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  paymentId     String?            @unique
+  payment       AdvertiserPayment? @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  payoutId      String?
+  payout        DeveloperPayout?   @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  type          LedgerEntryType
+  amountKopecks Int
+  description   String
+  createdAt     DateTime           @default(now())
+
+  @@index([userId, createdAt])
+  @@index([eventId])
+  @@index([payoutId])
+}
+
+model ExtensionInstall {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installId        String   @unique
+  vscodeVersion    String?
+  extensionVersion String?
+  os               String?
+  lastSeenAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AdminAuditLog {
+  id         String   @id @default(cuid())
+  adminId    String?
+  admin      User?    @relation(fields: [adminId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String
+  targetId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId, createdAt])
+}
+
+model IntegrationVersionReport {
+  id                String    @id @default(cuid())
+  tool              String    @default("codex")
+  version           String
+  supported         Boolean
+  compatibilityMode String    @default("unsupported")
+  clientVersion     String
+  editorName        String
+  reportCount       Int       @default(1)
+  firstSeenAt       DateTime  @default(now())
+  lastSeenAt        DateTime  @default(now())
+  acknowledgedAt    DateTime?
+
+  @@unique([tool, version])
+  @@index([acknowledgedAt, lastSeenAt])
+  @@map("CodexVersionReport")
+}

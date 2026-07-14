@@ -1,0 +1,142 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { requireRole } from '../auth.js';
+import { prisma } from '../prisma.js';
+
+const eventsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).max(100_000).default(1),
+  pageSize: z.coerce.number().int().min(5).max(50).default(10),
+}).strict();
+
+const versionReportPayloadSchema = z.object({
+  version: z.string().trim().regex(/^\d+(?:\.\d+){2,3}$/).max(40),
+  supported: z.boolean(),
+  compatibilityMode: z.enum(['exact', 'structural', 'unsupported']).optional(),
+  clientVersion: z.string().trim().min(1).max(40),
+  editorName: z.string().trim().min(1).max(80),
+}).strict();
+
+const integrationVersionReportSchema = versionReportPayloadSchema.extend({
+  tool: z.enum(['codex', 'claude']),
+}).strict();
+
+type VersionReportPayload = z.infer<typeof versionReportPayloadSchema>;
+
+export function registerDeveloperRoutes(app: FastifyInstance) {
+  app.get('/v1/developer/balance', { preHandler: requireRole('developer') }, async (request) => {
+    const profile = await prisma.developerProfile.findUnique({ where: { userId: request.authUser!.id } });
+    return {
+      balanceKopecks: profile?.balanceKopecks ?? 0,
+      totalImpressions: profile?.totalImpressions ?? 0,
+      totalClicks: profile?.totalClicks ?? 0,
+      payoutStatus: profile?.payoutStatus ?? 'mock',
+    };
+  });
+
+  app.get('/v1/developer/stats', { preHandler: requireRole('developer') }, async (request) => {
+    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const events = await prisma.adEvent.findMany({
+      where: { userId: request.authUser!.id, fraudStatus: 'clean', createdAt: { gte: since } },
+      orderBy: { createdAt: 'asc' },
+      select: { createdAt: true, type: true, rewardKopecks: true },
+    });
+
+    const byDay = new Map<string, { date: string; impressions: number; clicks: number; rewardKopecks: number }>();
+    for (const event of events) {
+      const date = event.createdAt.toISOString().slice(0, 10);
+      const row = byDay.get(date) ?? { date, impressions: 0, clicks: 0, rewardKopecks: 0 };
+      if (event.type === 'impression') row.impressions += 1;
+      if (event.type === 'click') row.clicks += 1;
+      row.rewardKopecks += event.rewardKopecks;
+      byDay.set(date, row);
+    }
+
+    return { days: [...byDay.values()] };
+  });
+
+  app.get('/v1/developer/events', { preHandler: requireRole('developer') }, async (request, reply) => {
+    const parsed = eventsQuerySchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: 'Некорректная страница журнала.' });
+    const { page, pageSize } = parsed.data;
+    const where = { userId: request.authUser!.id };
+    const [events, total] = await prisma.$transaction([
+      prisma.adEvent.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          eventId: true,
+          adId: true,
+          type: true,
+          surface: true,
+          visibleMs: true,
+          rewardKopecks: true,
+          clientVersion: true,
+          toolName: true,
+          toolVersion: true,
+          fraudStatus: true,
+          createdAt: true,
+          campaign: { select: { name: true, text: true } },
+        },
+      }),
+      prisma.adEvent.count({ where }),
+    ]);
+
+    return {
+      events,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
+    };
+  });
+
+  app.post('/v1/developer/integrations/codex/version-report', { preHandler: requireRole('developer') }, async (request, reply) => {
+    const parsed = versionReportPayloadSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Некорректные данные версии Codex.' });
+    return saveIntegrationVersionReport('codex', parsed.data, request, reply);
+  });
+
+  app.post('/v1/developer/integrations/version-report', { preHandler: requireRole('developer') }, async (request, reply) => {
+    const parsed = integrationVersionReportSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'Некорректные данные версии интеграции.' });
+    const { tool, ...payload } = parsed.data;
+    return saveIntegrationVersionReport(tool, payload, request, reply);
+  });
+}
+
+async function saveIntegrationVersionReport(
+  tool: 'codex' | 'claude',
+  data: VersionReportPayload,
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
+  const now = new Date();
+  const compatibilityMode = data.compatibilityMode ?? (data.supported ? 'exact' : 'unsupported');
+  const unique = { tool, version: data.version };
+  const existing = await prisma.integrationVersionReport.findUnique({
+    where: { tool_version: unique },
+  });
+  const report = await prisma.integrationVersionReport.upsert({
+    where: { tool_version: unique },
+    create: { tool, ...data, compatibilityMode, firstSeenAt: now, lastSeenAt: now },
+    update: {
+      supported: data.supported,
+      compatibilityMode,
+      clientVersion: data.clientVersion,
+      editorName: data.editorName,
+      lastSeenAt: now,
+      reportCount: { increment: 1 },
+    },
+  });
+  if (!existing && !report.supported) {
+    request.log.warn(
+      { tool, integrationVersion: report.version, clientVersion: report.clientVersion, editorName: report.editorName },
+      'Unsupported integration version detected',
+    );
+  }
+  return reply.code(existing ? 200 : 201).send({ report, isNew: !existing });
+}

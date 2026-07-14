@@ -1,0 +1,50 @@
+{
+  "name": "kodpauza",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Рекламная платформа, которая монетизирует время ожидания Codex и Claude Code.",
+  "packageManager": "pnpm@9.12.0",
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @kodpauza/api test && pnpm --filter @kodpauza/shared test",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write .",
+    "smoke:api": "tsx scripts/smoke-api.ts",
+    "email-domains:update": "tsx scripts/update-disposable-email-domains.ts",
+    "extension:local": "pnpm --filter kodpauza-vscode package:vsix && node scripts/install-local-extension.cjs",
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:seed": "prisma db seed --schema prisma/schema.prisma",
+    "db:test:reset": "tsx scripts/run-api-tests.ts --reset-only",
+    "db:local:reset": "tsx scripts/reset-local-db.ts",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0",
+    "bcryptjs": "^2.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@next/eslint-plugin-next": "15.5.20",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.1",
+    "dotenv": "^16.4.7",
+    "eslint": "^9.16.0",
+    "prettier": "^3.4.2",
+    "prisma": "^6.1.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.62.1",
+    "vitest": "^2.1.8"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss": "8.5.10"
+    }
+  }
+}

@@ -1,0 +1,138 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const vm = require('node:vm');
+const {
+  CLAUDE_2_1_209_PROFILE,
+  ClaudePatchInstaller,
+  patchClaudeHostSource,
+  patchClaudeWebviewSource
+} = require('../dist/claudePatchInstaller.js');
+
+const profile = CLAUDE_2_1_209_PROFILE;
+const hostSource = 'prefix;<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; ${p}; ${f}; ${m}; script-src \'nonce-${u}\'; ${v};">;suffix';
+
+function fixtureWebview() {
+  return `var pre=1;function oQe({size:e=16,permissionMode:t,status:i,spinnerVerbsConfig:n}){let o=co(()=>M8t(n),[n]),r=co(()=>Math.max(...o.map((p)=>p.length)),[o]),[s,a]=ne(0),[l,c]=ne(()=>Bj(o));de(()=>{let p=setInterval(()=>{a((f)=>(f+1)%iQe.length)},120);return()=>clearInterval(p)},[]),Vme(()=>{c(Bj(o))},(p)=>{let f=[2000,3000,5000];return p<f.length?f[p]:5000});let u=l;if(i==="compacting")u="Compacting";let h=A8t(u+"...",r+3);return E("div",{className:Fj.container,"data-permission-mode":t,children:[b("span",{className:Fj.icon,style:{fontSize:\`\${e}px\`},children:iQe[s]}),b("span",{className:Fj.text,children:h})]})}var post=1;`;
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+async function fixture(context) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-claude-patch-'));
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const extensionPath = path.join(root, 'claude');
+  const home = path.join(root, 'kodpauza');
+  const webviewSource = fixtureWebview();
+  await fs.mkdir(path.join(extensionPath, 'webview'), { recursive: true });
+  await fs.writeFile(path.join(extensionPath, 'extension.js'), hostSource);
+  await fs.writeFile(path.join(extensionPath, 'webview', 'index.js'), webviewSource);
+  const build = {
+    version: 'test-version',
+    hostSha256: sha256(hostSource),
+    webviewSha256: sha256(webviewSource),
+    profile
+  };
+  return { root, extensionPath, home, webviewSource, build };
+}
+
+test('Claude UI-патч устанавливается, не трогает Compacting и откатывается', async (context) => {
+  const value = await fixture(context);
+  const installer = new ClaudePatchInstaller(value.extensionPath, 'test-version', value.home, value.build);
+  const installed = await installer.install();
+  assert.equal(installed.installed, true);
+  assert.equal(installed.changed, true);
+  assert.equal(installed.compatibilityMode, 'exact');
+  assert.match(installed.token, /^[a-f0-9]{64}$/);
+
+  const patchedHost = await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8');
+  const patchedWebview = await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8');
+  assert.match(patchedHost, /connect-src http:\/\/127\.0\.0\.1:37491/);
+  assert.match(patchedWebview, /__KODPAUZA_CLAUDE_UI_START__/);
+  assert.match(patchedWebview, /k&&i!=="compacting"/);
+  assert.match(patchedWebview, /__kpClaudeObserveVisibility/);
+  assert.match(patchedWebview, /document\.visibilityState!=="visible"/);
+  assert.match(patchedWebview, /elementFromPoint/);
+  assert.match(patchedWebview, /\/visibility\?token=/);
+  assert.match(patchedWebview, /e\.format==="premium"/);
+  assert.doesNotMatch(patchedWebview, /children:"Премиум"/);
+  assert.doesNotThrow(() => new vm.Script(patchedWebview));
+
+  const repeated = await installer.ensureInstalled();
+  assert.equal(repeated.changed, false);
+  assert.equal(repeated.token, installed.token);
+
+  const restored = await installer.restore();
+  assert.equal(restored.changed, true);
+  assert.equal(await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'), hostSource);
+  assert.equal(await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'), value.webviewSource);
+});
+
+test('Claude UI-патч автоматически исправляет частичную установку', async (context) => {
+  const value = await fixture(context);
+  const installer = new ClaudePatchInstaller(value.extensionPath, 'test-version', value.home, value.build);
+  const first = await installer.install();
+  await fs.writeFile(path.join(value.extensionPath, 'extension.js'), hostSource);
+
+  await assert.rejects(() => installer.inspect(), /применен частично/);
+  const repaired = await installer.ensureInstalled();
+  assert.equal(repaired.installed, true);
+  assert.equal(repaired.changed, true);
+  assert.notEqual(repaired.token, first.token);
+});
+
+test('Claude UI-патч автоматически обновляет старую ревизию', async (context) => {
+  const value = await fixture(context);
+  const installer = new ClaudePatchInstaller(value.extensionPath, 'test-version', value.home, value.build);
+  const first = await installer.install();
+  const manifestPath = path.join(value.home, 'claude-ui-patch.json');
+  const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+  manifest.patchRevision = 1;
+  await fs.writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
+
+  const updated = await installer.ensureInstalled();
+  assert.equal(updated.installed, true);
+  assert.equal(updated.changed, true);
+  assert.notEqual(updated.token, first.token);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 4);
+});
+
+test('Claude UI-патч принимает новую версию при неизменной структуре цели', async (context) => {
+  const value = await fixture(context);
+  const webviewPath = path.join(value.extensionPath, 'webview', 'index.js');
+  await fs.appendFile(webviewPath, 'modified');
+  const installer = new ClaudePatchInstaller(value.extensionPath, 'future-version', value.home);
+
+  const installed = await installer.install();
+  assert.equal(installed.installed, true);
+  assert.equal(installed.compatibilityMode, 'structural');
+  assert.match(await fs.readFile(webviewPath, 'utf8'), /__KODPAUZA_CLAUDE_UI_START__/);
+});
+
+test('Claude UI-патч fail-closed отклоняет измененный spinner', async (context) => {
+  const value = await fixture(context);
+  const webviewPath = path.join(value.extensionPath, 'webview', 'index.js');
+  const changed = value.webviewSource.replace('i==="compacting"', 'i==="compressing"');
+  await fs.writeFile(webviewPath, changed);
+  const installer = new ClaudePatchInstaller(value.extensionPath, 'future-version', value.home);
+
+  const status = await installer.inspect();
+  assert.equal(status.compatible, false);
+  assert.equal(status.compatibilityMode, 'unsupported');
+  await assert.rejects(() => installer.install(), /не поддерживается|безопасно отключена/);
+  assert.equal(await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'), hostSource);
+  assert.equal(await fs.readFile(webviewPath, 'utf8'), changed);
+});
+
+test('чистые функции Claude-патча отклоняют повторное применение', () => {
+  const token = 'b'.repeat(64);
+  const patchedHost = patchClaudeHostSource(hostSource);
+  const patchedWebview = patchClaudeWebviewSource(fixtureWebview(), token, profile);
+  assert.throws(() => patchClaudeHostSource(patchedHost), /уже присутствует/);
+  assert.throws(() => patchClaudeWebviewSource(patchedWebview, token, profile), /уже присутствует/);
+});

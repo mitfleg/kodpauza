@@ -1,0 +1,115 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: '${POSTGRES_USER:-kodpauza}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:-kodpauza}'
+      POSTGRES_DB: '${POSTGRES_DB:-kodpauza}'
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-kodpauza} -d ${POSTGRES_DB:-kodpauza}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: 'postgresql://${POSTGRES_USER:-kodpauza}:${POSTGRES_PASSWORD:-kodpauza}@postgres:5432/${POSTGRES_DB:-kodpauza}?schema=${POSTGRES_SCHEMA:-kodpauza_local}'
+      API_PORT: '4000'
+      NODE_ENV: 'production'
+      JWT_SECRET: '${JWT_SECRET:?JWT_SECRET is required}'
+      KODPAUZA_EMAIL_VERIFICATION_SECRET: '${KODPAUZA_EMAIL_VERIFICATION_SECRET:-local-email-verification-secret-change-me}'
+      JWT_EXPIRES_IN: '${JWT_EXPIRES_IN:-12h}'
+      KODPAUZA_EXTENSION_SESSION_TTL_MS: '${KODPAUZA_EXTENSION_SESSION_TTL_MS:-15552000000}'
+      IP_HASH_SECRET: '${IP_HASH_SECRET:?IP_HASH_SECRET is required}'
+      KODPAUZA_ALLOWED_ORIGINS: '${KODPAUZA_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}'
+      KODPAUZA_LOCAL_DEVELOPMENT: '${KODPAUZA_LOCAL_DEVELOPMENT:-false}'
+      KODPAUZA_ALLOW_INSECURE_LOCALHOST: '${KODPAUZA_ALLOW_INSECURE_LOCALHOST:-true}'
+      KODPAUZA_PUBLIC_DASHBOARD_URL: '${KODPAUZA_PUBLIC_DASHBOARD_URL:-http://localhost:3000}'
+      KODPAUZA_REQUIRE_EVENT_SIGNATURES: 'true'
+      KODPAUZA_RATE_LIMIT_REGISTER: '${KODPAUZA_RATE_LIMIT_REGISTER:-5}'
+      KODPAUZA_RATE_LIMIT_PAYMENTS: '${KODPAUZA_RATE_LIMIT_PAYMENTS:-10}'
+      KODPAUZA_CAPTCHA_SECRET_KEY: '${KODPAUZA_CAPTCHA_SECRET_KEY:-}'
+      KODPAUZA_CAPTCHA_VERIFY_URL: '${KODPAUZA_CAPTCHA_VERIFY_URL:-https://challenges.cloudflare.com/turnstile/v0/siteverify}'
+      KODPAUZA_CAPTCHA_DEV_TOKEN: '${KODPAUZA_CAPTCHA_DEV_TOKEN:-kodpauza-local-captcha-pass}'
+      KODPAUZA_DISPOSABLE_EMAIL_DOMAINS: '${KODPAUZA_DISPOSABLE_EMAIL_DOMAINS:-}'
+      KODPAUZA_EMAIL_VERIFICATION_CODE_TTL_MS: '${KODPAUZA_EMAIL_VERIFICATION_CODE_TTL_MS:-900000}'
+      KODPAUZA_EMAIL_VERIFICATION_RESEND_COOLDOWN_MS: '${KODPAUZA_EMAIL_VERIFICATION_RESEND_COOLDOWN_MS:-60000}'
+      KODPAUZA_EMAIL_VERIFICATION_MAX_ATTEMPTS: '${KODPAUZA_EMAIL_VERIFICATION_MAX_ATTEMPTS:-5}'
+      KODPAUZA_EMAIL_TRANSPORT: '${KODPAUZA_EMAIL_TRANSPORT:-smtp}'
+      KODPAUZA_SMTP_HOST: '${KODPAUZA_SMTP_HOST:-}'
+      KODPAUZA_SMTP_PORT: '${KODPAUZA_SMTP_PORT:-587}'
+      KODPAUZA_SMTP_SECURE: '${KODPAUZA_SMTP_SECURE:-false}'
+      KODPAUZA_SMTP_REQUIRE_TLS: '${KODPAUZA_SMTP_REQUIRE_TLS:-true}'
+      KODPAUZA_SMTP_USER: '${KODPAUZA_SMTP_USER:-}'
+      KODPAUZA_SMTP_PASSWORD: '${KODPAUZA_SMTP_PASSWORD:-}'
+      KODPAUZA_SMTP_FROM: '${KODPAUZA_SMTP_FROM:-Kodpauza <noreply@localhost>}'
+      KODPAUZA_DEVELOPER_PAYOUT_MIN_KOPECKS: '${KODPAUZA_DEVELOPER_PAYOUT_MIN_KOPECKS:-100000}'
+      KODPAUZA_DEVELOPER_PAYOUT_MAX_KOPECKS: '${KODPAUZA_DEVELOPER_PAYOUT_MAX_KOPECKS:-100000000}'
+      YOOKASSA_SHOP_ID: '${YOOKASSA_SHOP_ID:-}'
+      YOOKASSA_SECRET_KEY: '${YOOKASSA_SECRET_KEY:-}'
+      YOOKASSA_API_BASE_URL: '${YOOKASSA_API_BASE_URL:-https://api.yookassa.ru/v3}'
+      YOOKASSA_TIMEOUT_MS: '${YOOKASSA_TIMEOUT_MS:-12000}'
+      YOOKASSA_RECEIPT_VAT_CODE: '${YOOKASSA_RECEIPT_VAT_CODE:-}'
+    ports:
+      - '${API_HOST_PORT:-4000}:4000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+    init: true
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: 'postgresql://${POSTGRES_USER:-kodpauza}:${POSTGRES_PASSWORD:-kodpauza}@postgres:5432/${POSTGRES_DB:-kodpauza}?schema=${POSTGRES_SCHEMA:-kodpauza_local}'
+      NODE_ENV: 'production'
+    command: ['./node_modules/.bin/prisma', 'migrate', 'deploy', '--schema', 'prisma/schema.prisma']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    init: true
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: '${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}'
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: '${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}'
+        NEXT_PUBLIC_CAPTCHA_DEV_TOKEN: '${NEXT_PUBLIC_CAPTCHA_DEV_TOKEN:-kodpauza-local-captcha-pass}'
+        NEXT_PUBLIC_LOCAL_DEVELOPMENT: '${NEXT_PUBLIC_LOCAL_DEVELOPMENT:-false}'
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: '${NEXT_PUBLIC_API_BASE_URL:-http://localhost:4000}'
+      WEB_PORT: '3000'
+    ports:
+      - '${WEB_HOST_PORT:-3000}:3000'
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    init: true
+
+volumes:
+  postgres_data:

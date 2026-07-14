@@ -1,0 +1,98 @@
+name: kodpauza
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: '${POSTGRES_USER:?POSTGRES_USER is required}'
+      POSTGRES_PASSWORD: '${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}'
+      POSTGRES_DB: '${POSTGRES_DB:?POSTGRES_DB is required}'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    networks: [backend]
+
+  migrate:
+    image: '${KODPAUZA_API_IMAGE:?KODPAUZA_API_IMAGE is required}'
+    pull_policy: always
+    env_file: ['${KODPAUZA_ENV_FILE:-.env.production}']
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: '${DATABASE_URL:?DATABASE_URL is required}'
+    command: ['./node_modules/.bin/prisma', 'migrate', 'deploy', '--schema', 'prisma/schema.prisma']
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+    init: true
+    networks: [backend]
+
+  api:
+    image: '${KODPAUZA_API_IMAGE:?KODPAUZA_API_IMAGE is required}'
+    pull_policy: always
+    env_file: ['${KODPAUZA_ENV_FILE:-.env.production}']
+    environment:
+      NODE_ENV: production
+      API_PORT: '4000'
+      DATABASE_URL: '${DATABASE_URL:?DATABASE_URL is required}'
+    ports:
+      - '${API_BIND_ADDRESS:-127.0.0.1}:${API_HOST_PORT:-4000}:4000'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 12
+    restart: unless-stopped
+    stop_grace_period: 20s
+    init: true
+    networks: [backend]
+
+  web:
+    image: '${KODPAUZA_WEB_IMAGE:?KODPAUZA_WEB_IMAGE is required}'
+    pull_policy: always
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+      HOSTNAME: '0.0.0.0'
+    ports:
+      - '${WEB_BIND_ADDRESS:-127.0.0.1}:${WEB_HOST_PORT:-3000}:3000'
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 12
+    restart: unless-stopped
+    stop_grace_period: 20s
+    init: true
+    networks: [backend]
+
+volumes:
+  postgres_data:
+
+networks:
+  backend:

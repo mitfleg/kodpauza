@@ -1,0 +1,150 @@
+{
+  "name": "kodpauza-vscode",
+  "displayName": "Kodpauza",
+  "description": "Зарабатывайте во время работы Codex и Claude Code: Kodpauza показывает короткую рекламу, пока AI выполняет запрос.",
+  "version": "0.7.2",
+  "publisher": "kodpauza",
+  "icon": "resources/icon.png",
+  "homepage": "https://kodpauza.ru",
+  "license": "UNLICENSED",
+  "extensionKind": [
+    "ui"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onCommand:kodpauza.login",
+    "onCommand:kodpauza.logout",
+    "onCommand:kodpauza.enableAds",
+    "onCommand:kodpauza.disableAds",
+    "onCommand:kodpauza.codex.installIntegration",
+    "onCommand:kodpauza.codex.removeIntegration",
+    "onCommand:kodpauza.codex.openHooks",
+    "onCommand:kodpauza.installPatch",
+    "onCommand:kodpauza.removePatch",
+    "onCommand:kodpauza.restoreBackup",
+    "onCommand:kodpauza.runDiagnostics",
+    "onCommand:kodpauza.showBalance",
+    "onCommand:kodpauza.openDashboard",
+    "onCommand:kodpauza.openAd"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "dev": "tsc -watch -p .",
+    "build": "node scripts/clean-dist.cjs && tsc -p . && node scripts/copy-runtime-deps.cjs",
+    "compile": "node scripts/clean-dist.cjs && tsc -p . && node scripts/copy-runtime-deps.cjs",
+    "typecheck": "tsc -p . --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "pnpm build && node --test test/*.test.cjs",
+    "package:vsix": "pnpm build && pnpm dlx @vscode/vsce@3.6.2 package --no-dependencies --allow-missing-repository --out dist/kodpauza.vsix",
+    "vscode:prepublish": "tsc -p . && node scripts/copy-runtime-deps.cjs"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "kodpauza.login",
+        "title": "Kodpauza: Войти"
+      },
+      {
+        "command": "kodpauza.logout",
+        "title": "Kodpauza: Выйти"
+      },
+      {
+        "command": "kodpauza.enableAds",
+        "title": "Kodpauza: Включить рекламу"
+      },
+      {
+        "command": "kodpauza.disableAds",
+        "title": "Kodpauza: Выключить рекламу"
+      },
+      {
+        "command": "kodpauza.codex.installIntegration",
+        "title": "Kodpauza: Подключить интеграции"
+      },
+      {
+        "command": "kodpauza.codex.removeIntegration",
+        "title": "Kodpauza: Отключить интеграции"
+      },
+      {
+        "command": "kodpauza.codex.openHooks",
+        "title": "Kodpauza: Проверить hooks в Codex CLI"
+      },
+      {
+        "command": "kodpauza.restoreBackup",
+        "title": "Kodpauza: Восстановить настройки"
+      },
+      {
+        "command": "kodpauza.runDiagnostics",
+        "title": "Kodpauza: Запустить диагностику"
+      },
+      {
+        "command": "kodpauza.showBalance",
+        "title": "Kodpauza: Показать баланс"
+      },
+      {
+        "command": "kodpauza.openDashboard",
+        "title": "Kodpauza: Открыть кабинет"
+      },
+      {
+        "command": "kodpauza.openAd",
+        "title": "Kodpauza: Открыть текущее объявление"
+      }
+    ],
+    "configuration": {
+      "title": "Kodpauza",
+      "properties": {
+        "kodpauza.apiBaseUrl": {
+          "type": "string",
+          "default": "https://api.kodpauza.ru",
+          "scope": "application",
+          "description": "Адрес API Kodpauza."
+        },
+        "kodpauza.dashboardUrl": {
+          "type": "string",
+          "default": "https://kodpauza.ru",
+          "scope": "application",
+          "description": "Адрес кабинета Kodpauza."
+        },
+        "kodpauza.adsEnabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "Показывать рекламу Kodpauza во время работы Codex и Claude Code."
+        },
+        "kodpauza.integrationsEnabled": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "Автоматически подключать поддерживаемые интеграции Codex, Claude Code и будущие адаптеры."
+        },
+        "kodpauza.debugMode": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "Подробная диагностика расширения."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "acorn": "8.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.7.2"
+  }
+}
