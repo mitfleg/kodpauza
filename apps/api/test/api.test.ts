@@ -488,6 +488,26 @@ describe('kodpauza api', () => {
     }
   });
 
+  it('не доверяет подложному IP в цепочке reverse proxy', async () => {
+    const originalLimit = config.rateLimitRegister;
+    config.rateLimitRegister = 2;
+    try {
+      const request = (forwardedFor: string) => ({
+        method: 'POST' as const,
+        url: '/v1/auth/register',
+        headers: { 'x-forwarded-for': forwardedFor },
+        payload: {},
+      });
+
+      expect((await app.inject(request('198.51.100.10, 203.0.113.220'))).statusCode).toBe(400);
+      expect((await app.inject(request('198.51.100.11, 203.0.113.220'))).statusCode).toBe(400);
+      expect((await app.inject(request('198.51.100.12, 203.0.113.220'))).statusCode).toBe(429);
+      expect((await app.inject(request('198.51.100.12, 203.0.113.221'))).statusCode).toBe(400);
+    } finally {
+      config.rateLimitRegister = originalLimit;
+    }
+  });
+
   it('не отражает запрещенный Origin в CORS', async () => {
     const response = await app.inject({
       method: 'OPTIONS',

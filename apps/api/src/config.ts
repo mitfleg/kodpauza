@@ -43,7 +43,7 @@ export const config = {
     process.env.KODPAUZA_EMAIL_VERIFICATION_SECRET ?? localEmailVerificationSecret,
   dashboardUrl: process.env.KODPAUZA_PUBLIC_DASHBOARD_URL ?? 'http://localhost:3000',
   allowedOrigins: csvFromEnv(process.env.KODPAUZA_ALLOWED_ORIGINS),
-  trustProxy: process.env.KODPAUZA_TRUST_PROXY === 'true',
+  trustProxy: process.env.KODPAUZA_TRUST_PROXY === 'true' ? 1 : false,
   localDevelopment: process.env.KODPAUZA_LOCAL_DEVELOPMENT === 'true',
   allowInsecureLocalhost: process.env.KODPAUZA_ALLOW_INSECURE_LOCALHOST === 'true',
   allowPublicAdminRegistration: process.env.KODPAUZA_ALLOW_PUBLIC_ADMIN_REGISTRATION === 'true',
