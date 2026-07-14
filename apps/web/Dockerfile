@@ -10,7 +10,14 @@ COPY packages/vscode-extension/package.json packages/vscode-extension/package.js
 RUN pnpm install --frozen-lockfile
 
 COPY tsconfig.base.json ./
+COPY packages/vscode-extension packages/vscode-extension
+RUN pnpm --filter kodpauza-vscode package:vsix
+
 COPY apps/web apps/web
+RUN mkdir -p apps/web/public/downloads \
+  && cp packages/vscode-extension/dist/kodpauza.vsix apps/web/public/downloads/kodpauza.vsix \
+  && test -s apps/web/public/downloads/kodpauza.vsix
+
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ARG NEXT_PUBLIC_CAPTCHA_DEV_TOKEN=kodpauza-local-captcha-pass
