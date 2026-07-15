@@ -29,6 +29,9 @@ export function createEmailVerificationMailer(): EmailVerificationMailer {
     port: config.smtpPort,
     secure: config.smtpSecure,
     requireTLS: config.smtpRequireTls,
+    connectionTimeout: config.smtpConnectionTimeoutMs,
+    greetingTimeout: config.smtpGreetingTimeoutMs,
+    socketTimeout: config.smtpSocketTimeoutMs,
     auth:
       config.smtpUser && config.smtpPassword
         ? { user: config.smtpUser, pass: config.smtpPassword }

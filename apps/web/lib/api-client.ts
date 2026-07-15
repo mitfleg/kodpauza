@@ -1,6 +1,7 @@
 export type ApiClientOptions = {
   token?: string;
   headers?: HeadersInit;
+  timeoutMs?: number;
 };
 
 export type ApiErrorPayload = {
@@ -91,7 +92,7 @@ export async function apiRequest<T>(
   }
 
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 12_000);
+  const timeout = window.setTimeout(() => controller.abort(), options.timeoutMs ?? 12_000);
   let response: Response;
   try {
     response = await fetch(buildUrl(path), {

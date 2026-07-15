@@ -207,7 +207,11 @@ export function AuthForm({ mode }: AuthFormProps) {
                 : {}),
             };
 
-      const result = await apiClient.post<AuthResponse, typeof body>(endpoint, body);
+      const result = await apiClient.post<AuthResponse, typeof body>(
+        endpoint,
+        body,
+        mode === 'register' ? { timeoutMs: 25_000 } : undefined,
+      );
 
       if (result.verificationRequired || !result.token) {
         openVerification(
