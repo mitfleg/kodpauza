@@ -199,22 +199,6 @@ export default function DocsPage() {
             </div>
           </div>
         </section>
-
-        <details className="rounded-md border border-line bg-white px-5 py-4 text-sm text-slate-600">
-          <summary className="cursor-pointer font-semibold text-ink">
-            Технические параметры локального запуска
-          </summary>
-          <div className="mt-4 grid gap-3 sm:grid-cols-[180px_minmax(0,1fr)]">
-            <span>Адрес кабинета</span>
-            <code className="break-all rounded-md bg-slate-100 px-3 py-2 text-ink">
-              http://localhost:3000
-            </code>
-            <span>Адрес API</span>
-            <code className="break-all rounded-md bg-slate-100 px-3 py-2 text-ink">
-              {apiConfig.baseUrl}
-            </code>
-          </div>
-        </details>
       </div>
     </PageShell>
   );
