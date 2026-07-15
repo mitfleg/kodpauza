@@ -47,7 +47,7 @@ export default function DocsPage() {
       description="Выберите свой сценарий: подключение VS Code, запуск рекламной кампании или контроль платформы."
     >
       <div className="grid gap-8">
-        <section className="grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-2">
           <article className="rounded-md border border-line bg-white p-5 shadow-sm">
             <span className="grid h-10 w-10 place-items-center rounded-md bg-emerald-50 text-mint">
               <Code2 aria-hidden className="h-5 w-5" />
@@ -76,21 +76,6 @@ export default function DocsPage() {
               className="focus-ring mt-4 inline-flex items-center gap-2 rounded-md text-sm font-semibold text-signal hover:underline"
             >
               Перейти к кампаниям <ArrowRight aria-hidden className="h-4 w-4" />
-            </Link>
-          </article>
-          <article className="rounded-md border border-line bg-white p-5 shadow-sm">
-            <span className="grid h-10 w-10 place-items-center rounded-md bg-amber-50 text-amber-700">
-              <ShieldCheck aria-hidden className="h-5 w-5" />
-            </span>
-            <h2 className="mt-5 text-lg font-semibold text-ink">Администратору</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Проверяйте кампании, следите за событиями и обрабатывайте сигналы антифрода.
-            </p>
-            <Link
-              href="/admin"
-              className="focus-ring mt-4 inline-flex items-center gap-2 rounded-md text-sm font-semibold text-signal hover:underline"
-            >
-              Открыть управление <ArrowRight aria-hidden className="h-4 w-4" />
             </Link>
           </article>
         </section>
