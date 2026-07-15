@@ -14,6 +14,9 @@ concurrency:
   group: ci-cd-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  DOCKER_BUILD_RECORD_UPLOAD: false
+
 jobs:
   quality:
     name: Quality and tests
