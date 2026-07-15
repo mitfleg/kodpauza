@@ -14,24 +14,22 @@ COPY prisma prisma
 COPY apps/api apps/api
 COPY packages/shared packages/shared
 RUN pnpm db:generate && pnpm --filter @kodpauza/shared build && pnpm --filter @kodpauza/api build
+RUN pnpm --filter @kodpauza/api deploy --prod /prod/api \
+  && cp -R prisma /prod/api/prisma \
+  && cd /prod/api \
+  && ./node_modules/.bin/prisma generate --schema prisma/schema.prisma
 
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY --from=build /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml /app/.npmrc ./
-COPY --from=build /app/node_modules node_modules
-COPY --from=build /app/prisma prisma
-COPY --from=build /app/prisma.config.ts prisma.config.ts
-COPY --from=build /app/apps/api/package.json apps/api/package.json
-COPY --from=build /app/apps/api/node_modules apps/api/node_modules
-COPY --from=build /app/apps/api/dist apps/api/dist
-COPY --from=build /app/apps/api/data apps/api/data
-COPY --from=build /app/packages/shared/package.json packages/shared/package.json
-COPY --from=build /app/packages/shared/node_modules packages/shared/node_modules
-COPY --from=build /app/packages/shared/dist packages/shared/dist
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+  && rm -f /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
+COPY --from=build --chown=node:node /prod/api ./
 
 USER node
 
 EXPOSE 4000
-CMD ["node", "apps/api/dist/index.js"]
+CMD ["node", "dist/index.js"]
