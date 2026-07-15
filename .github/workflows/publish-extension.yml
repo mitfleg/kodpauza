@@ -75,6 +75,7 @@ jobs:
 
   publish-vscode-marketplace:
     name: Publish to VS Code Marketplace
+    if: ${{ vars.ENABLE_VSCODE_MARKETPLACE_PUBLISH == 'true' }}
     needs: package
     runs-on: ubuntu-latest
     timeout-minutes: 10
