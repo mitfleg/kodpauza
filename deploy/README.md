@@ -9,6 +9,9 @@ Create these repository variables in `Settings → Secrets and variables → Act
 
 - `NEXT_PUBLIC_API_BASE_URL` — public API URL, for example `https://api.kodpauza.ru`;
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — public production Turnstile site key;
+- `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` — optional Google Search Console HTML tag value;
+- `NEXT_PUBLIC_YANDEX_SITE_VERIFICATION` — optional Yandex Webmaster HTML tag value;
+- `NEXT_PUBLIC_BING_SITE_VERIFICATION` — optional Bing Webmaster Tools HTML tag value;
 - `PROD_SSH_PORT` — SSH port, usually `22`;
 - `ENABLE_PRODUCTION_DEPLOY` — keep `false` until the server is ready, then set `true`.
 
@@ -113,3 +116,22 @@ docker compose --env-file .env.production --env-file release.env \
 ```
 
 The PostgreSQL volume is not removed during deployments or rollback.
+
+## Search engine indexing
+
+The web image exposes canonical metadata, `robots.txt`, `sitemap.xml`, structured data and a web
+manifest. After every successful production deployment the workflow also submits all public URLs to
+IndexNow. The IndexNow key is public by design and is verified through the matching file in the web
+root.
+
+After the first SEO-enabled deployment:
+
+1. Add the URL-prefix property `https://kodpauza.ru` to Google Search Console and add the same site
+   to Yandex Webmaster.
+2. Copy each service's HTML tag verification value into the corresponding GitHub repository
+   variable above, rebuild the web image, then complete verification.
+3. Submit `https://kodpauza.ru/sitemap.xml` in both webmaster panels.
+4. Request indexing for `/`, `/for-developers`, `/for-advertisers` and `/install` once. IndexNow will
+   handle subsequent deployment notifications for participating search engines.
+
+Verification values are baked into the web image. Changing them requires a new workflow build.

@@ -11,8 +11,9 @@ export default function DeveloperPayoutsPage() {
   return (
     <PageShell
       eyebrow="Кабинет разработчика"
-      title="Вывод заработанных средств"
-      description="Создавайте заявки, отслеживайте резерв и проверяйте завершенные выплаты."
+      title="Выплаты"
+      description="Заявки на вывод, резерв и история переводов."
+      compact
     >
       <AuthGate roles={['developer']}>
         <DeveloperPayoutPanel />

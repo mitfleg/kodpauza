@@ -3,6 +3,11 @@ import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const turnstileOrigin = 'https://challenges.cloudflare.com';
+const metrikaScriptOrigins = 'https://mc.yandex.ru https://yastatic.net';
+const metrikaDataOrigins =
+  'https://mc.yandex.ru https://mc.yandex.com https://mc.webvisor.org https://mc.webvisor.com wss://mc.yandex.ru wss://mc.yandex.com wss://mc.webvisor.org wss://mc.webvisor.com';
+const metrikaFrameAncestors =
+  'https://metrika.yandex.ru https://analytics.yandex.ru https://metr.yandex.ru https://metrica.yandex.ru';
 
 const apiOrigin = (() => {
   try {
@@ -15,15 +20,16 @@ const apiOrigin = (() => {
 const contentSecurityPolicy = [
   "default-src 'self'",
   "base-uri 'self'",
-  "frame-ancestors 'none'",
+  `frame-ancestors 'self' ${metrikaFrameAncestors}`,
   "form-action 'self'",
   "object-src 'none'",
-  "img-src 'self' data:",
+  "img-src 'self' data: https://mc.yandex.ru https://mc.yandex.com",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} ${turnstileOrigin}`,
-  `connect-src 'self' ${apiOrigin} ${turnstileOrigin}`,
-  `frame-src ${turnstileOrigin}`,
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} ${turnstileOrigin} ${metrikaScriptOrigins}`,
+  `connect-src 'self' ${apiOrigin} ${turnstileOrigin} ${metrikaDataOrigins}`,
+  `child-src blob: https://mc.yandex.ru`,
+  `frame-src blob: ${turnstileOrigin} https://mc.yandex.ru`,
 ].join('; ');
 
 const securityHeaders = [
@@ -34,6 +40,8 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
 ];
 
+const noIndexHeaders = [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }];
+
 const nextConfig = {
   output: 'standalone',
   outputFileTracingRoot: repositoryRoot,
@@ -42,7 +50,14 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   async headers() {
-    return [{ source: '/(.*)', headers: securityHeaders }];
+    return [
+      { source: '/(.*)', headers: securityHeaders },
+      { source: '/admin/:path*', headers: noIndexHeaders },
+      { source: '/advertiser/:path*', headers: noIndexHeaders },
+      { source: '/developer/:path*', headers: noIndexHeaders },
+      { source: '/login', headers: noIndexHeaders },
+      { source: '/register', headers: noIndexHeaders },
+    ];
   },
 };
 

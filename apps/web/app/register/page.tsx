@@ -3,9 +3,12 @@ import { AuthForm } from '@/components/auth-form';
 import { GuestOnly } from '@/components/guest-only';
 import { PageShell } from '@/components/page-shell';
 import { StatusList } from '@/components/status-list';
+import { privateRobots } from '@/lib/seo';
 
 export const metadata: Metadata = {
   title: 'Регистрация',
+  description: 'Регистрация аккаунта разработчика или рекламодателя в Kodpauza.',
+  robots: privateRobots,
 };
 
 export default function RegisterPage() {

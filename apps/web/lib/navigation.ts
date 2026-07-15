@@ -1,26 +1,51 @@
-import { BookOpen, Code2, Gauge, HandCoins, Megaphone, ShieldCheck, Sparkles } from 'lucide-react';
+import {
+  Activity,
+  BookOpen,
+  Code2,
+  FilePlus2,
+  Gauge,
+  HandCoins,
+  Megaphone,
+  PlugZap,
+  ShieldAlert,
+  Sparkles,
+  UsersRound,
+  WalletCards,
+} from 'lucide-react';
 
 export type NavigationRole = 'developer' | 'advertiser' | 'admin';
 
 export const publicNav = [
   { href: '/', label: 'О платформе', icon: Sparkles },
-  { href: '/install', label: 'Расширение', icon: Code2 },
+  { href: '/for-developers', label: 'Разработчикам', icon: Code2 },
+  { href: '/for-advertisers', label: 'Рекламодателям', icon: Megaphone },
+  { href: '/install', label: 'Расширение', icon: PlugZap },
   { href: '/docs', label: 'Помощь', icon: BookOpen },
 ];
+
+export const publicFooterNav = publicNav.map(({ href, label }) => ({ href, label }));
 
 export const roleNavigation = {
   developer: [
     { href: '/developer', label: 'Обзор', icon: Gauge },
+    { href: '/developer/events', label: 'События', icon: Activity },
     { href: '/developer/payouts', label: 'Выплаты', icon: HandCoins },
-    { href: '/install', label: 'Расширение', icon: Code2 },
+    { href: '/developer/integration', label: 'Подключение', icon: PlugZap },
     { href: '/docs', label: 'Помощь', icon: BookOpen },
   ],
   advertiser: [
-    { href: '/advertiser', label: 'Кампании', icon: Megaphone },
+    { href: '/advertiser', label: 'Обзор', icon: Gauge },
+    { href: '/advertiser/campaigns', label: 'Кампании', icon: Megaphone },
+    { href: '/advertiser/new', label: 'Создать', icon: FilePlus2 },
+    { href: '/advertiser/billing', label: 'Баланс', icon: WalletCards },
     { href: '/docs', label: 'Помощь', icon: BookOpen },
   ],
   admin: [
-    { href: '/admin', label: 'Управление', icon: ShieldCheck },
+    { href: '/admin', label: 'Обзор', icon: Gauge },
+    { href: '/admin/campaigns', label: 'Модерация', icon: Megaphone },
+    { href: '/admin/users', label: 'Пользователи', icon: UsersRound },
+    { href: '/admin/finance', label: 'Финансы', icon: WalletCards },
+    { href: '/admin/security', label: 'Безопасность', icon: ShieldAlert },
     { href: '/docs', label: 'Помощь', icon: BookOpen },
   ],
 } satisfies Record<NavigationRole, typeof publicNav>;

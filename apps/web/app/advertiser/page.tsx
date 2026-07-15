@@ -11,8 +11,9 @@ export default function AdvertiserPage() {
   return (
     <PageShell
       eyebrow="Кабинет рекламодателя"
-      title="Рекламные кампании и результаты"
-      description="Создавайте объявления для аудитории разработчиков, управляйте расходами и отслеживайте каждый засчитанный показ."
+      title="Обзор рекламы"
+      description="Баланс и основные результаты без лишних деталей."
+      compact
     >
       <AuthGate roles={['advertiser']}>
         <AdvertiserPanel />

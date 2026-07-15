@@ -11,8 +11,9 @@ export default function AdminPage() {
   return (
     <PageShell
       eyebrow="Администрирование"
-      title="Управление платформой"
-      description="Проверяйте кампании, контролируйте пользователей, события и сигналы антифрода в одном рабочем разделе."
+      title="Обзор платформы"
+      description="Главные показатели и задачи, которые требуют решения."
+      compact
     >
       <AuthGate roles={['admin']}>
         <AdminPanel />

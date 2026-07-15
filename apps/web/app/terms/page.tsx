@@ -1,9 +1,15 @@
 import type { Metadata } from 'next';
 import { PageShell } from '@/components/page-shell';
+import { JsonLd } from '@/components/json-ld';
+import { buildPublicMetadata } from '@/lib/seo';
+import { breadcrumbJsonLd } from '@/lib/structured-data';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPublicMetadata({
   title: 'Условия использования',
-};
+  description:
+    'Условия работы Kodpauza для разработчиков и рекламодателей: модерация, подтвержденные показы, пополнение баланса и заявки на выплату.',
+  path: '/terms',
+});
 
 const sections = [
   {
@@ -22,22 +28,30 @@ const sections = [
 
 export default function TermsPage() {
   return (
-    <PageShell
-      eyebrow="Правовая информация"
-      title="Условия использования"
-      description="Рабочий проект условий Kodpauza. До приема реальных платежей и выплат документ должен быть утвержден юристом."
-    >
-      <div className="grid gap-4">
-        {sections.map((section) => (
-          <section
-            key={section.title}
-            className="rounded-md border border-line bg-white p-5 shadow-panel"
-          >
-            <h2 className="text-lg font-semibold text-ink">{section.title}</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">{section.text}</p>
-          </section>
-        ))}
-      </div>
-    </PageShell>
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: 'Главная', path: '/' },
+          { name: 'Условия использования', path: '/terms' },
+        ])}
+      />
+      <PageShell
+        eyebrow="Правовая информация"
+        title="Условия использования"
+        description="Рабочий проект условий Kodpauza. До приема реальных платежей и выплат документ должен быть утвержден юристом."
+      >
+        <div className="grid gap-4">
+          {sections.map((section) => (
+            <section
+              key={section.title}
+              className="rounded-md border border-line bg-white p-5 shadow-panel"
+            >
+              <h2 className="text-lg font-semibold text-ink">{section.title}</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{section.text}</p>
+            </section>
+          ))}
+        </div>
+      </PageShell>
+    </>
   );
 }

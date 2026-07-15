@@ -13,6 +13,7 @@
     "lint": "pnpm -r lint",
     "format": "prettier --write .",
     "smoke:api": "tsx scripts/smoke-api.ts",
+    "seo:indexnow": "node scripts/submit-indexnow.mjs",
     "email-domains:update": "tsx scripts/update-disposable-email-domains.ts",
     "extension:local": "pnpm --filter kodpauza-vscode package:vsix && node scripts/install-local-extension.cjs",
     "db:generate": "prisma generate --schema prisma/schema.prisma",

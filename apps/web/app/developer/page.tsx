@@ -11,8 +11,9 @@ export default function DeveloperPage() {
   return (
     <PageShell
       eyebrow="Кабинет разработчика"
-      title="Показы, события и доход расширения"
-      description="Следите за рекламными событиями, проверяйте начисления и подключайте расширение VS Code из одного кабинета."
+      title="Обзор дохода"
+      description="Баланс и основные результаты за последние 14 дней."
+      compact
     >
       <AuthGate roles={['developer']}>
         <DeveloperPanel />

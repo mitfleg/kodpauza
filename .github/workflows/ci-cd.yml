@@ -220,6 +220,9 @@ jobs:
             NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
             NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
             NEXT_PUBLIC_LOCAL_DEVELOPMENT=false
+            NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=${{ vars.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }}
+            NEXT_PUBLIC_YANDEX_SITE_VERIFICATION=${{ vars.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION }}
+            NEXT_PUBLIC_BING_SITE_VERIFICATION=${{ vars.NEXT_PUBLIC_BING_SITE_VERIFICATION }}
           cache-from: type=gha,scope=production-web
           provenance: false
           sbom: true
@@ -345,3 +348,7 @@ jobs:
             exit 1
           fi
           REMOTE
+
+      - name: Notify search engines through IndexNow
+        continue-on-error: true
+        run: node scripts/submit-indexnow.mjs

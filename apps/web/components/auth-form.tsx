@@ -7,6 +7,7 @@ import { Code2, Eye, EyeOff, Loader2, MailCheck, Megaphone, Send } from 'lucide-
 import { CaptchaWidget } from '@/components/captcha-widget';
 import { ApiClientError, type ApiErrorPayload, apiClient } from '@/lib/api-client';
 import { pendingVerificationEmailKey } from '@/lib/auth-state';
+import { reachMetrikaGoal } from '@/lib/metrika';
 
 type AuthFormProps = {
   mode: 'login' | 'register';
@@ -213,6 +214,13 @@ export function AuthForm({ mode }: AuthFormProps) {
         mode === 'register' ? { timeoutMs: 25_000 } : undefined,
       );
 
+      if (mode === 'register') {
+        reachMetrikaGoal('registration_started', { role });
+        if (result.token && result.user && isVerifiedUser(result.user)) {
+          reachMetrikaGoal('registration_completed', { role: result.user.role });
+        }
+      }
+
       if (result.verificationRequired || !result.token) {
         openVerification(
           result.email ?? normalizedEmail,
@@ -257,6 +265,13 @@ export function AuthForm({ mode }: AuthFormProps) {
         '/v1/auth/verify-email',
         { email, code: verificationCode },
       );
+
+      if (
+        result.verified ||
+        (result.token && result.user && isVerifiedUser(result.user))
+      ) {
+        reachMetrikaGoal('registration_completed', { role: result.user?.role ?? role });
+      }
 
       if (completeAuthentication(result, 'Почта подтверждена. Открываем кабинет.')) return;
       if (!result.verified) {

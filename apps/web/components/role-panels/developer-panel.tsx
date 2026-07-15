@@ -3,45 +3,24 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  ChevronLeft,
-  ChevronRight,
-  CheckCircle2,
-  Download,
   Eye,
   Gauge,
   MousePointerClick,
   RefreshCw,
+  TrendingUp,
+  type LucideIcon,
   WalletCards,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { counted, integer, money } from './format';
-import { DeveloperEventList } from './lists';
-import type {
-  ApiError,
-  DeveloperBalance,
-  DeveloperEvent,
-  DeveloperEventsResponse,
-  DeveloperStats,
-  Pagination,
-} from './types';
-import { EmptyState, LoadingBlock, Message, MetricCard, SecondaryButton, WorkSurface } from './ui';
-
-const EVENTS_PAGE_SIZE = 8;
+import type { ApiError, DeveloperBalance, DeveloperStats } from './types';
+import { EmptyState, LoadingBlock, Message, SecondaryButton, WorkSurface } from './ui';
 
 export function DeveloperPanel() {
   const [balance, setBalance] = useState<DeveloperBalance | null>(null);
   const [stats, setStats] = useState<DeveloperStats | null>(null);
-  const [events, setEvents] = useState<DeveloperEvent[]>([]);
-  const [eventsPage, setEventsPage] = useState(1);
-  const [eventsPagination, setEventsPagination] = useState<Pagination>({
-    page: 1,
-    pageSize: EVENTS_PAGE_SIZE,
-    total: 0,
-    totalPages: 1,
-  });
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [isEventsLoading, setIsEventsLoading] = useState(true);
 
   const loadSummary = useCallback(async () => {
     setIsLoading(true);
@@ -60,162 +39,156 @@ export function DeveloperPanel() {
     }
   }, []);
 
-  const loadEvents = useCallback(async (page: number) => {
-    setIsEventsLoading(true);
-    try {
-      const data = await api<DeveloperEventsResponse>(
-        `/v1/developer/events?page=${page}&pageSize=${EVENTS_PAGE_SIZE}`,
-      );
-      setEvents(data.events);
-      setEventsPagination(data.pagination);
-      if (page > data.pagination.totalPages) {
-        setEventsPage(data.pagination.totalPages);
-      }
-    } catch (error) {
-      setMessage((error as ApiError).message);
-    } finally {
-      setIsEventsLoading(false);
-    }
-  }, []);
-
-  const refresh = useCallback(async () => {
-    await Promise.all([loadSummary(), loadEvents(eventsPage)]);
-  }, [eventsPage, loadEvents, loadSummary]);
-
   useEffect(() => {
     void loadSummary();
   }, [loadSummary]);
 
-  useEffect(() => {
-    void loadEvents(eventsPage);
-  }, [eventsPage, loadEvents]);
-
   const days = stats?.days ?? [];
   const maxDailyImpressions = Math.max(1, ...days.map((day) => day.impressions));
+  const period = days.reduce(
+    (result, day) => ({
+      impressions: result.impressions + day.impressions,
+      clicks: result.clicks + day.clicks,
+      rewardKopecks: result.rewardKopecks + day.rewardKopecks,
+    }),
+    { impressions: 0, clicks: 0, rewardKopecks: 0 },
+  );
+  const totalCtr = balance?.totalImpressions
+    ? (balance.totalClicks / balance.totalImpressions) * 100
+    : 0;
 
   return (
-    <div className="grid gap-5">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          icon={WalletCards}
-          label="Баланс"
-          value={isLoading ? '...' : money(balance?.balanceKopecks)}
-          detail="Доступно к выводу"
-          tone="green"
+    <div className="grid gap-4">
+      <section className="relative isolate overflow-hidden rounded-xl bg-ink p-4 text-white shadow-[0_18px_55px_rgba(23,32,42,0.16)] sm:p-5">
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 opacity-40"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 82% 10%, rgba(37,99,235,.34), transparent 26%), radial-gradient(circle at 64% 95%, rgba(8,127,109,.3), transparent 30%), linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px)',
+            backgroundSize: 'auto, auto, 40px 40px, 40px 40px',
+          }}
+          aria-hidden
         />
-        <MetricCard
-          icon={Eye}
-          label="Показы"
-          value={isLoading ? '...' : integer(balance?.totalImpressions)}
-          detail="Засчитанные показы"
-          tone="blue"
-        />
-        <MetricCard
-          icon={MousePointerClick}
-          label="Клики"
-          value={isLoading ? '...' : integer(balance?.totalClicks)}
-          detail="Переходы по рекламе"
-          tone="amber"
-        />
-        <MetricCard
-          icon={Gauge}
-          label="Средний отклик"
-          value={
-            isLoading
-              ? '...'
-              : `${balance?.totalImpressions ? ((balance.totalClicks / balance.totalImpressions) * 100).toFixed(1) : '0.0'}%`
-          }
-          detail="Клики от показов"
-        />
-      </div>
+        <div className="grid gap-5 lg:grid-cols-[minmax(240px,0.7fr)_minmax(0,1.3fr)] lg:items-end">
+          <div>
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.1em] text-emerald-300">
+              <WalletCards aria-hidden className="h-4 w-4" /> Доступно к выводу
+            </div>
+            <div className="mt-3 text-3xl font-bold tracking-[-0.04em]">
+              {isLoading ? '—' : money(balance?.balanceKopecks)}
+            </div>
+            <p className="mt-2 max-w-sm text-sm leading-5 text-slate-300">
+              Баланс обновляется после каждого засчитанного показа.
+            </p>
+            <Link
+              href="/developer/payouts"
+              className="focus-ring mt-4 inline-flex h-9 items-center justify-center rounded-md bg-white px-4 text-sm font-semibold text-ink transition hover:bg-slate-100"
+            >
+              Перейти к выплатам
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <DashboardMetric
+              icon={Eye}
+              label="Всего показов"
+              value={isLoading ? '—' : integer(balance?.totalImpressions)}
+              detail="засчитано системой"
+            />
+            <DashboardMetric
+              icon={MousePointerClick}
+              label="Переходы"
+              value={isLoading ? '—' : integer(balance?.totalClicks)}
+              detail="кликов по объявлениям"
+            />
+            <DashboardMetric
+              icon={Gauge}
+              label="CTR"
+              value={isLoading ? '—' : `${totalCtr.toFixed(1)}%`}
+              detail="от всех показов"
+            />
+          </div>
+        </div>
+      </section>
+
+      <Message message={message} tone="error" />
 
       <WorkSurface
-        title="Как учитываются показы"
-        description="Прозрачные условия начисления для каждого рекламного показа."
+        title="Доход и показы за 14 дней"
+        description="Данные по реально засчитанным событиям. Наведите на столбец, чтобы увидеть сумму за день."
         action={
-          <SecondaryButton onClick={() => void refresh()} disabled={isLoading || isEventsLoading}>
+          <SecondaryButton onClick={() => void loadSummary()} disabled={isLoading}>
             <RefreshCw aria-hidden className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Обновить
           </SecondaryButton>
         }
       >
-        <div className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
-            <div className="flex items-center gap-2 font-semibold text-emerald-800">
-              <CheckCircle2 aria-hidden className="h-5 w-5" />5 секунд видимости
-            </div>
-            <p className="mt-2 text-sm leading-6 text-emerald-800">
-              Реклама должна быть видна непрерывно, занимать не менее 80% своей области и находиться
-              в окне редактора с фокусом. Из нескольких окон начисление идет только в активном.
-            </p>
-          </div>
-          <div className="rounded-md border border-line bg-slate-50 p-4">
-            <div className="font-semibold text-ink">Лимиты начислений</div>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Не более 60 оплачиваемых показов за час и 300 за скользящие 24 часа. Между показами
-              должно пройти не менее 10 секунд.
-            </p>
-          </div>
-          <div className="rounded-md border border-line bg-slate-50 p-4">
-            <div className="font-semibold text-ink">50% разработчику</div>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Начисляется половина фактической стоимости чистого показа с округлением вниз до
-              копейки. Премиальная реклама обычно дает большее начисление.
-            </p>
-          </div>
-        </div>
-        <div className="mt-4 flex flex-col gap-2 border-t border-line pt-4 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between">
-          <span>
-            {isEventsLoading
-              ? 'Обновляем журнал...'
-              : eventsPagination.total
-                ? `${counted(eventsPagination.total, 'событие', 'события', 'событий')} в журнале начислений`
-                : 'Оплаченные события появятся в журнале начислений.'}
-          </span>
-          <Link
-            href="/docs#delivery-rules"
-            className="focus-ring rounded font-semibold text-signal hover:underline"
-          >
-            Полные условия показа и оплаты
-          </Link>
-        </div>
-        <div className="mt-4">
-          <Message message={message} tone="error" />
-        </div>
-      </WorkSurface>
-
-      <WorkSurface
-        title="Динамика за 14 дней"
-        description="Короткая сводка по засчитанным событиям."
-      >
         {isLoading ? (
           <LoadingBlock label="Загружаем статистику" />
         ) : days.length ? (
-          <div className="space-y-3">
-            {days.map((day) => (
-              <div
-                key={day.date}
-                className="grid gap-2 sm:grid-cols-[110px_minmax(0,1fr)_160px] sm:items-center"
-              >
-                <div className="text-sm font-medium text-slate-600">
-                  {new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: 'short' }).format(
-                    new Date(`${day.date}T12:00:00`),
-                  )}
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_230px]">
+            <div className="min-w-0 overflow-x-auto pb-2">
+              <div className="relative border-b border-line px-2 pt-7 sm:min-w-[650px]">
+                <div
+                  className="pointer-events-none absolute inset-x-2 top-7 grid h-[145px] grid-rows-4"
+                  aria-hidden
+                >
+                  <span className="border-t border-dashed border-slate-200" />
+                  <span className="border-t border-dashed border-slate-200" />
+                  <span className="border-t border-dashed border-slate-200" />
+                  <span className="border-t border-dashed border-slate-200" />
                 </div>
-                <div className="h-2 rounded-full bg-slate-100">
-                  <div
-                    className="h-2 rounded-full bg-mint"
-                    style={{
-                      width: `${Math.max(6, (day.impressions / maxDailyImpressions) * 100)}%`,
-                    }}
-                  />
-                </div>
-                <div className="text-sm text-slate-600">
-                  {counted(day.impressions, 'показ', 'показа', 'показов')} ·{' '}
-                  {money(day.rewardKopecks)}
+                <div className="relative flex h-[175px] items-end gap-2 sm:gap-3">
+                  {days.map((day) => {
+                    const height = Math.max(8, (day.impressions / maxDailyImpressions) * 100);
+                    const label = new Intl.DateTimeFormat('ru-RU', {
+                      day: '2-digit',
+                      month: 'short',
+                    }).format(new Date(`${day.date}T12:00:00`));
+                    return (
+                      <div
+                        key={day.date}
+                        className="group flex min-w-0 flex-1 flex-col items-center justify-end gap-2"
+                      >
+                        <div className="relative flex h-[140px] w-full items-end justify-center">
+                          <div
+                            className="relative w-full max-w-8 rounded-t-md bg-gradient-to-t from-emerald-700 to-emerald-400 transition group-hover:from-signal group-hover:to-blue-400"
+                            style={{ height: `${height}%` }}
+                            title={`${counted(day.impressions, 'показ', 'показа', 'показов')} · ${money(day.rewardKopecks)}`}
+                          >
+                            <span className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-ink px-2 py-1 text-[10px] font-semibold text-white shadow-lg group-hover:block">
+                              {money(day.rewardKopecks)}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="whitespace-nowrap text-[10px] font-medium text-slate-500">
+                          {label}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
+            </div>
+            <aside className="grid content-start gap-3 sm:grid-cols-3 xl:grid-cols-1">
+              <PeriodMetric
+                icon={TrendingUp}
+                label="Доход за период"
+                value={money(period.rewardKopecks)}
+                tone="green"
+              />
+              <PeriodMetric
+                icon={Eye}
+                label="Показы за период"
+                value={integer(period.impressions)}
+                tone="blue"
+              />
+              <PeriodMetric
+                icon={MousePointerClick}
+                label="Клики за период"
+                value={integer(period.clicks)}
+                tone="amber"
+              />
+            </aside>
           </div>
         ) : (
           <EmptyState
@@ -224,133 +197,61 @@ export function DeveloperPanel() {
           />
         )}
       </WorkSurface>
-
-      <WorkSurface
-        title="Начисления и события"
-        description="Компактный журнал показов и кликов. На странице отображается не больше восьми записей."
-      >
-        {isEventsLoading ? (
-          <LoadingBlock label="Загружаем начисления" />
-        ) : (
-          <DeveloperEventList events={events} />
-        )}
-        {!isEventsLoading && eventsPagination.total > 0 ? (
-          <EventPagination pagination={eventsPagination} onPageChange={setEventsPage} />
-        ) : null}
-      </WorkSurface>
-
-      <WorkSurface
-        title="Подключение расширения"
-        description="Установите готовый пакет и проверьте первый показ в VS Code."
-        action={
-          <Link
-            href="/install"
-            className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white hover:bg-slate-800"
-          >
-            <Download aria-hidden className="h-4 w-4" />
-            Скачать и установить
-          </Link>
-        }
-      >
-        <div className="grid gap-3 md:grid-cols-4">
-          {[
-            ['1', 'Скачать расширение', 'Скачайте kodpauza.vsix на странице установки.'],
-            ['2', 'Войти в расширении', 'Ввести почту и пароль аккаунта разработчика.'],
-            ['3', 'Подключить интеграции', 'Выполните команду «Kodpauza: Подключить интеграции».'],
-            [
-              '4',
-              'Перезапустить окно',
-              'Перезапустите редактор и отправьте запрос в Codex или Claude Code.',
-            ],
-          ].map(([step, title, text]) => (
-            <div key={step} className="rounded-md border border-line bg-slate-50 p-4">
-              <div className="grid h-8 w-8 place-items-center rounded-md bg-ink text-sm font-semibold text-white">
-                {step}
-              </div>
-              <div className="mt-3 font-semibold text-ink">{title}</div>
-              <p className="mt-1 text-sm leading-6 text-slate-600">{text}</p>
-            </div>
-          ))}
-        </div>
-      </WorkSurface>
     </div>
   );
 }
 
-function EventPagination({
-  pagination,
-  onPageChange,
+function DashboardMetric({
+  icon: Icon,
+  label,
+  value,
+  detail,
 }: {
-  pagination: Pagination;
-  onPageChange: (page: number) => void;
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  detail: string;
 }) {
-  const pages = paginationPages(pagination.page, pagination.totalPages);
   return (
-    <nav
-      className="mt-4 flex flex-col gap-3 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between"
-      aria-label="Страницы журнала начислений"
-    >
-      <p className="text-sm text-slate-500">
-        Страница {pagination.page} из {pagination.totalPages} ·{' '}
-        {counted(pagination.total, 'запись', 'записи', 'записей')}
-      </p>
-      <div className="flex min-w-0 items-center gap-1 overflow-x-auto">
-        <button
-          type="button"
-          className="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-          aria-label="Предыдущая страница"
-          title="Предыдущая страница"
-          disabled={pagination.page <= 1}
-          onClick={() => onPageChange(pagination.page - 1)}
-        >
-          <ChevronLeft aria-hidden className="h-4 w-4" />
-        </button>
-        {pages.map((item, index) =>
-          item === 'gap' ? (
-            <span
-              key={`gap-${index}`}
-              className="grid h-9 w-7 shrink-0 place-items-center text-slate-400"
-            >
-              ...
-            </span>
-          ) : (
-            <button
-              key={item}
-              type="button"
-              className={`focus-ring h-9 min-w-9 shrink-0 rounded-md border px-2 text-sm font-semibold ${item === pagination.page ? 'border-ink bg-ink text-white' : 'border-line bg-white text-slate-600 hover:bg-slate-50'}`}
-              aria-current={item === pagination.page ? 'page' : undefined}
-              aria-label={`Страница ${item}`}
-              onClick={() => onPageChange(item)}
-            >
-              {item}
-            </button>
-          ),
-        )}
-        <button
-          type="button"
-          className="focus-ring grid h-9 w-9 shrink-0 place-items-center rounded-md border border-line bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-          aria-label="Следующая страница"
-          title="Следующая страница"
-          disabled={pagination.page >= pagination.totalPages}
-          onClick={() => onPageChange(pagination.page + 1)}
-        >
-          <ChevronRight aria-hidden className="h-4 w-4" />
-        </button>
+    <div className="min-w-0 rounded-lg border border-white/10 bg-white/[0.06] p-3.5 backdrop-blur-sm">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">
+          {label}
+        </p>
+        <Icon aria-hidden className="h-4 w-4 text-emerald-300" />
       </div>
-    </nav>
+      <p className="mt-3 truncate text-xl font-bold tracking-[-0.03em] text-white">{value}</p>
+      <p className="mt-1 text-xs text-slate-400">{detail}</p>
+    </div>
   );
 }
 
-function paginationPages(page: number, totalPages: number): Array<number | 'gap'> {
-  const visible = new Set(
-    [1, totalPages, page - 1, page, page + 1].filter((value) => value >= 1 && value <= totalPages),
+function PeriodMetric({
+  icon: Icon,
+  label,
+  value,
+  tone,
+}: {
+  icon: LucideIcon;
+  label: string;
+  value: string;
+  tone: 'green' | 'blue' | 'amber';
+}) {
+  const toneClass =
+    tone === 'green'
+      ? 'bg-emerald-50 text-emerald-700'
+      : tone === 'blue'
+        ? 'bg-blue-50 text-blue-700'
+        : 'bg-amber-50 text-amber-800';
+  return (
+    <div className="flex min-w-0 items-center gap-3 rounded-lg border border-line bg-slate-50 p-3.5">
+      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-md ${toneClass}`}>
+        <Icon aria-hidden className="h-4 w-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs text-slate-500">{label}</p>
+        <p className="mt-1 truncate text-base font-bold text-ink">{value}</p>
+      </div>
+    </div>
   );
-  const sorted = [...visible].sort((a, b) => a - b);
-  const result: Array<number | 'gap'> = [];
-  for (const value of sorted) {
-    const previous = result[result.length - 1];
-    if (typeof previous === 'number' && value - previous > 1) result.push('gap');
-    result.push(value);
-  }
-  return result;
 }

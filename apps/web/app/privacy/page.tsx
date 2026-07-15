@@ -1,9 +1,15 @@
 import type { Metadata } from 'next';
 import { PageShell } from '@/components/page-shell';
+import { JsonLd } from '@/components/json-ld';
+import { buildPublicMetadata } from '@/lib/seo';
+import { breadcrumbJsonLd } from '@/lib/structured-data';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPublicMetadata({
   title: 'Политика конфиденциальности',
-};
+  description:
+    'Какие данные обрабатывает Kodpauza, как защищаются аккаунты, рекламные события, платежи и выплаты и к каким данным расширение не получает доступа.',
+  path: '/privacy',
+});
 
 const sections = [
   {
@@ -27,6 +33,10 @@ const sections = [
     text: 'Данные используются для авторизации, модерации, показа рекламы, учета начислений, поддержки и защиты платформы от злоупотреблений.',
   },
   {
+    title: 'Веб-аналитика',
+    text: 'На публичном сайте используется Яндекс Метрика для оценки посещаемости, источников трафика и ключевых действий: начала и завершения регистрации, скачивания расширения и создания рекламной кампании. В настройках счетчика включено обезличивание IP-адресов, а запись содержимого полей форм отключена. В цели не передаются email, коды подтверждения, пароли и другие идентифицирующие данные.',
+  },
+  {
     title: 'Хранение и доступ',
     text: 'Доступ к данным ограничивается ролью пользователя и служебной необходимостью. Сроки хранения уточняются в договоре или правилах конкретного сервиса.',
   },
@@ -34,22 +44,30 @@ const sections = [
 
 export default function PrivacyPage() {
   return (
-    <PageShell
-      eyebrow="Правовая информация"
-      title="Политика конфиденциальности"
-      description="Фактический состав данных, который обрабатывает текущая версия Kodpauza. Перед коммерческим запуском документ должен быть утвержден юристом."
-    >
-      <div className="grid gap-4">
-        {sections.map((section) => (
-          <section
-            key={section.title}
-            className="rounded-md border border-line bg-white p-5 shadow-panel"
-          >
-            <h2 className="text-lg font-semibold text-ink">{section.title}</h2>
-            <p className="mt-3 text-sm leading-7 text-slate-600">{section.text}</p>
-          </section>
-        ))}
-      </div>
-    </PageShell>
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: 'Главная', path: '/' },
+          { name: 'Политика конфиденциальности', path: '/privacy' },
+        ])}
+      />
+      <PageShell
+        eyebrow="Правовая информация"
+        title="Политика конфиденциальности"
+        description="Фактический состав данных, который обрабатывает текущая версия Kodpauza. Перед коммерческим запуском документ должен быть утвержден юристом."
+      >
+        <div className="grid gap-4">
+          {sections.map((section) => (
+            <section
+              key={section.title}
+              className="rounded-md border border-line bg-white p-5 shadow-panel"
+            >
+              <h2 className="text-lg font-semibold text-ink">{section.title}</h2>
+              <p className="mt-3 text-sm leading-7 text-slate-600">{section.text}</p>
+            </section>
+          ))}
+        </div>
+      </PageShell>
+    </>
   );
 }
