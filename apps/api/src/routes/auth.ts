@@ -293,8 +293,9 @@ export function registerAuthRoutes(app: FastifyInstance, mailer: EmailVerificati
     if (!parsed.success) return reply.code(400).send({ error: 'Некорректная сессия расширения.' });
 
     const now = new Date();
+    const currentTokenHash = hashExtensionToken(parsed.data.refreshToken);
     const session = await prisma.extensionSession.findUnique({
-      where: { tokenHash: hashExtensionToken(parsed.data.refreshToken) },
+      where: { tokenHash: currentTokenHash },
       include: { user: true },
     });
     if (
@@ -312,15 +313,29 @@ export function registerAuthRoutes(app: FastifyInstance, mailer: EmailVerificati
     }
     if (!session.user.emailVerifiedAt) return verificationRequired(reply, session.user.email);
 
-    await prisma.extensionSession.update({
-      where: { id: session.id },
-      data: { lastUsedAt: now, expiresAt: extensionSessionExpiry(now) },
+    const nextRefreshToken = createExtensionToken();
+    const rotated = await prisma.extensionSession.updateMany({
+      where: {
+        id: session.id,
+        tokenHash: currentTokenHash,
+        revokedAt: null,
+        expiresAt: { gt: now },
+      },
+      data: {
+        tokenHash: hashExtensionToken(nextRefreshToken),
+        lastUsedAt: now,
+      },
     });
+    if (rotated.count !== 1) {
+      return reply
+        .code(401)
+        .send({ error: 'Сессия расширения завершена. Войдите в Kodpauza заново.' });
+    }
     const publicUser = publicAuthUser(session.user, true);
     return {
       user: publicUser,
       token: signToken(publicUser),
-      refreshToken: parsed.data.refreshToken,
+      refreshToken: nextRefreshToken,
       eventSecret: await eventSecretForUser(session.user.id, session.user.role),
     };
   });

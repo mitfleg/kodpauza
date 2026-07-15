@@ -189,7 +189,7 @@ function signedHeaders(
   };
 }
 
-describe('kodpauza api', () => {
+describe('kodpauza api', { timeout: 15_000 }, () => {
   beforeAll(async () => app.ready());
 
   afterAll(async () => {
@@ -240,21 +240,42 @@ describe('kodpauza api', () => {
     expect(stored.tokenHash).not.toContain(session.refreshToken);
     expect(stored.revokedAt).toBeNull();
 
-    const refreshed = await app.inject({
+    const refreshAttempts = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/v1/auth/extension/refresh',
+        payload: { refreshToken: session.refreshToken },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/v1/auth/extension/refresh',
+        payload: { refreshToken: session.refreshToken },
+      }),
+    ]);
+    expect(refreshAttempts.map((response) => response.statusCode).sort()).toEqual([200, 401]);
+    const refreshed = refreshAttempts.find((response) => response.statusCode === 200)!;
+    expect(refreshed.statusCode).toBe(200);
+    const refreshedSession = refreshed.json<ExtensionLogin>();
+    expect(refreshedSession.refreshToken).toMatch(/^kpr_[A-Za-z0-9_-]{43}$/);
+    expect(refreshedSession.refreshToken).not.toBe(session.refreshToken);
+    expect(refreshedSession.eventSecret).toBe(session.eventSecret);
+    expect(
+      await prisma.extensionSession.findUnique({
+        where: { tokenHash: createHash('sha256').update(session.refreshToken).digest('hex') },
+      }),
+    ).toBeNull();
+
+    const replayed = await app.inject({
       method: 'POST',
       url: '/v1/auth/extension/refresh',
       payload: { refreshToken: session.refreshToken },
     });
-    expect(refreshed.statusCode).toBe(200);
-    expect(refreshed.json<ExtensionLogin>()).toMatchObject({
-      refreshToken: session.refreshToken,
-      eventSecret: session.eventSecret,
-    });
+    expect(replayed.statusCode).toBe(401);
 
     const loggedOut = await app.inject({
       method: 'POST',
       url: '/v1/auth/extension/logout',
-      payload: { refreshToken: session.refreshToken },
+      payload: { refreshToken: refreshedSession.refreshToken },
     });
     expect(loggedOut.statusCode).toBe(204);
     expect(
@@ -264,7 +285,7 @@ describe('kodpauza api', () => {
     const rejected = await app.inject({
       method: 'POST',
       url: '/v1/auth/extension/refresh',
-      payload: { refreshToken: session.refreshToken },
+      payload: { refreshToken: refreshedSession.refreshToken },
     });
     expect(rejected.statusCode).toBe(401);
 

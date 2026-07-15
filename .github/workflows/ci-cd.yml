@@ -107,7 +107,7 @@ jobs:
           push: false
           build-args: ${{ matrix.build_args }}
           cache-from: type=gha,scope=${{ matrix.cache_scope }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.cache_scope }}
+          cache-to: type=gha,mode=min,scope=${{ matrix.cache_scope }},ignore-error=true
 
   publish:
     name: Publish production images
@@ -182,7 +182,7 @@ jobs:
           tags: ${{ steps.api_meta.outputs.tags }}
           labels: ${{ steps.api_meta.outputs.labels }}
           cache-from: type=gha,scope=production-api
-          cache-to: type=gha,mode=max,scope=production-api
+          cache-to: type=gha,mode=min,scope=production-api,ignore-error=true
           provenance: false
           sbom: true
 
@@ -220,7 +220,7 @@ jobs:
             NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
             NEXT_PUBLIC_LOCAL_DEVELOPMENT=false
           cache-from: type=gha,scope=production-web
-          cache-to: type=gha,mode=max,scope=production-web
+          cache-to: type=gha,mode=min,scope=production-web,ignore-error=true
           provenance: false
           sbom: true
 

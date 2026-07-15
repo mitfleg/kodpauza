@@ -4,7 +4,11 @@ import crypto from 'node:crypto';
 
 const prisma = new PrismaClient();
 
-async function upsertUser(email: string, password: string, role: 'developer' | 'advertiser' | 'admin') {
+async function upsertUser(
+  email: string,
+  password: string,
+  role: 'developer' | 'advertiser' | 'admin',
+) {
   const passwordHash = await bcrypt.hash(password, 10);
   const emailVerifiedAt = new Date();
   return prisma.user.upsert({
@@ -16,14 +20,18 @@ async function upsertUser(email: string, password: string, role: 'developer' | '
       role,
       emailVerifiedAt,
       displayName:
-        role === 'admin' ? 'Администратор' : role === 'developer' ? 'Тестовый разработчик' : 'Рекламодатель',
+        role === 'admin'
+          ? 'Администратор'
+          : role === 'developer'
+            ? 'Тестовый разработчик'
+            : 'Рекламодатель',
     },
   });
 }
 
 async function main() {
-  if (process.env.NODE_ENV === 'production' && process.env.KODPAUZA_ALLOW_LOCAL_SEED !== 'true') {
-    throw new Error('Local seed is disabled in production. Set KODPAUZA_ALLOW_LOCAL_SEED=true explicitly.');
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Local seed is disabled in production.');
   }
   const admin = await upsertUser('admin@kodpauza.local', 'admin123456', 'admin');
   const developer = await upsertUser('dev@kodpauza.local', 'dev123456', 'developer');
