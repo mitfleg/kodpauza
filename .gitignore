@@ -11,3 +11,4 @@ coverage
 *.vsix
 *.log
 .DS_Store
+backup-encryption-passphrase

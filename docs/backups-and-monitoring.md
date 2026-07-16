@@ -19,6 +19,7 @@ Workflow `.github/workflows/backup-production.yml` каждый день в 04:1
 - `BACKUP_ENCRYPTION_PASSPHRASE` — минимум 32 символа.
 
 Фразу шифрования необходимо хранить вне сервера и GitHub, например в менеджере паролей. Без неё dump невозможно восстановить.
+Локальная копия хранится в корне проекта в `backup-encryption-passphrase`, исключена из Git и должна иметь права `600`.
 
 S3-параметры зафиксированы в workflow:
 
@@ -48,4 +49,3 @@ sudo -u deploy crontab -l
 ```
 
 Ручной запуск backup выполняется на вкладке GitHub Actions → `Backup production PostgreSQL` → `Run workflow`.
-

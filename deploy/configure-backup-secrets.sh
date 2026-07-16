@@ -3,8 +3,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-key_dir="${HOME}/.kodpauza"
-key_file="${key_dir}/backup-encryption-passphrase"
+key_file="${repo_root}/backup-encryption-passphrase"
 
 command -v gh >/dev/null || { echo 'Не найден GitHub CLI (gh).' >&2; exit 1; }
 cd "$repo_root"
@@ -19,7 +18,6 @@ echo
   exit 1
 }
 
-install -d -m 700 "$key_dir"
 if [[ ! -s "$key_file" ]]; then
   umask 077
   openssl rand -base64 48 > "$key_file"
