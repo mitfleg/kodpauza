@@ -173,6 +173,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     {
       uiPort: CODEX_UI_BRIDGE_PORT,
       uiEnabled: () => vscode.window.state.focused,
+      onUiActivity: (tool, active) => integrations[tool].lifecycle.handleUiActivity(active),
       uiAdapters: {
         codex: createUiAdapter(integrations.codex),
         claude: createUiAdapter(integrations.claude),

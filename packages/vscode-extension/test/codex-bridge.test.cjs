@@ -11,6 +11,7 @@ test('bridge принимает только подписанные локаль
   const events = [];
   const clicks = [];
   const visible = [];
+  const uiActivity = [];
   let uiEnabled = true;
   const uiToken = 'a'.repeat(64);
   const claudeUiToken = 'b'.repeat(64);
@@ -22,6 +23,8 @@ test('bridge принимает только подписанные локаль
     },
     {
       uiEnabled: () => uiEnabled,
+      uiActivityGraceMs: 30,
+      onUiActivity: async (tool, active) => uiActivity.push({ tool, active }),
       uiToken: () => uiToken,
       currentAd: () => ({
         active: true,
@@ -93,6 +96,10 @@ test('bridge принимает только подписанные локаль
     text: 'Тестовое объявление',
     format: 'standard',
   });
+  await waitFor(() => uiActivity.length === 1, 500);
+  assert.deepEqual(uiActivity[0], { tool: 'codex', active: true });
+  await waitFor(() => uiActivity.length === 2, 500);
+  assert.deepEqual(uiActivity[1], { tool: 'codex', active: false });
 
   const clicked = await fetch(
     `http://127.0.0.1:${descriptor.port}/v1/codex/ad/click?token=${uiToken}`,
@@ -123,6 +130,8 @@ test('bridge принимает только подписанные локаль
     text: 'Claude объявление',
     format: 'premium',
   });
+  await waitFor(() => uiActivity.length === 3, 500);
+  assert.deepEqual(uiActivity[2], { tool: 'claude', active: true });
   assert.deepEqual(visible, []);
 
   const wrongVisibility = await fetch(
@@ -159,6 +168,8 @@ test('bridge принимает только подписанные локаль
   assert.equal(visible[1].visible, false);
 
   uiEnabled = false;
+  await waitFor(() => uiActivity.length === 4, 500);
+  assert.deepEqual(uiActivity[3], { tool: 'claude', active: false });
   const inactiveAd = await fetch(
     `http://127.0.0.1:${descriptor.port}/v1/claude/ad/current?token=${claudeUiToken}`,
   );

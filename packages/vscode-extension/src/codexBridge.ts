@@ -8,6 +8,7 @@ const MAX_BODY_BYTES = 2_048;
 const HEARTBEAT_MS = 30_000;
 const STALE_DESCRIPTOR_MS = 5 * 60_000;
 const DEFAULT_PORT_RETRY_MS = 1_500;
+const DEFAULT_UI_ACTIVITY_GRACE_MS = 2_500;
 
 export type CodexLifecycleEvent = {
   version: 1;
@@ -33,7 +34,9 @@ export type UiVisibilityEvent = {
 export type CodexHookBridgeOptions = {
   uiPort?: number;
   portRetryMs?: number;
+  uiActivityGraceMs?: number;
   uiEnabled?: () => boolean;
+  onUiActivity?: (tool: IntegrationTool, active: boolean) => Promise<void>;
   uiToken?: () => string | undefined;
   currentAd?: () => CodexUiAd | undefined;
   onAdClick?: (adId: string) => Promise<void>;
@@ -69,6 +72,7 @@ export class CodexHookBridge {
   private shouldRun = false;
   private descriptorWrite: Promise<void> = Promise.resolve();
   private lastErrorValue: string | undefined;
+  private readonly uiActivityTimers = new Map<IntegrationTool, NodeJS.Timeout>();
 
   constructor(
     private readonly kodpauzaHome: string,
@@ -170,6 +174,7 @@ export class CodexHookBridge {
 
   async stop(): Promise<void> {
     this.shouldRun = false;
+    await this.stopUiActivity();
     if (this.portRetry) {
       clearTimeout(this.portRetry);
       this.portRetry = undefined;
@@ -284,6 +289,7 @@ export class CodexHookBridge {
 
     if (request.method === 'GET' && requestUrl.pathname === `/v1/${tool}/ad/current`) {
       request.resume();
+      this.touchUiActivity(tool);
       const ad =
         adapter?.currentAd() ?? (tool === 'codex' ? this.options.currentAd?.() : undefined);
       respondJson(response, ad ?? { active: false }, corsHeaders);
@@ -329,6 +335,40 @@ export class CodexHookBridge {
 
     request.resume();
     respond(response, 404, corsHeaders);
+  }
+
+  private touchUiActivity(tool: IntegrationTool): void {
+    const previousTimer = this.uiActivityTimers.get(tool);
+    if (previousTimer) {
+      clearTimeout(previousTimer);
+    } else {
+      this.reportUiActivity(tool, true);
+    }
+
+    const timer = setTimeout(() => {
+      if (this.uiActivityTimers.get(tool) !== timer) {
+        return;
+      }
+      this.uiActivityTimers.delete(tool);
+      this.reportUiActivity(tool, false);
+    }, this.options.uiActivityGraceMs ?? DEFAULT_UI_ACTIVITY_GRACE_MS);
+    timer.unref();
+    this.uiActivityTimers.set(tool, timer);
+  }
+
+  private async stopUiActivity(): Promise<void> {
+    const activeTools = [...this.uiActivityTimers.keys()];
+    for (const timer of this.uiActivityTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.uiActivityTimers.clear();
+    await Promise.all(activeTools.map((tool) => this.options.onUiActivity?.(tool, false)));
+  }
+
+  private reportUiActivity(tool: IntegrationTool, active: boolean): void {
+    void this.options.onUiActivity?.(tool, active).catch((error) => {
+      this.lastErrorValue = errorMessage(error);
+    });
   }
 
   private queueDescriptorWrite(): Promise<void> {

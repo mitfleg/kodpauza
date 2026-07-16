@@ -24,6 +24,7 @@ type ToolLifecycleOptions = {
 
 class ToolLifecycleController implements vscode.Disposable {
   private activeTurnsValue = 0;
+  private uiActiveValue = false;
   private staleTimer: NodeJS.Timeout | undefined;
   private queue: Promise<void> = Promise.resolve();
 
@@ -34,7 +35,7 @@ class ToolLifecycleController implements vscode.Disposable {
   ) {}
 
   get activeTurns(): number {
-    return this.activeTurnsValue;
+    return this.activeTurnsValue + Number(this.uiActiveValue);
   }
 
   handle(event: CodexLifecycleEvent): Promise<void> {
@@ -43,8 +44,15 @@ class ToolLifecycleController implements vscode.Disposable {
     return operation;
   }
 
+  handleUiActivity(active: boolean): Promise<void> {
+    const operation = this.queue.catch(() => undefined).then(() => this.applyUiActivity(active));
+    this.queue = operation;
+    return operation;
+  }
+
   stopAll(): void {
     this.activeTurnsValue = 0;
+    this.uiActiveValue = false;
     this.clearStaleTimer();
     this.presenter.stopWait();
   }
@@ -55,10 +63,13 @@ class ToolLifecycleController implements vscode.Disposable {
 
   private async apply(event: CodexLifecycleEvent): Promise<void> {
     if (event.event === 'stop') {
+      const wasActive = this.activeTurns > 0;
       this.activeTurnsValue = Math.max(0, this.activeTurnsValue - 1);
-      if (this.activeTurnsValue === 0) {
+      if (this.activeTurns === 0) {
         this.clearStaleTimer();
-        this.presenter.stopWait();
+        if (wasActive) {
+          this.presenter.stopWait();
+        }
       } else {
         this.scheduleStaleReset();
       }
@@ -68,29 +79,69 @@ class ToolLifecycleController implements vscode.Disposable {
     if (!this.state.adsEnabled || !this.state.integrationEnabled) {
       return;
     }
-    if (this.activeTurnsValue >= MAX_ACTIVE_TURNS) {
+    if (this.activeTurns >= MAX_ACTIVE_TURNS) {
       throw new Error(`Слишком много одновременных ожиданий ${this.options.name}.`);
     }
 
+    const wasActive = this.activeTurns > 0;
     this.activeTurnsValue += 1;
     this.scheduleStaleReset();
-    if (this.activeTurnsValue > 1) {
+    if (wasActive) {
       return;
     }
 
-    const detected = this.options.detect();
     try {
-      await this.presenter.startWait({
-        surface: this.options.surface,
-        toolName: this.options.toolName,
-        toolVersion: detected.version ?? 'unknown',
-        waitingLabel: `Kodpauza: ${this.options.name} работает`
-      });
+      await this.startPresenter();
     } catch (error) {
       this.activeTurnsValue = 0;
       this.clearStaleTimer();
       throw error;
     }
+  }
+
+  private async applyUiActivity(active: boolean): Promise<void> {
+    if (this.uiActiveValue === active) {
+      return;
+    }
+
+    if (active) {
+      if (!this.state.adsEnabled || !this.state.integrationEnabled) {
+        return;
+      }
+      const wasActive = this.activeTurns > 0;
+      this.uiActiveValue = true;
+      this.scheduleStaleReset();
+      if (wasActive) {
+        return;
+      }
+      try {
+        await this.startPresenter();
+      } catch (error) {
+        this.uiActiveValue = false;
+        this.clearStaleTimer();
+        throw error;
+      }
+      return;
+    }
+
+    const wasActive = this.activeTurns > 0;
+    this.uiActiveValue = false;
+    if (wasActive && this.activeTurns === 0) {
+      this.clearStaleTimer();
+      this.presenter.stopWait();
+    } else if (this.activeTurns > 0) {
+      this.scheduleStaleReset();
+    }
+  }
+
+  private async startPresenter(): Promise<void> {
+    const detected = this.options.detect();
+    await this.presenter.startWait({
+      surface: this.options.surface,
+      toolName: this.options.toolName,
+      toolVersion: detected.version ?? 'unknown',
+      waitingLabel: `Kodpauza: ${this.options.name} работает`
+    });
   }
 
   private scheduleStaleReset(): void {
