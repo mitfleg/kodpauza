@@ -347,6 +347,37 @@ jobs:
             fi
             exit 1
           fi
+
+          cleanup_old_kodpauza_images() {
+            local keep_ids
+            local image_id
+
+            keep_ids="$(
+              for release_file in release.env release.previous.env; do
+                test -f "$release_file" || continue
+                sed -n \
+                  's/^KODPAUZA_\(API\|WEB\)_IMAGE=//p' \
+                  "$release_file"
+              done | while IFS= read -r image_ref; do
+                docker image inspect --format '{{.Id}}' "$image_ref"
+              done | sort -u
+            )"
+
+            docker image ls --no-trunc \
+              --format '{{.Repository}}|{{.ID}}' \
+              | awk -F'|' \
+                '$1 == "ghcr.io/mitfleg/kodpauza-api" ||
+                 $1 == "ghcr.io/mitfleg/kodpauza-web" {print $2}' \
+              | sort -u \
+              | while IFS= read -r image_id; do
+                  if ! printf '%s\n' "$keep_ids" | grep -Fxq "$image_id"; then
+                    docker image rm "$image_id" || true
+                  fi
+                done
+          }
+
+          cleanup_old_kodpauza_images
+          docker system df
           REMOTE
 
       - name: Notify search engines through IndexNow
