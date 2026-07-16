@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
 import type { AdminNotifier } from '../services/adminNotifier.js';
+import { classifyUnsupportedIntegrationVersion } from '../services/integrationVersionPolicy.js';
 
 const extensionInstallSchema = z.object({
   installId: z.string().uuid(),
@@ -232,12 +233,18 @@ async function sendUnsupportedVersionAlert(
   if (claimed.count !== 1) return;
 
   try {
+    const policy = classifyUnsupportedIntegrationVersion(
+      report.tool === 'claude' ? 'claude' : 'codex',
+      report.version,
+    );
     await adminNotifier.notifyUnsupportedIntegration({
       tool: report.tool === 'claude' ? 'claude' : 'codex',
       version: report.version,
       clientVersion: report.clientVersion,
       editorName: report.editorName,
       reportCount: report.reportCount,
+      attention: policy.attention,
+      latestExactVersion: policy.latestExactVersion,
     });
     await prisma.integrationVersionReport.update({
       where: { id: report.id },

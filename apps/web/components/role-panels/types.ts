@@ -188,6 +188,8 @@ export type IntegrationVersionReport = {
   version: string;
   supported: boolean;
   compatibilityMode: 'exact' | 'structural' | 'unsupported';
+  attention: 'new_patch' | 'outdated_tool';
+  latestExactVersion: string;
   clientVersion: string;
   editorName: string;
   reportCount: number;

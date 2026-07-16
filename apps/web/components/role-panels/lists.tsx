@@ -98,7 +98,11 @@ export function IntegrationVersionReportList({
                 <SoftBadge tone={report.supported ? 'green' : report.acknowledgedAt ? 'slate' : 'amber'}>
                   {report.supported
                     ? report.compatibilityMode === 'structural' ? 'Совместима автоматически' : 'Проверена точно'
-                    : report.acknowledgedAt ? 'Принято' : 'Новая версия'}
+                    : report.acknowledgedAt
+                      ? 'Обработано'
+                      : report.attention === 'outdated_tool'
+                        ? 'Нужно обновить инструмент'
+                        : 'Требуется новый патч'}
                 </SoftBadge>
               </div>
               <div className="mt-1 text-xs text-slate-500">Впервые: {dateTime(report.firstSeenAt)}</div>
@@ -106,12 +110,17 @@ export function IntegrationVersionReportList({
             <div className="text-sm text-slate-600">
               <div>{report.editorName} · Kodpauza {report.clientVersion}</div>
               <div className="mt-1 text-xs text-slate-500">Последний сигнал: {dateTime(report.lastSeenAt)}</div>
+              {!report.supported && report.attention === 'outdated_tool' ? (
+                <div className="mt-1 text-xs font-medium text-amber-700">
+                  Попросите участника обновиться. Проверенная версия: {report.latestExactVersion}.
+                </div>
+              ) : null}
             </div>
             <div className="text-sm text-slate-600">{counted(report.reportCount, 'сообщение', 'сообщения', 'сообщений')}</div>
             <div className="lg:justify-self-end">
               {!report.supported && !report.acknowledgedAt ? (
                 <SecondaryButton disabled={busyId === report.id} onClick={() => onAcknowledge(report.id)}>
-                  <CheckCircle2 aria-hidden className="h-4 w-4" /> Принять
+                  <CheckCircle2 aria-hidden className="h-4 w-4" /> Обработано
                 </SecondaryButton>
               ) : null}
             </div>

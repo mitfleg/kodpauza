@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { impressionCostKopecks } from '@kodpauza/shared';
+import { classifyUnsupportedIntegrationVersion } from '../services/integrationVersionPolicy.js';
 import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
 
@@ -160,12 +161,21 @@ export function registerAdminRoutes(app: FastifyInstance) {
     }),
   }));
 
-  app.get('/v1/admin/integration-versions', { preHandler: requireRole('admin') }, async () => ({
-    reports: await prisma.integrationVersionReport.findMany({
+  app.get('/v1/admin/integration-versions', { preHandler: requireRole('admin') }, async () => {
+    const reports = await prisma.integrationVersionReport.findMany({
       orderBy: [{ acknowledgedAt: 'asc' }, { lastSeenAt: 'desc' }],
       take: 100,
-    }),
-  }));
+    });
+    return {
+      reports: reports.map((report) => ({
+        ...report,
+        ...classifyUnsupportedIntegrationVersion(
+          report.tool === 'claude' ? 'claude' : 'codex',
+          report.version,
+        ),
+      })),
+    };
+  });
 
   app.post(
     '/v1/admin/integration-versions/:id/acknowledge',

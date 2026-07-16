@@ -1,5 +1,6 @@
 import { config } from '../config.js';
 import { fetch, ProxyAgent, type Dispatcher } from 'undici';
+import type { UnsupportedVersionAttention } from './integrationVersionPolicy.js';
 
 export type UnsupportedIntegrationAlert = {
   tool: 'codex' | 'claude';
@@ -7,6 +8,8 @@ export type UnsupportedIntegrationAlert = {
   clientVersion: string;
   editorName: string;
   reportCount: number;
+  attention: UnsupportedVersionAttention;
+  latestExactVersion: string;
 };
 
 export interface AdminNotifier {
@@ -26,14 +29,24 @@ export class TelegramAdminNotifier implements AdminNotifier {
 
     const toolName = alert.tool === 'codex' ? 'Codex' : 'Claude Code';
     const adminUrl = new URL('/admin/security', config.dashboardUrl).toString();
+    const outdated = alert.attention === 'outdated_tool';
     const text = [
-      '🚨 Kodpauza: требуется новый патч',
+      outdated
+        ? '⚠️ Kodpauza: у участника устаревшая версия AI-инструмента'
+        : '🚨 Kodpauza: требуется новый патч',
       '',
       `Инструмент: ${toolName}`,
       `Версия: ${alert.version}`,
+      `Последняя точно проверенная: ${alert.latestExactVersion}`,
       `Версия Kodpauza: ${alert.clientVersion}`,
       `Редактор: ${alert.editorName}`,
       `Сигналов: ${alert.reportCount}`,
+      ...(outdated
+        ? [
+            '',
+            `Действие: попросите участника обновить ${toolName} и Kodpauza, затем повторно подключить интеграции.`,
+          ]
+        : []),
       '',
       `Открыть центр версий: ${adminUrl}`,
     ].join('\n');

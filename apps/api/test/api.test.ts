@@ -966,6 +966,32 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     expect(
       integrationAlerts.filter((alert) => alert.tool === 'claude' && alert.version === version),
     ).toHaveLength(1);
+    expect(
+      integrationAlerts.find((alert) => alert.tool === 'claude' && alert.version === version),
+    ).toMatchObject({
+      attention: 'new_patch',
+      latestExactVersion: '2.1.209',
+    });
+
+    const outdatedClaudeVersion = '2.1.173';
+    const outdatedClaude = await app.inject({
+      method: 'POST',
+      url: '/v1/developer/integrations/version-report',
+      headers: auth(developer.token),
+      payload: {
+        ...payload,
+        version: outdatedClaudeVersion,
+      },
+    });
+    expect(outdatedClaude.statusCode).toBe(201);
+    expect(
+      integrationAlerts.find(
+        (alert) => alert.tool === 'claude' && alert.version === outdatedClaudeVersion,
+      ),
+    ).toMatchObject({
+      attention: 'outdated_tool',
+      latestExactVersion: '2.1.209',
+    });
 
     const structural = await app.inject({
       method: 'POST',
@@ -1013,7 +1039,20 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       version,
       supported: false,
       compatibilityMode: 'unsupported',
+      attention: 'new_patch',
+      latestExactVersion: '2.1.209',
       acknowledgedAt: null,
+    });
+    expect(
+      reports
+        .json()
+        .reports.find(
+          (item: { tool: string; version: string }) =>
+            item.tool === 'claude' && item.version === outdatedClaudeVersion,
+        ),
+    ).toMatchObject({
+      attention: 'outdated_tool',
+      latestExactVersion: '2.1.209',
     });
 
     const acknowledged = await app.inject({
