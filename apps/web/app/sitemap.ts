@@ -11,6 +11,7 @@ const routes: Array<{
   { path: '/for-advertisers', changeFrequency: 'monthly', priority: 0.9 },
   { path: '/install', changeFrequency: 'weekly', priority: 0.9 },
   { path: '/docs', changeFrequency: 'monthly', priority: 0.7 },
+  { path: '/support', changeFrequency: 'monthly', priority: 0.6 },
   { path: '/privacy', changeFrequency: 'yearly', priority: 0.3 },
   { path: '/terms', changeFrequency: 'yearly', priority: 0.3 },
 ];

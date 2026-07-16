@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { legalNav, publicFooterNav } from '@/lib/navigation';
+import { SUPPORT_TELEGRAM_URL, SUPPORT_TELEGRAM_USERNAME } from '@/lib/support';
 
 export function SiteFooter() {
   return (
@@ -21,6 +22,14 @@ export function SiteFooter() {
               </Link>
             ))}
           </nav>
+          <a
+            href={SUPPORT_TELEGRAM_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-signal hover:underline"
+          >
+            Telegram @{SUPPORT_TELEGRAM_USERNAME}
+          </a>
         </div>
       </div>
     </footer>

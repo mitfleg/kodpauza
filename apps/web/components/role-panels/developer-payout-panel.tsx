@@ -13,8 +13,10 @@ import {
   RefreshCw,
   ShieldCheck,
   WalletCards,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { SUPPORT_TELEGRAM_URL, SUPPORT_TELEGRAM_USERNAME } from '@/lib/support';
 import { dateTime, developerPayoutLabels, kopecksFromRubles, money } from './format';
 import type {
   ApiError,
@@ -188,6 +190,15 @@ export function DeveloperPayoutPanel() {
                   Банковские реквизиты не хранятся в Kodpauza. После проверки перевод выполняется во
                   внешнем платежном контуре, а его номер фиксируется в заявке.
                 </p>
+                <a
+                  href={SUPPORT_TELEGRAM_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded-md font-semibold text-signal hover:underline"
+                >
+                  Передать банк и телефон СБП @{SUPPORT_TELEGRAM_USERNAME}
+                  <ExternalLink aria-hidden className="h-3.5 w-3.5" />
+                </a>
               </div>
               <PrimaryButton disabled={!validAmount || hasOpenPayout || isSubmitting}>
                 <HandCoins aria-hidden className="h-4 w-4" />
