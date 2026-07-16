@@ -2,7 +2,7 @@
   "name": "kodpauza-vscode",
   "displayName": "Kodpauza",
   "description": "Зарабатывайте во время работы Codex и Claude Code: Kodpauza показывает короткую рекламу, пока AI выполняет запрос.",
-  "version": "0.7.7",
+  "version": "0.7.8",
   "publisher": "kodpauza",
   "icon": "resources/icon.png",
   "homepage": "https://kodpauza.ru",
@@ -129,12 +129,6 @@
           "default": false,
           "scope": "application",
           "description": "Автоматически подключать поддерживаемые интеграции Codex, Claude Code и будущие адаптеры."
-        },
-        "kodpauza.autoConnectIntegrations": {
-          "type": "boolean",
-          "default": true,
-          "scope": "application",
-          "description": "После входа автоматически устанавливать и восстанавливать совместимые интеграции. Команда отключения выключает это поведение."
         },
         "kodpauza.debugMode": {
           "type": "boolean",

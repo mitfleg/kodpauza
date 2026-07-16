@@ -53,19 +53,11 @@ export class KodpauzaState {
   }
 
   get autoConnectIntegrations(): boolean {
-    return vscode.workspace
-      .getConfiguration('kodpauza')
-      .get<boolean>('autoConnectIntegrations', true);
+    return this.context.globalState.get<boolean>(AUTO_CONNECT_INTEGRATIONS_KEY, true);
   }
 
   async setAutoConnectIntegrations(value: boolean): Promise<void> {
-    await vscode.workspace
-      .getConfiguration('kodpauza')
-      .update(
-        AUTO_CONNECT_INTEGRATIONS_KEY.slice('kodpauza.'.length),
-        value,
-        vscode.ConfigurationTarget.Global
-      );
+    await this.context.globalState.update(AUTO_CONNECT_INTEGRATIONS_KEY, value);
   }
 
   get integrationEnabled(): boolean {
@@ -262,10 +254,10 @@ export class KodpauzaState {
 
   private async migrateAutomaticIntegrationPreference(): Promise<void> {
     const configuration = vscode.workspace.getConfiguration('kodpauza');
-    const automatic = configuration.inspect<boolean>('autoConnectIntegrations');
     const integration = configuration.inspect<boolean>('integrationsEnabled');
+    const automatic = this.context.globalState.get<boolean>(AUTO_CONNECT_INTEGRATIONS_KEY);
 
-    if (automatic?.globalValue === undefined && integration?.globalValue === false) {
+    if (automatic === undefined && integration?.globalValue === false) {
       await this.setAutoConnectIntegrations(false);
     }
   }
