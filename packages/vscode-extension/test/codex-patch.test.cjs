@@ -7,6 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const {
   CODEX_26_707_PATCH_PROFILE,
+  CODEX_26_707_91948_PATCH_PROFILE,
   CODEX_26_707_SHIMMER_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
@@ -52,6 +53,12 @@ function modernFixtureHost() {
 function modernFixtureShimmer() {
   const fallback = '(0,f.jsx)(i,{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`})';
   return `var c=e(t(),1),l={};function y(r){return r??${fallback}}`;
+}
+
+function latestModernFixtureWebview() {
+  return modernFixtureWebview()
+    .replace('var $=e(t(),1),Ua=', 'var $=e(t(),1),Wa=')
+    .replace('children:Of', 'children:kf');
 }
 
 function sha256(value) {
@@ -180,6 +187,22 @@ test('профиль Codex 26.707 патчит новую структуру б�
   assert.match(
     webview,
     /__kpAdMessage,\{fallback:\(0,Q\.jsx\)\(Y,\{\.\.\.Gm\.thinking\}\)\}/
+  );
+  assert.match(host, /__KODPAUZA_CSP_START__/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+});
+
+test('профиль Codex 26.707.91948 патчит обновленные идентификаторы UI', () => {
+  const token = 'd'.repeat(64);
+  const source = latestModernFixtureWebview();
+  const webview = patchWebviewSource(source, token, CODEX_26_707_91948_PATCH_PROFILE);
+  const host = patchHostSource(modernFixtureHost(), CODEX_26_707_91948_PATCH_PROFILE);
+
+  assert.match(webview, /__KODPAUZA_UI_START__/);
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 11);
+  assert.match(
+    webview,
+    /localConversationTurn\.exploration\.accordion\.header\.active[^;]+children:kf/
   );
   assert.match(host, /__KODPAUZA_CSP_START__/);
   assert.doesNotThrow(() => new vm.Script(webview));
