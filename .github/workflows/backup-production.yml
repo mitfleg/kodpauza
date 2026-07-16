@@ -108,14 +108,20 @@ jobs:
             -in "$downloaded" -out "$decrypted"
           docker run -d --name kodpauza-backup-restore \
             -e POSTGRES_PASSWORD=restore-test postgres:16-alpine
-          for attempt in {1..30}; do
-            docker exec kodpauza-backup-restore pg_isready -U postgres && break
-            test "$attempt" -lt 30 || exit 1
+          for attempt in {1..60}; do
+            if docker logs kodpauza-backup-restore 2>&1 \
+              | grep -q 'PostgreSQL init process complete; ready for start up.' \
+              && test "$(docker exec kodpauza-backup-restore \
+                psql -U postgres -d postgres -Atc 'SELECT 1' 2>/dev/null)" = '1'; then
+              break
+            fi
+            test "$attempt" -lt 60 || exit 1
             sleep 1
           done
+          docker exec kodpauza-backup-restore createdb -U postgres restore_test
           docker exec -i kodpauza-backup-restore pg_restore \
-            -U postgres -d postgres --no-owner --no-privileges < "$decrypted"
-          tables="$(docker exec kodpauza-backup-restore psql -U postgres -d postgres -Atc \
+            -U postgres -d restore_test --no-owner --no-privileges < "$decrypted"
+          tables="$(docker exec kodpauza-backup-restore psql -U postgres -d restore_test -Atc \
             "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")"
           test "$tables" -ge 10
           echo "Restore test passed: ${tables} public tables."
