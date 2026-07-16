@@ -116,7 +116,7 @@ jobs:
           docker exec -i kodpauza-backup-restore pg_restore \
             -U postgres -d postgres --no-owner --no-privileges < "$decrypted"
           tables="$(docker exec kodpauza-backup-restore psql -U postgres -d postgres -Atc \
-            \"SELECT count(*) FROM pg_tables WHERE schemaname = 'public';\")"
+            "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")"
           test "$tables" -ge 10
           echo "Restore test passed: ${tables} public tables."
 
