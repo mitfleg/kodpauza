@@ -99,6 +99,12 @@ export const config = {
     'KODPAUZA_TELEGRAM_NOTIFICATION_TIMEOUT_MS',
     8_000,
   ),
+  telegramProxyHost:
+    process.env.KODPAUZA_TELEGRAM_PROXY_HOST?.trim() || process.env.PROXY_HOST?.trim() || '',
+  telegramProxyUser:
+    process.env.KODPAUZA_TELEGRAM_PROXY_USER?.trim() || process.env.PROXY_USER?.trim() || '',
+  telegramProxyPassword:
+    process.env.KODPAUZA_TELEGRAM_PROXY_PASSWORD ?? process.env.PROXY_PASSWORD ?? '',
   developerPayoutMinKopecks: numberFromEnv('KODPAUZA_DEVELOPER_PAYOUT_MIN_KOPECKS', 100_000),
   developerPayoutMaxKopecks: numberFromEnv('KODPAUZA_DEVELOPER_PAYOUT_MAX_KOPECKS', 100_000_000),
   yooKassaShopId: process.env.YOOKASSA_SHOP_ID?.trim() ?? '',
@@ -149,6 +155,34 @@ export function validateRuntimeConfig() {
     throw new Error(
       'KODPAUZA_TELEGRAM_BOT_TOKEN and KODPAUZA_TELEGRAM_ADMIN_CHAT_ID must be configured together.',
     );
+  }
+  const telegramProxyParts = [
+    config.telegramProxyHost,
+    config.telegramProxyUser,
+    config.telegramProxyPassword,
+  ];
+  if (telegramProxyParts.some(Boolean) && !telegramProxyParts.every(Boolean)) {
+    throw new Error(
+      'Telegram proxy host, user and password must be configured together.',
+    );
+  }
+  if (config.telegramProxyHost) {
+    const proxyUrl = new URL(
+      /^https?:\/\//i.test(config.telegramProxyHost)
+        ? config.telegramProxyHost
+        : `http://${config.telegramProxyHost}`,
+    );
+    if (
+      !['http:', 'https:'].includes(proxyUrl.protocol) ||
+      proxyUrl.username ||
+      proxyUrl.password ||
+      proxyUrl.pathname !== '/' ||
+      proxyUrl.search ||
+      proxyUrl.hash ||
+      !proxyUrl.port
+    ) {
+      throw new Error('Telegram proxy host must contain only HTTP(S) host and port.');
+    }
   }
   if (
     config.yooKassaReceiptVatCode !== undefined &&

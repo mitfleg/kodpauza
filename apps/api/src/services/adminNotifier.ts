@@ -1,4 +1,5 @@
 import { config } from '../config.js';
+import { fetch, ProxyAgent, type Dispatcher } from 'undici';
 
 export type UnsupportedIntegrationAlert = {
   tool: 'codex' | 'claude';
@@ -14,6 +15,8 @@ export interface AdminNotifier {
 }
 
 export class TelegramAdminNotifier implements AdminNotifier {
+  private readonly dispatcher: Dispatcher | undefined = createTelegramDispatcher();
+
   isConfigured(): boolean {
     return Boolean(config.telegramBotToken && config.telegramAdminChatId);
   }
@@ -36,7 +39,7 @@ export class TelegramAdminNotifier implements AdminNotifier {
     ].join('\n');
 
     const endpoint = `https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`;
-    let response: Response;
+    let response: Awaited<ReturnType<typeof fetch>>;
     try {
       response = await fetch(endpoint, {
         method: 'POST',
@@ -47,6 +50,7 @@ export class TelegramAdminNotifier implements AdminNotifier {
           disable_web_page_preview: true,
         }),
         signal: AbortSignal.timeout(config.telegramNotificationTimeoutMs),
+        dispatcher: this.dispatcher,
       });
     } catch {
       throw new Error('Telegram API недоступен.');
@@ -58,4 +62,17 @@ export class TelegramAdminNotifier implements AdminNotifier {
     const result = (await response.json()) as { ok?: boolean };
     if (result.ok !== true) throw new Error('Telegram API отклонил уведомление.');
   }
+}
+
+function createTelegramDispatcher(): Dispatcher | undefined {
+  if (!config.telegramProxyHost) return undefined;
+
+  const proxyUrl = new URL(
+    /^https?:\/\//i.test(config.telegramProxyHost)
+      ? config.telegramProxyHost
+      : `http://${config.telegramProxyHost}`,
+  );
+  proxyUrl.username = config.telegramProxyUser;
+  proxyUrl.password = config.telegramProxyPassword;
+  return new ProxyAgent(proxyUrl.toString());
 }
