@@ -14,11 +14,13 @@ import { registerDeveloperPayoutRoutes } from './routes/developerPayouts.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerPaymentRoutes } from './routes/payments.js';
 import { YooKassaClient, type YooKassaClientContract } from './services/yookassa.js';
+import { TelegramAdminNotifier, type AdminNotifier } from './services/adminNotifier.js';
 
 export function buildApp(
   options: {
     yooKassaClient?: YooKassaClientContract;
     emailVerificationMailer?: EmailVerificationMailer;
+    adminNotifier?: AdminNotifier;
   } = {},
 ) {
   const app = Fastify({
@@ -75,7 +77,7 @@ export function buildApp(
   registerAuthRoutes(app, options.emailVerificationMailer ?? createEmailVerificationMailer());
   registerAdsRoutes(app);
   registerEventRoutes(app);
-  registerDeveloperRoutes(app);
+  registerDeveloperRoutes(app, options.adminNotifier ?? new TelegramAdminNotifier());
   registerDeveloperPayoutRoutes(app);
   registerAdvertiserRoutes(app);
   registerPaymentRoutes(app, options.yooKassaClient ?? new YooKassaClient());

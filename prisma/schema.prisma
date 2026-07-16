@@ -351,6 +351,9 @@ model IntegrationVersionReport {
   firstSeenAt       DateTime  @default(now())
   lastSeenAt        DateTime  @default(now())
   acknowledgedAt    DateTime?
+  alertAttemptedAt  DateTime?
+  alertSentAt       DateTime?
+  alertError        String?
 
   @@unique([tool, version])
   @@index([acknowledgedAt, lastSeenAt])

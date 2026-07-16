@@ -2,6 +2,9 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
+import type { AdminNotifier } from '../services/adminNotifier.js';
+
+const ALERT_RETRY_DELAY_MS = 10 * 60 * 1000;
 
 const eventsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).max(100_000).default(1),
@@ -22,7 +25,7 @@ const integrationVersionReportSchema = versionReportPayloadSchema.extend({
 
 type VersionReportPayload = z.infer<typeof versionReportPayloadSchema>;
 
-export function registerDeveloperRoutes(app: FastifyInstance) {
+export function registerDeveloperRoutes(app: FastifyInstance, adminNotifier: AdminNotifier) {
   app.get('/v1/developer/balance', { preHandler: requireRole('developer') }, async (request) => {
     const profile = await prisma.developerProfile.findUnique({ where: { userId: request.authUser!.id } });
     return {
@@ -97,14 +100,14 @@ export function registerDeveloperRoutes(app: FastifyInstance) {
   app.post('/v1/developer/integrations/codex/version-report', { preHandler: requireRole('developer') }, async (request, reply) => {
     const parsed = versionReportPayloadSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'Некорректные данные версии Codex.' });
-    return saveIntegrationVersionReport('codex', parsed.data, request, reply);
+    return saveIntegrationVersionReport('codex', parsed.data, request, reply, adminNotifier);
   });
 
   app.post('/v1/developer/integrations/version-report', { preHandler: requireRole('developer') }, async (request, reply) => {
     const parsed = integrationVersionReportSchema.safeParse(request.body);
     if (!parsed.success) return reply.code(400).send({ error: 'Некорректные данные версии интеграции.' });
     const { tool, ...payload } = parsed.data;
-    return saveIntegrationVersionReport(tool, payload, request, reply);
+    return saveIntegrationVersionReport(tool, payload, request, reply, adminNotifier);
   });
 }
 
@@ -113,6 +116,7 @@ async function saveIntegrationVersionReport(
   data: VersionReportPayload,
   request: FastifyRequest,
   reply: FastifyReply,
+  adminNotifier: AdminNotifier,
 ) {
   const now = new Date();
   const compatibilityMode = data.compatibilityMode ?? (data.supported ? 'exact' : 'unsupported');
@@ -138,5 +142,69 @@ async function saveIntegrationVersionReport(
       'Unsupported integration version detected',
     );
   }
+  await sendUnsupportedVersionAlert(report, request, adminNotifier);
   return reply.code(existing ? 200 : 201).send({ report, isNew: !existing });
+}
+
+async function sendUnsupportedVersionAlert(
+  report: {
+    id: string;
+    tool: string;
+    version: string;
+    supported: boolean;
+    clientVersion: string;
+    editorName: string;
+    reportCount: number;
+    acknowledgedAt: Date | null;
+    alertAttemptedAt: Date | null;
+    alertSentAt: Date | null;
+  },
+  request: FastifyRequest,
+  adminNotifier: AdminNotifier,
+) {
+  if (
+    report.supported ||
+    report.acknowledgedAt ||
+    report.alertSentAt ||
+    !adminNotifier.isConfigured()
+  ) {
+    return;
+  }
+
+  const retryBefore = new Date(Date.now() - ALERT_RETRY_DELAY_MS);
+  const claimed = await prisma.integrationVersionReport.updateMany({
+    where: {
+      id: report.id,
+      supported: false,
+      acknowledgedAt: null,
+      alertSentAt: null,
+      OR: [{ alertAttemptedAt: null }, { alertAttemptedAt: { lt: retryBefore } }],
+    },
+    data: { alertAttemptedAt: new Date(), alertError: null },
+  });
+  if (claimed.count !== 1) return;
+
+  try {
+    await adminNotifier.notifyUnsupportedIntegration({
+      tool: report.tool === 'claude' ? 'claude' : 'codex',
+      version: report.version,
+      clientVersion: report.clientVersion,
+      editorName: report.editorName,
+      reportCount: report.reportCount,
+    });
+    await prisma.integrationVersionReport.update({
+      where: { id: report.id },
+      data: { alertSentAt: new Date(), alertError: null },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message.slice(0, 500) : 'Неизвестная ошибка.';
+    await prisma.integrationVersionReport.update({
+      where: { id: report.id },
+      data: { alertError: message },
+    });
+    request.log.error(
+      { tool: report.tool, integrationVersion: report.version, error: message },
+      'Failed to send unsupported integration version alert',
+    );
+  }
 }

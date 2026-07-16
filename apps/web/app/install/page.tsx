@@ -15,6 +15,7 @@ import { JsonLd } from '@/components/json-ld';
 import { MetrikaGoalLink } from '@/components/metrika-goal-link';
 import { buildPublicMetadata } from '@/lib/seo';
 import { breadcrumbJsonLd, softwareApplicationJsonLd } from '@/lib/structured-data';
+import { EXTENSION_MARKETPLACE_URL, EXTENSION_VERSION } from '@/lib/extension-release';
 
 export const metadata: Metadata = buildPublicMetadata({
   title: 'Расширение Kodpauza для VS Code',
@@ -67,7 +68,9 @@ export default function InstallPage() {
                 </span>
                 <div>
                   <h2 className="text-xl font-bold">Kodpauza для Visual Studio Code</h2>
-                  <p className="mt-1 text-sm text-slate-400">Версия 0.7.2 · VS Code 1.90 и новее</p>
+                  <p className="mt-1 text-sm text-slate-400">
+                    Версия {EXTENSION_VERSION} · VS Code 1.90 и новее
+                  </p>
                 </div>
               </div>
               <p className="mt-5 max-w-2xl text-sm leading-6 text-slate-300">
@@ -76,15 +79,35 @@ export default function InstallPage() {
                 начисления в кабинете.
               </p>
             </div>
-            <MetrikaGoalLink
-              goal="extension_download"
-              href="/downloads/kodpauza.vsix"
-              download="kodpauza.vsix"
-              className="focus-ring inline-flex h-12 items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-bold text-ink transition hover:bg-slate-100"
-            >
-              <Download aria-hidden className="h-5 w-5" />
-              Скачать расширение
-            </MetrikaGoalLink>
+            <div className="grid gap-2">
+              <MetrikaGoalLink
+                goal="extension_download"
+                href="/downloads/kodpauza.vsix"
+                download="kodpauza.vsix"
+                className="focus-ring inline-flex h-12 items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-bold text-ink transition hover:bg-slate-100"
+              >
+                <Download aria-hidden className="h-5 w-5" />
+                Скачать расширение
+              </MetrikaGoalLink>
+              <a
+                href={EXTENSION_MARKETPLACE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                Открыть Marketplace
+                <ExternalLink aria-hidden className="h-4 w-4" />
+              </a>
+            </div>
+          </section>
+
+          <section className="rounded-md border border-blue-200 bg-blue-50 p-5 text-blue-950">
+            <h2 className="font-bold">Как обновляется расширение</h2>
+            <p className="mt-2 text-sm leading-6">
+              При установке из Visual Studio Marketplace VS Code получает новые версии Kodpauza
+              автоматически. Установка из скачанного VSIX не подписывает редактор на обновления:
+              такой пакет нужно обновлять вручную либо затем установить Kodpauza из Marketplace.
+            </p>
           </section>
 
           <section aria-labelledby="install-steps-title">

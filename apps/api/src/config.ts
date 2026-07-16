@@ -93,6 +93,12 @@ export const config = {
   smtpUser: process.env.KODPAUZA_SMTP_USER?.trim() ?? '',
   smtpPassword: process.env.KODPAUZA_SMTP_PASSWORD ?? '',
   smtpFrom: process.env.KODPAUZA_SMTP_FROM?.trim() || 'Kodpauza <noreply@localhost>',
+  telegramBotToken: process.env.KODPAUZA_TELEGRAM_BOT_TOKEN?.trim() ?? '',
+  telegramAdminChatId: process.env.KODPAUZA_TELEGRAM_ADMIN_CHAT_ID?.trim() ?? '',
+  telegramNotificationTimeoutMs: numberFromEnv(
+    'KODPAUZA_TELEGRAM_NOTIFICATION_TIMEOUT_MS',
+    8_000,
+  ),
   developerPayoutMinKopecks: numberFromEnv('KODPAUZA_DEVELOPER_PAYOUT_MIN_KOPECKS', 100_000),
   developerPayoutMaxKopecks: numberFromEnv('KODPAUZA_DEVELOPER_PAYOUT_MAX_KOPECKS', 100_000_000),
   yooKassaShopId: process.env.YOOKASSA_SHOP_ID?.trim() ?? '',
@@ -138,6 +144,11 @@ export function validateRuntimeConfig() {
   }
   if (Boolean(config.smtpUser) !== Boolean(config.smtpPassword)) {
     throw new Error('KODPAUZA_SMTP_USER and KODPAUZA_SMTP_PASSWORD must be configured together.');
+  }
+  if (Boolean(config.telegramBotToken) !== Boolean(config.telegramAdminChatId)) {
+    throw new Error(
+      'KODPAUZA_TELEGRAM_BOT_TOKEN and KODPAUZA_TELEGRAM_ADMIN_CHAT_ID must be configured together.',
+    );
   }
   if (
     config.yooKassaReceiptVatCode !== undefined &&

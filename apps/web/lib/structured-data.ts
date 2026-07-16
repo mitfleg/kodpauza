@@ -1,4 +1,5 @@
 import { absoluteUrl, DEFAULT_DESCRIPTION, SITE_NAME } from './seo';
+import { EXTENSION_VERSION } from './extension-release';
 
 export const organizationJsonLd = {
   '@context': 'https://schema.org',
@@ -31,7 +32,7 @@ export const softwareApplicationJsonLd = {
     'Расширение для показа нативной рекламы во время ожидания ответа Codex и Claude Code с начислением дохода разработчику.',
   url: absoluteUrl('/install'),
   downloadUrl: absoluteUrl('/downloads/kodpauza.vsix'),
-  softwareVersion: '0.7.2',
+  softwareVersion: EXTENSION_VERSION,
   operatingSystem: 'Windows, macOS, Linux',
   applicationCategory: 'DeveloperApplication',
   applicationSubCategory: 'Visual Studio Code Extension',

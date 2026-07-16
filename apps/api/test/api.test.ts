@@ -6,6 +6,10 @@ import { buildApp } from '../src/app.js';
 import { signToken } from '../src/auth.js';
 import { config } from '../src/config.js';
 import type { EmailVerificationMailer } from '../src/email.js';
+import type {
+  AdminNotifier,
+  UnsupportedIntegrationAlert,
+} from '../src/services/adminNotifier.js';
 import { prisma } from '../src/prisma.js';
 import {
   kopecksToProviderValue,
@@ -76,7 +80,14 @@ const emailVerificationMailer: EmailVerificationMailer = {
     verificationCodes.set(message.email.toLowerCase(), message.code);
   },
 };
-const app = buildApp({ yooKassaClient: yooKassa, emailVerificationMailer });
+const integrationAlerts: UnsupportedIntegrationAlert[] = [];
+const adminNotifier: AdminNotifier = {
+  isConfigured: () => true,
+  async notifyUnsupportedIntegration(alert) {
+    integrationAlerts.push(alert);
+  },
+};
+const app = buildApp({ yooKassaClient: yooKassa, emailVerificationMailer, adminNotifier });
 
 type Login = { token: string; eventSecret: string | null; user: { id: string } };
 type ExtensionLogin = Login & { refreshToken: string };
@@ -895,6 +906,9 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     expect(first.json().isNew).toBe(true);
     expect(repeated.statusCode).toBe(200);
     expect(repeated.json().report.reportCount).toBe(2);
+    expect(
+      integrationAlerts.filter((alert) => alert.tool === 'claude' && alert.version === version),
+    ).toHaveLength(1);
 
     const structural = await app.inject({
       method: 'POST',
@@ -921,6 +935,9 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     });
     expect(legacyCodex.statusCode).toBe(201);
     expect(legacyCodex.json().report).toMatchObject({ tool: 'codex', version });
+    expect(
+      integrationAlerts.filter((alert) => alert.tool === 'codex' && alert.version === version),
+    ).toHaveLength(1);
 
     const reports = await app.inject({
       method: 'GET',
