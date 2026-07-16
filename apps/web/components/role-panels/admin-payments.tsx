@@ -37,7 +37,10 @@ export function AdminPaymentList({ payments }: { payments: AdminPayment[] }) {
   return (
     <div className="grid gap-2">
       {payments.map((payment) => {
-        const meta = statusMeta[payment.status];
+        const meta =
+          payment.status === 'succeeded' && payment.providerTest
+            ? { ...statusMeta.succeeded, label: 'Тест пройден' }
+            : statusMeta[payment.status];
         const Icon = meta.icon;
         return (
           <article
@@ -54,7 +57,9 @@ export function AdminPaymentList({ payments }: { payments: AdminPayment[] }) {
             <div className="lg:text-right">
               <div className="text-lg font-bold text-ink">{money(payment.amountKopecks)}</div>
               {payment.providerTest ? (
-                <div className="text-xs font-medium text-amber-700">Тестовый магазин</div>
+                <div className="text-xs font-medium text-amber-700">
+                  Тестовый магазин · баланс не пополняется
+                </div>
               ) : null}
             </div>
             <div className="min-w-0 lg:justify-self-end">

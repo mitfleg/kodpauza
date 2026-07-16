@@ -21,6 +21,7 @@ import {
 class FakeYooKassaClient implements YooKassaClientContract {
   readonly payments = new Map<string, YooKassaPayment>();
   createCount = 0;
+  private nextPaymentTest = true;
 
   isConfigured() {
     return true;
@@ -31,6 +32,8 @@ class FakeYooKassaClient implements YooKassaClientContract {
     const id = `test-${input.localPaymentId}`;
     const existing = this.payments.get(id);
     if (existing) return structuredClone(existing);
+    const providerTest = this.nextPaymentTest;
+    this.nextPaymentTest = true;
     const payment: YooKassaPayment = {
       id,
       status: 'pending',
@@ -42,11 +45,15 @@ class FakeYooKassaClient implements YooKassaClientContract {
         kodpauza_payment_id: input.localPaymentId,
         kodpauza_advertiser_id: input.advertiserId,
       },
-      test: true,
+      test: providerTest,
       created_at: new Date().toISOString(),
     };
     this.payments.set(id, payment);
     return structuredClone(payment);
+  }
+
+  createLivePaymentOnce() {
+    this.nextPaymentTest = false;
   }
 
   async getPayment(providerPaymentId: string): Promise<YooKassaPayment> {
@@ -1193,6 +1200,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     const profileBefore = await prisma.advertiserProfile.findUniqueOrThrow({
       where: { userId: advertiser.user.id },
     });
+    yooKassa.createLivePaymentOnce();
     const created = await app.inject({
       method: 'POST',
       url: '/v1/advertiser/payments',
@@ -1236,6 +1244,40 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     expect(
       (await prisma.advertiserPayment.findUniqueOrThrow({ where: { id: payment.id } })).status,
     ).toBe('succeeded');
+  });
+
+  it('подтверждает тестовый платеж ЮKassa без пополнения расходуемого баланса', async () => {
+    const advertiser = await login('adv@kodpauza.local', 'adv123456');
+    const profileBefore = await prisma.advertiserProfile.findUniqueOrThrow({
+      where: { userId: advertiser.user.id },
+    });
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/advertiser/payments',
+      headers: auth(advertiser.token),
+      payload: { amountKopecks: 77_700, requestId: randomUUID() },
+    });
+    const payment = created.json().payment as { id: string; providerPaymentId: string };
+
+    yooKassa.succeed(payment.providerPaymentId);
+    const refreshed = await app.inject({
+      method: 'POST',
+      url: `/v1/advertiser/payments/${payment.id}/refresh`,
+      headers: auth(advertiser.token),
+      payload: {},
+    });
+    expect(refreshed.statusCode).toBe(200);
+    expect(refreshed.json().payment).toMatchObject({
+      status: 'succeeded',
+      providerTest: true,
+      credited: false,
+    });
+
+    const profileAfter = await prisma.advertiserProfile.findUniqueOrThrow({
+      where: { userId: advertiser.user.id },
+    });
+    expect(profileAfter.balanceKopecks).toBe(profileBefore.balanceKopecks);
+    expect(await prisma.ledgerEntry.count({ where: { paymentId: payment.id } })).toBe(0);
   });
 
   it('не зачисляет отмененный или подмененный платеж ЮKassa', async () => {
@@ -1300,6 +1342,22 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       where: { userId: developer.user.id },
       data: { balanceKopecks: 300_000 },
     });
+    const payoutPolicy = await app.inject({
+      method: 'GET',
+      url: '/v1/developer/payouts',
+      headers: auth(developer.token),
+    });
+    expect(payoutPolicy.statusCode).toBe(200);
+    expect(payoutPolicy.json().policy.minAmountKopecks).toBe(30_000);
+
+    const belowMinimum = await app.inject({
+      method: 'POST',
+      url: '/v1/developer/payouts',
+      headers: auth(developer.token),
+      payload: { amountKopecks: 29_999, requestId: randomUUID() },
+    });
+    expect(belowMinimum.statusCode).toBe(400);
+
     const requestId = randomUUID();
     const payload = { amountKopecks: 150_000, requestId };
 

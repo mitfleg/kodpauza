@@ -131,6 +131,7 @@ export type AdvertiserPayment = {
   status: AdvertiserPaymentStatus;
   confirmationUrl?: string | null;
   providerTest?: boolean | null;
+  credited: boolean;
   paidAt?: string | null;
   canceledAt?: string | null;
   failureCode?: string | null;

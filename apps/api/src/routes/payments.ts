@@ -205,6 +205,7 @@ async function reconcilePayment(localPaymentId: string, providerPayment: YooKass
 
   const metadataPaymentId = providerPayment.metadata?.kodpauza_payment_id;
   const metadataAdvertiserId = providerPayment.metadata?.kodpauza_advertiser_id;
+  const providerTest = payment.providerTest === true || providerPayment.test === true;
   const integrityValid =
     providerPayment.id === payment.providerPaymentId &&
     providerPayment.amountKopecks === payment.amountKopecks &&
@@ -229,12 +230,13 @@ async function reconcilePayment(localPaymentId: string, providerPayment: YooKass
         where: { id: payment.id, status: 'pending' },
         data: {
           status: 'succeeded',
+          providerTest,
           paidAt: new Date(),
           confirmationUrl: null,
           failureCode: null,
         },
       });
-      if (claimed.count === 1) {
+      if (claimed.count === 1 && !providerTest) {
         await tx.advertiserProfile.update({
           where: { id: payment.advertiserId },
           data: { balanceKopecks: { increment: payment.amountKopecks } },
@@ -340,6 +342,7 @@ function toPublicPayment(payment: {
     status: payment.status,
     confirmationUrl: payment.confirmationUrl,
     providerTest: payment.providerTest,
+    credited: payment.status === 'succeeded' && payment.providerTest !== true,
     paidAt: payment.paidAt,
     canceledAt: payment.canceledAt,
     failureCode: payment.failureCode,

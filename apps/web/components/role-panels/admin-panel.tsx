@@ -442,7 +442,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
         </WorkSurface>
       ) : null}
       {!isLoading && section === 'users' ? (
-        <WorkSurface title="Пользователи" description="Роли, компании и тестовые балансы.">
+        <WorkSurface title="Пользователи" description="Роли, компании и текущие внутренние балансы.">
           <div className="max-h-[680px] overflow-auto">
             <UserList users={users} />
           </div>

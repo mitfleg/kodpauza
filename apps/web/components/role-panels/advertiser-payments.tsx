@@ -66,12 +66,17 @@ export function AdvertiserPayments({
             body: JSON.stringify({}),
           },
         );
-        if (response.payment.status === 'succeeded') {
+        if (response.payment.status === 'succeeded' && response.payment.credited) {
           setMessage({
             text: 'Оплата подтверждена. Средства зачислены на баланс.',
             tone: 'success',
           });
           await onBalanceChanged();
+        } else if (response.payment.status === 'succeeded' && response.payment.providerTest) {
+          setMessage({
+            text: 'Тестовый платеж подтвержден. Реальные средства на баланс не зачислены.',
+            tone: 'info',
+          });
         } else if (response.payment.status === 'pending') {
           setMessage({
             text: 'ЮKassa еще обрабатывает платеж. Обновите статус через несколько секунд.',
@@ -107,8 +112,15 @@ export function AdvertiserPayments({
       });
       window.sessionStorage.removeItem(paymentRequestStorageKey);
       if (response.payment.status === 'succeeded') {
-        setMessage({ text: 'Средства зачислены на баланс.', tone: 'success' });
-        await onBalanceChanged();
+        if (response.payment.credited) {
+          setMessage({ text: 'Средства зачислены на баланс.', tone: 'success' });
+          await onBalanceChanged();
+        } else {
+          setMessage({
+            text: 'Тестовый платеж подтвержден. Реальные средства на баланс не зачислены.',
+            tone: 'info',
+          });
+        }
         await loadPayments();
         return;
       }
@@ -132,9 +144,14 @@ export function AdvertiserPayments({
           body: JSON.stringify({}),
         },
       );
-      if (response.payment.status === 'succeeded') {
+      if (response.payment.status === 'succeeded' && response.payment.credited) {
         setMessage({ text: 'Платеж подтвержден и зачислен.', tone: 'success' });
         await onBalanceChanged();
+      } else if (response.payment.status === 'succeeded' && response.payment.providerTest) {
+        setMessage({
+          text: 'Тестовый платеж подтвержден. Баланс не изменен.',
+          tone: 'info',
+        });
       } else {
         setMessage({ text: `Статус: ${paymentLabels[response.payment.status]}.`, tone: 'info' });
       }
@@ -223,10 +240,14 @@ export function AdvertiserPayments({
                     <span
                       className={`rounded border px-2 py-0.5 text-xs font-semibold ${paymentClasses[payment.status]}`}
                     >
-                      {paymentLabels[payment.status]}
+                      {payment.status === 'succeeded' && payment.providerTest
+                        ? 'Тест пройден'
+                        : paymentLabels[payment.status]}
                     </span>
                     {payment.providerTest ? (
-                      <span className="text-xs text-slate-500">Тестовый платеж</span>
+                      <span className="text-xs text-slate-500">
+                        Тестовый платеж · баланс не меняется
+                      </span>
                     ) : null}
                   </div>
                   <div className="mt-1 text-xs text-slate-500">

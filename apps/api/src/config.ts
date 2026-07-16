@@ -105,7 +105,7 @@ export const config = {
     process.env.KODPAUZA_TELEGRAM_PROXY_USER?.trim() || process.env.PROXY_USER?.trim() || '',
   telegramProxyPassword:
     process.env.KODPAUZA_TELEGRAM_PROXY_PASSWORD ?? process.env.PROXY_PASSWORD ?? '',
-  developerPayoutMinKopecks: numberFromEnv('KODPAUZA_DEVELOPER_PAYOUT_MIN_KOPECKS', 100_000),
+  developerPayoutMinKopecks: numberFromEnv('KODPAUZA_DEVELOPER_PAYOUT_MIN_KOPECKS', 30_000),
   developerPayoutMaxKopecks: numberFromEnv('KODPAUZA_DEVELOPER_PAYOUT_MAX_KOPECKS', 100_000_000),
   yooKassaShopId: process.env.YOOKASSA_SHOP_ID?.trim() ?? '',
   yooKassaSecretKey: process.env.YOOKASSA_SECRET_KEY?.trim() ?? '',

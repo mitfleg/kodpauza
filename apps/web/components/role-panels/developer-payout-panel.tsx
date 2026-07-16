@@ -177,7 +177,7 @@ export function DeveloperPayoutPanel() {
                   onChange={(event) => setAmount(event.target.value)}
                   inputMode="decimal"
                   autoComplete="off"
-                  placeholder="1000"
+                  placeholder="300"
                   required
                   disabled={!canRequestMinimum || hasOpenPayout || isSubmitting}
                 />
