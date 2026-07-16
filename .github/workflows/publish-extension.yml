@@ -6,14 +6,13 @@ on:
       - 'extension-v*'
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: publish-extension-${{ github.ref }}
   cancel-in-progress: false
 
 env:
-  EXTENSION_ARTIFACT: kodpauza-vscode-${{ github.ref_name }}
   VSIX_PATH: packages/vscode-extension/dist/kodpauza.vsix
 
 jobs:
@@ -64,74 +63,31 @@ jobs:
           test -s "$VSIX_PATH"
           unzip -t "$VSIX_PATH"
 
-      - name: Upload VSIX artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: ${{ env.EXTENSION_ARTIFACT }}
-          path: ${{ env.VSIX_PATH }}
-          if-no-files-found: error
-          compression-level: 0
-          retention-days: 30
-
-  publish-vscode-marketplace:
-    name: Publish to VS Code Marketplace
-    if: ${{ vars.ENABLE_VSCODE_MARKETPLACE_PUBLISH == 'true' }}
-    needs: package
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      VSCE_PAT: ${{ secrets.VSCE_PAT }}
-    steps:
-      - name: Validate publishing token
-        run: test -n "$VSCE_PAT" || { echo "::error::Repository secret VSCE_PAT is required"; exit 1; }
-
-      - name: Set up Node.js
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: 22
-          package-manager-cache: false
-
-      - name: Enable pnpm
+      - name: Publish to Open VSX
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
         run: |
-          corepack enable
-          corepack prepare pnpm@9.12.0 --activate
+          test -n "$OVSX_PAT" || { echo "::error::Repository secret OVSX_PAT is required"; exit 1; }
+          pnpm dlx ovsx@1.0.2 publish "$VSIX_PATH"
 
-      - name: Download VSIX artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: ${{ env.EXTENSION_ARTIFACT }}
-          path: dist
-
-      - name: Publish extension
-        run: pnpm dlx @vscode/vsce@3.6.2 publish --packagePath dist/kodpauza.vsix
-
-  publish-open-vsx:
-    name: Publish to Open VSX
-    needs: package
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      OVSX_PAT: ${{ secrets.OVSX_PAT }}
-    steps:
-      - name: Validate publishing token
-        run: test -n "$OVSX_PAT" || { echo "::error::Repository secret OVSX_PAT is required"; exit 1; }
-
-      - name: Set up Node.js
-        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
-        with:
-          node-version: 22
-          package-manager-cache: false
-
-      - name: Enable pnpm
+      - name: Publish to VS Code Marketplace
+        if: ${{ vars.ENABLE_VSCODE_MARKETPLACE_PUBLISH == 'true' }}
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
-          corepack enable
-          corepack prepare pnpm@9.12.0 --activate
+          test -n "$VSCE_PAT" || { echo "::error::Repository secret VSCE_PAT is required"; exit 1; }
+          pnpm dlx @vscode/vsce@3.6.2 publish --packagePath "$VSIX_PATH"
 
-      - name: Download VSIX artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: ${{ env.EXTENSION_ARTIFACT }}
-          path: dist
-
-      - name: Publish extension
-        run: pnpm dlx ovsx@1.0.2 publish dist/kodpauza.vsix
+      - name: Attach VSIX to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#extension-v}"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$VSIX_PATH#kodpauza.vsix" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "$VSIX_PATH#kodpauza.vsix" \
+              --verify-tag \
+              --title "Kodpauza VS Code ${version}" \
+              --notes "Автоматическая сборка расширения Kodpauza ${version}."
+          fi
