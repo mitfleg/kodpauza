@@ -19,6 +19,7 @@ import { KodpauzaState } from './state';
 import { TelemetryOutbox } from './telemetryOutbox';
 import { normalizeExternalUrl } from './urls';
 import { shouldAutomaticallyConnectIntegrations } from './integrationAutoConnect';
+import { findBundledCodexCli } from './codexCli';
 
 type CommandHandler = (...args: unknown[]) => void | Promise<void>;
 type IntegrationDetection = CodexDetection;
@@ -306,11 +307,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     });
 
   const openCodexHooksCli = async (): Promise<void> => {
-    const terminal = vscode.window.createTerminal({ name: 'Kodpauza: Codex hooks' });
+    const detection = detectCodexExtension();
+    const bundledCli = detection.extensionPath
+      ? await findBundledCodexCli(detection.extensionPath)
+      : undefined;
+    if (!bundledCli) {
+      throw new Error(
+        'Встроенный Codex CLI не найден. Обновите расширение Codex и повторите проверку hooks.',
+      );
+    }
+    const terminal = vscode.window.createTerminal({
+      name: 'Kodpauza: Codex hooks',
+      shellPath: bundledCli,
+    });
     terminal.show();
-    terminal.sendText('codex');
     await vscode.window.showInformationMessage(
-      'После запуска Codex CLI выполните /hooks. Команда доступна в CLI, но не в боковой панели редактора.',
+      'Codex CLI запущен из установленного расширения. Выполните /hooks и разрешите hooks Kodpauza.',
     );
   };
 
