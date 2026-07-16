@@ -53,7 +53,7 @@ export class SafeExtensionAdapter implements ToolAdapter {
       changed: false,
       dryRun: true,
       message: this.options.versionedPatch
-        ? `UI-патч ${this.name} устанавливается только командой «Kodpauza: Подключить интеграции» после проверки версии, хэшей и создания резервной копии.`
+        ? `UI-патч ${this.name} устанавливается автоматически после входа либо вручную после проверки версии, хэшей и создания резервной копии.`
         : `Kodpauza не меняет файлы ${this.name}.`,
     };
   }

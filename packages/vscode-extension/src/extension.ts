@@ -18,6 +18,7 @@ import { DiagnosticsReporter } from './diagnostics';
 import { KodpauzaState } from './state';
 import { TelemetryOutbox } from './telemetryOutbox';
 import { normalizeExternalUrl } from './urls';
+import { shouldAutomaticallyConnectIntegrations } from './integrationAutoConnect';
 
 type CommandHandler = (...args: unknown[]) => void | Promise<void>;
 type IntegrationDetection = CodexDetection;
@@ -36,6 +37,14 @@ type IntegrationRuntime = {
   patchToken?: string;
   compatible?: boolean;
   compatibilityMode?: 'exact' | 'structural' | 'unsupported';
+};
+
+type IntegrationConnectionMode = 'manual' | 'login' | 'startup';
+
+type IntegrationConnectionResult = {
+  connected: string[];
+  failures: string[];
+  changed: boolean;
 };
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -305,23 +314,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   };
 
-  const installIntegrations = async (): Promise<void> => {
+  const connectIntegrations = async (
+    mode: IntegrationConnectionMode,
+  ): Promise<IntegrationConnectionResult> => {
     refreshIntegrationDetections();
     const detected = Object.values(integrations).filter((runtime) => runtime.detection.detected);
     if (detected.length === 0) {
-      throw new Error('Kodpauza не нашла установленные расширения Codex или Claude Code.');
+      const message = 'Kodpauza не нашла установленные расширения Codex или Claude Code.';
+      if (mode === 'manual') {
+        throw new Error(message);
+      }
+      return { connected: [], failures: [message], changed: false };
     }
-    const confirmation = await vscode.window.showWarningMessage(
-      'Подключить Kodpauza ко всем найденным AI-инструментам?',
-      {
-        modal: true,
-        detail:
-          'Kodpauza установит lifecycle hooks и изменит только файлы проверенных версий Codex и Claude Code. Перед каждым изменением создается полная резервная копия.',
-      },
-      'Подключить',
-    );
-    if (confirmation !== 'Подключить') {
-      return;
+
+    if (mode === 'manual') {
+      const confirmation = await vscode.window.showWarningMessage(
+        'Подключить Kodpauza ко всем найденным AI-инструментам?',
+        {
+          modal: true,
+          detail:
+            'Kodpauza установит lifecycle hooks и изменит только файлы проверенных версий Codex и Claude Code. Перед каждым изменением создается полная резервная копия.',
+        },
+        'Подключить',
+      );
+      if (confirmation !== 'Подключить') {
+        return { connected: [], failures: [], changed: false };
+      }
     }
 
     if (!state.integrationEnabled) {
@@ -355,24 +373,33 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }
     if (connected.length === 0) {
-      throw new Error(failures.join(' ') || 'Не удалось подключить найденные интеграции.');
+      if (mode === 'manual') {
+        throw new Error(failures.join(' ') || 'Не удалось подключить найденные интеграции.');
+      }
+      return { connected, failures, changed };
     }
 
+    await state.setAutoConnectIntegrations(true);
     await state.setIntegrationEnabled(true);
     await state.setAdsEnabled(true);
     await reconcileIntegration();
-    if (failures.length > 0) {
+    if (mode === 'manual' && failures.length > 0) {
       void vscode.window.showWarningMessage(
         `Подключено: ${connected.join(', ')}. ${failures.join(' ')}`,
       );
     }
-    if (changed) {
+    if (mode === 'manual' && changed) {
       scheduleReload('Kodpauza подключила интеграции. Перезапускаю окно...');
-    } else {
+    } else if (mode === 'manual') {
       await vscode.window.showInformationMessage(
         `Интеграции Kodpauza работают: ${connected.join(', ')}.`,
       );
     }
+    return { connected, failures, changed };
+  };
+
+  const installIntegrations = async (): Promise<void> => {
+    await connectIntegrations('manual');
   };
 
   const removeIntegrations = async (): Promise<void> => {
@@ -395,6 +422,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     }
     await bridge.stop();
     const failures = await removeRuntimeIntegrations(integrations);
+    await state.setAutoConnectIntegrations(false);
     await state.setIntegrationEnabled(false);
     if (failures.length > 0) {
       throw new Error(
@@ -494,10 +522,36 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         () => api.login(email, password),
       );
       await state.setAuthSession(login.token, login.refreshToken, login.eventSecret);
+      const connection = shouldAutomaticallyConnectIntegrations({
+        trigger: 'login',
+        authenticated: true,
+        autoConnectEnabled: state.autoConnectIntegrations,
+        integrationEnabled: state.integrationEnabled,
+      })
+        ? await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: 'Kodpauza подключает AI-инструменты',
+            },
+            () => connectIntegrations('login'),
+          )
+        : undefined;
       await outbox.flush();
       await reportDetectedVersions();
       await reportInstallHeartbeat();
-      await vscode.window.showInformationMessage('Вход в Kodpauza выполнен.');
+      if (connection?.changed) {
+        scheduleReload('Вход выполнен. Kodpauza подключила интеграции и перезапускает окно...');
+      } else if (connection?.connected.length) {
+        await vscode.window.showInformationMessage(
+          `Вход выполнен. Интеграции работают: ${connection.connected.join(', ')}.`,
+        );
+      } else if (connection?.failures.length) {
+        await vscode.window.showWarningMessage(
+          `Вход выполнен, но автоматическое подключение не завершено. ${connection.failures.join(' ')}`,
+        );
+      } else {
+        await vscode.window.showInformationMessage('Вход в Kodpauza выполнен.');
+      }
     }),
     register('kodpauza.logout', async () => {
       for (const runtime of Object.values(integrations)) {
@@ -575,6 +629,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
   );
+
+  const authenticatedAtStartup = Boolean(await state.accessToken());
+  if (shouldAutomaticallyConnectIntegrations({
+    trigger: 'startup',
+    authenticated: authenticatedAtStartup,
+    autoConnectEnabled: state.autoConnectIntegrations,
+    integrationEnabled: state.integrationEnabled,
+  })) {
+    const startupConnection = await connectIntegrations('startup');
+    autoReloadRequired ||= startupConnection.changed;
+  }
 
   outbox.start();
   await reconcileIntegration();

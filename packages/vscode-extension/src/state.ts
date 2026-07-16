@@ -17,6 +17,7 @@ const LEGACY_CODEX_INTEGRATION_ENABLED_KEY = 'kodpauza.codexIntegrationEnabled';
 const LEGACY_PATCH_INSTALLED_KEY = 'kodpauza.patchEnabled';
 const PATCH_BACKUP_KEY = 'kodpauza.patchBackup';
 const ADS_ENABLED_KEY = 'kodpauza.adsEnabled';
+const AUTO_CONNECT_INTEGRATIONS_KEY = 'kodpauza.autoConnectIntegrations';
 const TELEMETRY_OUTBOX_KEY = 'kodpauza.telemetryOutbox.v1';
 const LAST_UNSUPPORTED_CODEX_VERSION_KEY = 'kodpauza.lastUnsupportedCodexVersion';
 const LAST_UNSUPPORTED_INTEGRATION_VERSIONS_KEY = 'kodpauza.lastUnsupportedIntegrationVersions';
@@ -30,6 +31,7 @@ export class KodpauzaState {
   async initialize(): Promise<void> {
     await this.migrateLegacyFlag(ADS_ENABLED_KEY);
     await this.migrateLegacyIntegrationFlag();
+    await this.migrateAutomaticIntegrationPreference();
   }
 
   get installId(): string {
@@ -48,6 +50,22 @@ export class KodpauzaState {
     await vscode.workspace
       .getConfiguration('kodpauza')
       .update('adsEnabled', value, vscode.ConfigurationTarget.Global);
+  }
+
+  get autoConnectIntegrations(): boolean {
+    return vscode.workspace
+      .getConfiguration('kodpauza')
+      .get<boolean>('autoConnectIntegrations', true);
+  }
+
+  async setAutoConnectIntegrations(value: boolean): Promise<void> {
+    await vscode.workspace
+      .getConfiguration('kodpauza')
+      .update(
+        AUTO_CONNECT_INTEGRATIONS_KEY.slice('kodpauza.'.length),
+        value,
+        vscode.ConfigurationTarget.Global
+      );
   }
 
   get integrationEnabled(): boolean {
@@ -239,6 +257,16 @@ export class KodpauzaState {
         undefined,
         vscode.ConfigurationTarget.Global
       );
+    }
+  }
+
+  private async migrateAutomaticIntegrationPreference(): Promise<void> {
+    const configuration = vscode.workspace.getConfiguration('kodpauza');
+    const automatic = configuration.inspect<boolean>('autoConnectIntegrations');
+    const integration = configuration.inspect<boolean>('integrationsEnabled');
+
+    if (automatic?.globalValue === undefined && integration?.globalValue === false) {
+      await this.setAutoConnectIntegrations(false);
     }
   }
 }
