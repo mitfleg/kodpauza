@@ -26,7 +26,10 @@ export class DiagnosticsReporter {
     private readonly bridge: CodexHookBridge,
     private readonly lifecycles: { codex: CodexLifecycleController; claude: ClaudeLifecycleController },
     private readonly hookInstallers: { codex: CodexHookInstaller; claude: ClaudeHookInstaller },
-    private readonly patchInstallers: { codex?: CodexPatchInstaller; claude?: ClaudePatchInstaller }
+    private readonly patchInstallers: () => {
+      codex?: CodexPatchInstaller;
+      claude?: ClaudePatchInstaller;
+    }
   ) {}
 
   async run(): Promise<void> {
@@ -34,11 +37,12 @@ export class DiagnosticsReporter {
     const hasEventSecret = Boolean(await this.state.eventSecret());
     const codex = detectCodexExtension();
     const claude = detectClaudeExtension();
+    const patchInstallers = this.patchInstallers();
     const [codexHooks, claudeHooks, codexPatch, claudePatch] = await Promise.all([
       inspectSafely(() => this.hookInstallers.codex.inspect()),
       inspectSafely(() => this.hookInstallers.claude.inspect()),
-      inspectSafely(async () => this.patchInstallers.codex?.inspect()),
-      inspectSafely(async () => this.patchInstallers.claude?.inspect())
+      inspectSafely(async () => patchInstallers.codex?.inspect()),
+      inspectSafely(async () => patchInstallers.claude?.inspect())
     ]);
     const snapshot: DiagnosticsSnapshot = {
       apiBaseUrl: diagnosticValue(() => this.api.apiBaseUrl),

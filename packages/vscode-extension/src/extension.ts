@@ -109,6 +109,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
   };
 
+  const refreshIntegrationDetections = (): void => {
+    const detections: Record<IntegrationTool, IntegrationDetection> = {
+      codex: detectCodexExtension(),
+      claude: detectClaudeExtension(),
+    };
+    for (const runtime of Object.values(integrations)) {
+      const detection = detections[runtime.tool];
+      if (
+        runtime.detection.extensionId === detection.extensionId &&
+        runtime.detection.extensionPath === detection.extensionPath &&
+        runtime.detection.version === detection.version
+      ) {
+        continue;
+      }
+      runtime.detection = detection;
+      runtime.patch = runtime.tool === 'codex'
+        ? createCodexPatchInstaller(detection)
+        : createClaudePatchInstaller(detection);
+      runtime.patchToken = undefined;
+      runtime.compatible = undefined;
+      runtime.compatibilityMode = undefined;
+      runtime.presenter.setPatchedUiEnabled(false);
+    }
+  };
+
   let autoReloadRequired = false;
   for (const runtime of Object.values(integrations)) {
     if (!runtime.patch) {
@@ -151,13 +176,17 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     bridge,
     { codex: codexLifecycle, claude: claudeLifecycle },
     { codex: codexHooks, claude: claudeHooks },
-    {
-      codex: integrations.codex.patch as CodexPatchInstaller | undefined,
-      claude: integrations.claude.patch as ClaudePatchInstaller | undefined,
+    () => {
+      refreshIntegrationDetections();
+      return {
+        codex: integrations.codex.patch as CodexPatchInstaller | undefined,
+        claude: integrations.claude.patch as ClaudePatchInstaller | undefined,
+      };
     },
   );
 
   const reportDetectedVersions = async (): Promise<void> => {
+    refreshIntegrationDetections();
     await Promise.all(
       Object.values(integrations).map(async (runtime) => {
         const version = runtime.detection.version;
@@ -202,6 +231,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     reconciliation = reconciliation
       .catch(() => undefined)
       .then(async () => {
+        refreshIntegrationDetections();
         if (!state.adsEnabled || !state.integrationEnabled) {
           for (const runtime of Object.values(integrations)) {
             runtime.lifecycle.stopAll();
@@ -258,6 +288,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   const installIntegrations = async (): Promise<void> => {
+    refreshIntegrationDetections();
     const detected = Object.values(integrations).filter((runtime) => runtime.detection.detected);
     if (detected.length === 0) {
       throw new Error('Kodpauza не нашла установленные расширения Codex или Claude Code.');
@@ -327,6 +358,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   };
 
   const removeIntegrations = async (): Promise<void> => {
+    refreshIntegrationDetections();
     const confirmation = await vscode.window.showWarningMessage(
       'Отключить все интеграции Kodpauza?',
       {
@@ -396,7 +428,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       void bridge.stop().catch((error) => vscode.window.showErrorMessage(userErrorMessage(error)));
     }),
     vscode.extensions.onDidChange(() => {
-      if (!state.integrationEnabled || extensionReloadTimer) {
+      if (extensionReloadTimer) {
         return;
       }
       extensionReloadTimer = setTimeout(() => {
