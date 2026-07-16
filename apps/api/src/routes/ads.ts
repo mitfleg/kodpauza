@@ -4,6 +4,7 @@ import { adPolicy, impressionCostKopecks, nextAdQuerySchema, rewardForImpression
 import { requireRole } from '../auth.js';
 import { config } from '../config.js';
 import { prisma } from '../prisma.js';
+import { AD_ROTATION_HISTORY_SIZE, selectRotatedCampaign } from '../services/adRotation.js';
 
 export function registerAdsRoutes(app: FastifyInstance) {
   app.get('/v1/ads/next', { preHandler: requireRole('developer') }, async (request, reply) => {
@@ -16,7 +17,7 @@ export function registerAdsRoutes(app: FastifyInstance) {
       take: 100,
       include: { advertiser: { select: { balanceKopecks: true } } },
     });
-    const campaign = campaigns.find((item) => {
+    const eligibleCampaigns = campaigns.filter((item) => {
       const costKopecks = impressionCostKopecks(item.billableCpmKopecks);
       const budgetOk = item.spentKopecks + costKopecks <= item.budgetKopecks;
       const balanceOk = item.advertiser.balanceKopecks >= costKopecks;
@@ -24,9 +25,21 @@ export function registerAdsRoutes(app: FastifyInstance) {
       return budgetOk && balanceOk && limitOk;
     });
 
-    if (!campaign) {
+    if (eligibleCampaigns.length === 0) {
       return reply.code(204).send();
     }
+
+    const serveHistory = await prisma.adServe.findMany({
+      where: {
+        userId: request.authUser!.id,
+        campaignId: { in: eligibleCampaigns.map((campaign) => campaign.id) },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: AD_ROTATION_HISTORY_SIZE,
+      select: { campaignId: true },
+    });
+    const campaign = selectRotatedCampaign(eligibleCampaigns, serveHistory);
+    if (!campaign) return reply.code(204).send();
 
     const adId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + config.adServeTtlMs);
