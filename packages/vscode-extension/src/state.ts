@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { randomUUID } from 'node:crypto';
 import {
   acknowledgeTelemetry,
   deferTelemetry,
@@ -19,6 +20,7 @@ const ADS_ENABLED_KEY = 'kodpauza.adsEnabled';
 const TELEMETRY_OUTBOX_KEY = 'kodpauza.telemetryOutbox.v1';
 const LAST_UNSUPPORTED_CODEX_VERSION_KEY = 'kodpauza.lastUnsupportedCodexVersion';
 const LAST_UNSUPPORTED_INTEGRATION_VERSIONS_KEY = 'kodpauza.lastUnsupportedIntegrationVersions';
+const INSTALL_ID_KEY = 'kodpauza.installId';
 
 export type IntegrationStateTool = 'codex' | 'claude';
 
@@ -28,6 +30,14 @@ export class KodpauzaState {
   async initialize(): Promise<void> {
     await this.migrateLegacyFlag(ADS_ENABLED_KEY);
     await this.migrateLegacyIntegrationFlag();
+  }
+
+  get installId(): string {
+    const existing = this.context.globalState.get<string>(INSTALL_ID_KEY);
+    if (existing) return existing;
+    const created = randomUUID();
+    void this.context.globalState.update(INSTALL_ID_KEY, created);
+    return created;
   }
 
   get adsEnabled(): boolean {

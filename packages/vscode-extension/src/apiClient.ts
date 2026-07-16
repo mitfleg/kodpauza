@@ -29,6 +29,16 @@ export interface IntegrationVersionReportRequest {
   editorName: string;
 }
 
+export interface ExtensionInstallHeartbeatRequest {
+  installId: string;
+  vscodeVersion: string;
+  extensionVersion: string;
+  os: string;
+  integrationsEnabled: boolean;
+  codexDetected: boolean;
+  claudeDetected: boolean;
+}
+
 export class KodpauzaApiError extends Error {
   constructor(
     message: string,
@@ -141,6 +151,15 @@ export class KodpauzaApiClient {
 
   async reportCodexVersion(report: IntegrationVersionReportRequest): Promise<{ isNew: boolean }> {
     return this.reportIntegrationVersion('codex', report);
+  }
+
+  async reportInstallHeartbeat(
+    heartbeat: ExtensionInstallHeartbeatRequest,
+  ): Promise<void> {
+    await this.request<unknown>('/v1/developer/extension-install', {
+      method: 'PUT',
+      body: JSON.stringify(heartbeat),
+    });
   }
 
   async currentAd(surface: Surface, signal?: AbortSignal): Promise<KodpauzaAd | undefined> {

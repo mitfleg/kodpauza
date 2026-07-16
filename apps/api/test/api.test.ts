@@ -584,6 +584,56 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     expect(forbidden.statusCode).toBe(403);
   });
 
+  it('учитывает авторизованную установку расширения и строит воронку беты', async () => {
+    const developer = await registerDeveloper();
+    const anotherDeveloper = await registerDeveloper();
+    const installId = randomUUID();
+    const heartbeat = {
+      installId,
+      vscodeVersion: '1.102.0',
+      extensionVersion: '0.7.5',
+      os: 'darwin',
+      integrationsEnabled: true,
+      codexDetected: true,
+      claudeDetected: false,
+    };
+    const created = await app.inject({
+      method: 'PUT',
+      url: '/v1/developer/extension-install',
+      headers: auth(developer.token),
+      payload: heartbeat,
+    });
+    expect(created.statusCode).toBe(204);
+    expect(await prisma.extensionInstall.findUnique({ where: { installId } })).toMatchObject({
+      userId: developer.user.id,
+      integrationsEnabled: true,
+      codexDetected: true,
+    });
+
+    const stolen = await app.inject({
+      method: 'PUT',
+      url: '/v1/developer/extension-install',
+      headers: auth(anotherDeveloper.token),
+      payload: heartbeat,
+    });
+    expect(stolen.statusCode).toBe(409);
+
+    const admin = await login('admin@kodpauza.local', 'admin123456');
+    const funnel = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/funnel',
+      headers: auth(admin.token),
+    });
+    expect(funnel.statusCode).toBe(200);
+    expect(funnel.json().stages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'extension_authenticated', value: expect.any(Number) }),
+        expect.objectContaining({ id: 'integration_enabled', value: expect.any(Number) }),
+      ]),
+    );
+    expect(funnel.json().days).toHaveLength(14);
+  });
+
   it('не подменяет отсутствие подходящей кампании тестовым объявлением', async () => {
     const developer = await registerDeveloper();
     const activeCampaigns = await prisma.campaign.findMany({

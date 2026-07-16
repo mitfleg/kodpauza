@@ -226,6 +226,24 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
   };
 
+  const reportInstallHeartbeat = async (): Promise<void> => {
+    if (!(await state.accessToken())) return;
+    try {
+      refreshIntegrationDetections();
+      await api.reportInstallHeartbeat({
+        installId: state.installId,
+        vscodeVersion: vscode.version.slice(0, 40),
+        extensionVersion: clientVersion.slice(0, 40),
+        os: process.platform.slice(0, 40),
+        integrationsEnabled: state.integrationEnabled,
+        codexDetected: integrations.codex.detection.detected,
+        claudeDetected: integrations.claude.detection.detected,
+      });
+    } catch {
+      // Heartbeats are best-effort and never interrupt the editor.
+    }
+  };
+
   let reconciliation: Promise<void> = Promise.resolve();
   const reconcileIntegration = (): Promise<void> => {
     reconciliation = reconciliation
@@ -478,6 +496,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await state.setAuthSession(login.token, login.refreshToken, login.eventSecret);
       await outbox.flush();
       await reportDetectedVersions();
+      await reportInstallHeartbeat();
       await vscode.window.showInformationMessage('Вход в Kodpauza выполнен.');
     }),
     register('kodpauza.logout', async () => {
@@ -560,6 +579,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   outbox.start();
   await reconcileIntegration();
   await reportDetectedVersions();
+  await reportInstallHeartbeat();
+  const heartbeatTimer = setInterval(() => void reportInstallHeartbeat(), 6 * 60 * 60 * 1000);
+  heartbeatTimer.unref();
+  context.subscriptions.push({ dispose: () => clearInterval(heartbeatTimer) });
   if (autoReloadRequired) {
     scheduleReload('Kodpauza восстановила интеграции после обновления. Перезапускаю окно...');
   }

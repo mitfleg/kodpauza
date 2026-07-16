@@ -6,6 +6,97 @@ import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
 
 export function registerAdminRoutes(app: FastifyInstance) {
+  app.get('/v1/admin/funnel', { preHandler: requireRole('admin') }, async () => {
+    const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const [developers, installs, serves, impressions, registrations, recentInstalls, recentEvents] =
+      await Promise.all([
+        prisma.user.findMany({
+          where: { role: 'developer' },
+          select: { id: true, emailVerifiedAt: true },
+        }),
+        prisma.extensionInstall.findMany({
+          select: { userId: true, integrationsEnabled: true, createdAt: true },
+        }),
+        prisma.adServe.findMany({ select: { userId: true } }),
+        prisma.adEvent.findMany({
+          where: { type: 'impression' },
+          select: { userId: true, rewardKopecks: true },
+        }),
+        prisma.user.findMany({
+          where: { role: 'developer', createdAt: { gte: since } },
+          select: { createdAt: true },
+        }),
+        prisma.extensionInstall.findMany({
+          where: { createdAt: { gte: since } },
+          select: { createdAt: true },
+        }),
+        prisma.adEvent.findMany({
+          where: { type: 'impression', createdAt: { gte: since } },
+          select: { createdAt: true },
+        }),
+      ]);
+
+    const unique = <T>(items: T[]) => new Set(items).size;
+    const stages = [
+      { id: 'registered', label: 'Регистрация разработчика', value: developers.length },
+      {
+        id: 'verified',
+        label: 'Подтверждение почты',
+        value: developers.filter((user) => user.emailVerifiedAt).length,
+      },
+      {
+        id: 'extension_authenticated',
+        label: 'Вход из расширения',
+        value: unique(installs.map((install) => install.userId)),
+      },
+      {
+        id: 'integration_enabled',
+        label: 'Подключение Codex или Claude',
+        value: unique(
+          installs.filter((install) => install.integrationsEnabled).map((install) => install.userId),
+        ),
+      },
+      {
+        id: 'ad_received',
+        label: 'Первая рекламная выдача',
+        value: unique(serves.map((serve) => serve.userId)),
+      },
+      {
+        id: 'impression_recorded',
+        label: 'Подтверждённый показ',
+        value: unique(impressions.map((event) => event.userId)),
+      },
+      {
+        id: 'earning_received',
+        label: 'Первое начисление',
+        value: unique(
+          impressions.filter((event) => event.rewardKopecks > 0).map((event) => event.userId),
+        ),
+      },
+    ];
+
+    const dayKey = (value: Date) => value.toISOString().slice(0, 10);
+    const countByDay = (values: Date[]) => {
+      const result = new Map<string, number>();
+      for (const value of values) result.set(dayKey(value), (result.get(dayKey(value)) ?? 0) + 1);
+      return result;
+    };
+    const registeredByDay = countByDay(registrations.map((item) => item.createdAt));
+    const installsByDay = countByDay(recentInstalls.map((item) => item.createdAt));
+    const impressionsByDay = countByDay(recentEvents.map((item) => item.createdAt));
+    const days = Array.from({ length: 14 }, (_, index) => {
+      const date = new Date();
+      date.setUTCDate(date.getUTCDate() - (13 - index));
+      const key = dayKey(date);
+      return {
+        date: key,
+        registrations: registeredByDay.get(key) ?? 0,
+        installs: installsByDay.get(key) ?? 0,
+        impressions: impressionsByDay.get(key) ?? 0,
+      };
+    });
+    return { stages, days };
+  });
   app.get('/v1/admin/users', { preHandler: requireRole('admin') }, async () => ({
     users: await prisma.user.findMany({
       orderBy: { createdAt: 'desc' },

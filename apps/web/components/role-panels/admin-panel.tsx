@@ -60,15 +60,16 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
     setIsLoading(true);
     try {
       if (section === 'overview') {
-        const [users, campaigns, payouts, fraud, integrationVersions, finance] = await Promise.all([
+        const [users, campaigns, payouts, fraud, integrationVersions, finance, funnel] = await Promise.all([
           api<AdminData['users']>('/v1/admin/users'),
           api<AdminData['campaigns']>('/v1/admin/campaigns'),
           api<AdminData['payouts']>('/v1/admin/payouts?page=1&pageSize=50'),
           api<AdminData['fraud']>('/v1/admin/fraud-flags'),
           api<AdminData['integrationVersions']>('/v1/admin/integration-versions'),
           api<AdminData['finance']>('/v1/admin/finance'),
+          api<AdminData['funnel']>('/v1/admin/funnel'),
         ]);
-        setData({ users, campaigns, payouts, fraud, integrationVersions, finance });
+        setData({ users, campaigns, payouts, fraud, integrationVersions, finance, funnel });
       } else if (section === 'campaigns') {
         setData({ campaigns: await api<AdminData['campaigns']>('/v1/admin/campaigns') });
       } else if (section === 'users') {
@@ -286,6 +287,17 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
               <span className="shrink-0 text-sm font-semibold text-amber-950">Открыть отчеты</span>
             </Link>
           ) : null}
+
+          <WorkSurface
+            title="Воронка закрытой беты"
+            description="Путь разработчика от регистрации до первого начисления. Установка считается после первого авторизованного heartbeat расширения."
+          >
+            {isLoading ? (
+              <LoadingBlock label="Загружаем воронку" />
+            ) : (
+              <AdminFunnel stages={data.funnel?.stages ?? []} />
+            )}
+          </WorkSurface>
 
           <WorkSurface
             title="Состояние платформы"
@@ -592,6 +604,39 @@ function AdminOverviewMetric({
       </div>
       <p className="mt-5 truncate text-2xl font-bold tracking-[-0.03em] text-white">{value}</p>
       <p className="mt-1 line-clamp-2 text-xs text-slate-400">{detail}</p>
+    </div>
+  );
+}
+
+function AdminFunnel({
+  stages,
+}: {
+  stages: Array<{ id: string; label: string; value: number }>;
+}) {
+  const start = Math.max(stages[0]?.value ?? 0, 1);
+  return (
+    <div className="grid gap-3">
+      {stages.map((stage, index) => {
+        const previous = index === 0 ? stage.value : stages[index - 1]?.value ?? 0;
+        const stepConversion = previous > 0 ? Math.round((stage.value / previous) * 100) : 0;
+        const totalConversion = Math.round((stage.value / start) * 100);
+        return (
+          <div key={stage.id} className="grid gap-2 sm:grid-cols-[190px_minmax(0,1fr)_110px] sm:items-center">
+            <div className="text-sm font-medium text-ink">{stage.label}</div>
+            <div className="h-9 overflow-hidden rounded-md bg-slate-100">
+              <div
+                className="flex h-full min-w-9 items-center justify-end rounded-md bg-gradient-to-r from-blue-500 to-emerald-500 px-3 text-xs font-bold text-white transition-[width]"
+                style={{ width: `${Math.max(stage.value ? 8 : 0, totalConversion)}%` }}
+              >
+                {integer(stage.value)}
+              </div>
+            </div>
+            <div className="text-xs text-slate-500 sm:text-right">
+              {index === 0 ? 'точка входа' : `${stepConversion}% от шага`}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -196,6 +196,10 @@ export type IntegrationVersionReport = {
 };
 
 export type AdminData = {
+  funnel?: {
+    stages: Array<{ id: string; label: string; value: number }>;
+    days: Array<{ date: string; registrations: number; installs: number; impressions: number }>;
+  };
   users?: { users: AdminUser[] };
   campaigns?: { campaigns: Campaign[] };
   events?: { events: AdminEvent[] };

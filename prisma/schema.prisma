@@ -319,10 +319,14 @@ model ExtensionInstall {
   vscodeVersion    String?
   extensionVersion String?
   os               String?
+  integrationsEnabled Boolean @default(false)
+  codexDetected       Boolean @default(false)
+  claudeDetected      Boolean @default(false)
   lastSeenAt       DateTime @default(now())
   createdAt        DateTime @default(now())
 
   @@index([userId])
+  @@index([lastSeenAt])
 }
 
 model AdminAuditLog {

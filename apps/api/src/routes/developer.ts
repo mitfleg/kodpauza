@@ -4,6 +4,16 @@ import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
 import type { AdminNotifier } from '../services/adminNotifier.js';
 
+const extensionInstallSchema = z.object({
+  installId: z.string().uuid(),
+  vscodeVersion: z.string().trim().min(1).max(40),
+  extensionVersion: z.string().trim().min(1).max(40),
+  os: z.string().trim().min(1).max(40),
+  integrationsEnabled: z.boolean(),
+  codexDetected: z.boolean(),
+  claudeDetected: z.boolean(),
+});
+
 const ALERT_RETRY_DELAY_MS = 10 * 60 * 1000;
 
 const eventsQuerySchema = z.object({
@@ -26,6 +36,43 @@ const integrationVersionReportSchema = versionReportPayloadSchema.extend({
 type VersionReportPayload = z.infer<typeof versionReportPayloadSchema>;
 
 export function registerDeveloperRoutes(app: FastifyInstance, adminNotifier: AdminNotifier) {
+  app.put(
+    '/v1/developer/extension-install',
+    { preHandler: requireRole('developer') },
+    async (request, reply) => {
+      const parsed = extensionInstallSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'Некорректные данные установки расширения.' });
+      }
+      const now = new Date();
+      const existing = await prisma.extensionInstall.findUnique({
+        where: { installId: parsed.data.installId },
+        select: { userId: true },
+      });
+      if (existing && existing.userId !== request.authUser!.id) {
+        return reply.code(409).send({ error: 'Эта установка уже привязана к другому аккаунту.' });
+      }
+      await prisma.extensionInstall.upsert({
+        where: { installId: parsed.data.installId },
+        create: {
+          userId: request.authUser!.id,
+          ...parsed.data,
+          lastSeenAt: now,
+        },
+        update: {
+          userId: request.authUser!.id,
+          vscodeVersion: parsed.data.vscodeVersion,
+          extensionVersion: parsed.data.extensionVersion,
+          os: parsed.data.os,
+          integrationsEnabled: parsed.data.integrationsEnabled,
+          codexDetected: parsed.data.codexDetected,
+          claudeDetected: parsed.data.claudeDetected,
+          lastSeenAt: now,
+        },
+      });
+      return reply.code(204).send();
+    },
+  );
   app.get('/v1/developer/balance', { preHandler: requireRole('developer') }, async (request) => {
     const profile = await prisma.developerProfile.findUnique({ where: { userId: request.authUser!.id } });
     return {

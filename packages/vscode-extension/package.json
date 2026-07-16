@@ -2,7 +2,7 @@
   "name": "kodpauza-vscode",
   "displayName": "Kodpauza",
   "description": "Зарабатывайте во время работы Codex и Claude Code: Kodpauza показывает короткую рекламу, пока AI выполняет запрос.",
-  "version": "0.7.5",
+  "version": "0.7.6",
   "publisher": "kodpauza",
   "icon": "resources/icon.png",
   "homepage": "https://kodpauza.ru",
