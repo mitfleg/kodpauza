@@ -7,6 +7,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const {
   CLAUDE_2_1_209_PROFILE,
+  CLAUDE_2_1_212_PROFILE,
   ClaudePatchInstaller,
   patchClaudeHostSource,
   patchClaudeWebviewSource
@@ -14,6 +15,7 @@ const {
 
 const profile = CLAUDE_2_1_209_PROFILE;
 const hostSource = 'prefix;<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; ${p}; ${f}; ${m}; script-src \'nonce-${u}\'; ${v};">;suffix';
+const hostSource212 = hostSource.replace('${v}', '${h}');
 
 function fixtureWebview() {
   return `var pre=1;function oQe({size:e=16,permissionMode:t,status:i,spinnerVerbsConfig:n}){let o=co(()=>M8t(n),[n]),r=co(()=>Math.max(...o.map((p)=>p.length)),[o]),[s,a]=ne(0),[l,c]=ne(()=>Bj(o));de(()=>{let p=setInterval(()=>{a((f)=>(f+1)%iQe.length)},120);return()=>clearInterval(p)},[]),Vme(()=>{c(Bj(o))},(p)=>{let f=[2000,3000,5000];return p<f.length?f[p]:5000});let u=l;if(i==="compacting")u="Compacting";let h=A8t(u+"...",r+3);return E("div",{className:Fj.container,"data-permission-mode":t,children:[b("span",{className:Fj.icon,style:{fontSize:\`\${e}px\`},children:iQe[s]}),b("span",{className:Fj.text,children:h})]})}var post=1;`;
@@ -23,22 +25,24 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
-async function fixture(context) {
+async function fixture(context, options = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-claude-patch-'));
   context.after(() => fs.rm(root, { recursive: true, force: true }));
   const extensionPath = path.join(root, 'claude');
   const home = path.join(root, 'kodpauza');
+  const fixtureHostSource = options.hostSource ?? hostSource;
+  const fixtureProfile = options.profile ?? profile;
   const webviewSource = fixtureWebview();
   await fs.mkdir(path.join(extensionPath, 'webview'), { recursive: true });
-  await fs.writeFile(path.join(extensionPath, 'extension.js'), hostSource);
+  await fs.writeFile(path.join(extensionPath, 'extension.js'), fixtureHostSource);
   await fs.writeFile(path.join(extensionPath, 'webview', 'index.js'), webviewSource);
   const build = {
     version: 'test-version',
-    hostSha256: sha256(hostSource),
+    hostSha256: sha256(fixtureHostSource),
     webviewSha256: sha256(webviewSource),
-    profile
+    profile: fixtureProfile
   };
-  return { root, extensionPath, home, webviewSource, build };
+  return { root, extensionPath, home, hostSource: fixtureHostSource, webviewSource, build };
 }
 
 test('Claude UI-патч устанавливается, не трогает Compacting и откатывается', async (context) => {
@@ -71,6 +75,36 @@ test('Claude UI-патч устанавливается, не трогает Com
   assert.equal(restored.changed, true);
   assert.equal(await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'), hostSource);
   assert.equal(await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'), value.webviewSource);
+});
+
+test('профиль Claude Code 2.1.212 патчит новый CSP-якорь и полностью откатывается', async (context) => {
+  const value = await fixture(context, {
+    hostSource: hostSource212,
+    profile: CLAUDE_2_1_212_PROFILE
+  });
+  const installer = new ClaudePatchInstaller(value.extensionPath, 'test-version', value.home, value.build);
+
+  const installed = await installer.install();
+  assert.equal(installed.compatibilityMode, 'exact');
+  assert.match(
+    await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'),
+    /\$\{h\}; connect-src http:\/\/127\.0\.0\.1:37491;/
+  );
+  assert.match(
+    await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'),
+    /__KODPAUZA_CLAUDE_UI_START__/
+  );
+
+  const restored = await installer.restore();
+  assert.equal(restored.changed, true);
+  assert.equal(
+    await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'),
+    value.hostSource
+  );
+  assert.equal(
+    await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'),
+    value.webviewSource
+  );
 });
 
 test('Claude UI-патч автоматически исправляет частичную установку', async (context) => {
@@ -129,10 +163,25 @@ test('Claude UI-патч fail-closed отклоняет измененный spi
   assert.equal(await fs.readFile(webviewPath, 'utf8'), changed);
 });
 
+test('Claude UI-патч fail-closed отклоняет неизвестный или неоднозначный CSP-якорь', async (context) => {
+  const unknown = await fixture(context, { hostSource: hostSource.replace('${v}', '${x}') });
+  const installer = new ClaudePatchInstaller(unknown.extensionPath, 'future-version', unknown.home);
+
+  const status = await installer.inspect();
+  assert.equal(status.compatible, false);
+  assert.equal(status.compatibilityMode, 'unsupported');
+  await assert.rejects(() => installer.install(), /не поддерживается|безопасно отключена/);
+
+  assert.throws(
+    () => patchClaudeHostSource(`${hostSource212}${hostSource212}`, CLAUDE_2_1_212_PROFILE),
+    /2 вместо 1/
+  );
+});
+
 test('чистые функции Claude-патча отклоняют повторное применение', () => {
   const token = 'b'.repeat(64);
-  const patchedHost = patchClaudeHostSource(hostSource);
+  const patchedHost = patchClaudeHostSource(hostSource, profile);
   const patchedWebview = patchClaudeWebviewSource(fixtureWebview(), token, profile);
-  assert.throws(() => patchClaudeHostSource(patchedHost), /уже присутствует/);
+  assert.throws(() => patchClaudeHostSource(patchedHost, profile), /уже присутствует/);
   assert.throws(() => patchClaudeWebviewSource(patchedWebview, token, profile), /уже присутствует/);
 });

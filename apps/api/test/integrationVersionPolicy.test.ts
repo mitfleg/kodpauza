@@ -9,7 +9,7 @@ describe('classifyUnsupportedIntegrationVersion', () => {
     });
     expect(classifyUnsupportedIntegrationVersion('claude', '2.1.173')).toEqual({
       attention: 'outdated_tool',
-      latestExactVersion: '2.1.209',
+      latestExactVersion: '2.1.212',
     });
   });
 
@@ -18,9 +18,9 @@ describe('classifyUnsupportedIntegrationVersion', () => {
       attention: 'new_patch',
       latestExactVersion: '26.707.91948',
     });
-    expect(classifyUnsupportedIntegrationVersion('claude', '2.1.210')).toEqual({
+    expect(classifyUnsupportedIntegrationVersion('claude', '2.1.213')).toEqual({
       attention: 'new_patch',
-      latestExactVersion: '2.1.209',
+      latestExactVersion: '2.1.212',
     });
   });
 });

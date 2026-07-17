@@ -6,7 +6,7 @@ export type UnsupportedVersionAttention = 'new_patch' | 'outdated_tool';
 // supported by the extension and never reach this classifier.
 export const latestExactIntegrationVersions: Record<IntegrationTool, string> = {
   codex: '26.707.91948',
-  claude: '2.1.209',
+  claude: '2.1.212',
 };
 
 export function classifyUnsupportedIntegrationVersion(

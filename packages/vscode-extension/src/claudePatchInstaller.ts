@@ -17,9 +17,9 @@ const UI_MARKER_END = '/*__KODPAUZA_CLAUDE_UI_END__*/';
 const CSP_MARKER_START = '<!--__KODPAUZA_CLAUDE_CSP_START__-->';
 const CSP_MARKER_END = '<!--__KODPAUZA_CLAUDE_CSP_END__-->';
 const MAX_PATCH_FILE_BYTES = 8 * 1024 * 1024;
-const CSP_ANCHOR = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; ${p}; ${f}; ${m}; script-src \'nonce-${u}\'; ${v};">';
 
 export type ClaudePatchProfile = {
+  cspFinalIdentifier: string;
   componentIdentifier: string;
   verbsIdentifier: string;
   randomIdentifier: string;
@@ -37,6 +37,7 @@ export type ClaudeSupportedBuild = {
 };
 
 export const CLAUDE_2_1_207_PROFILE: ClaudePatchProfile = {
+  cspFinalIdentifier: 'v',
   componentIdentifier: 'aQe',
   verbsIdentifier: 'W8t',
   randomIdentifier: 'Wj',
@@ -47,6 +48,7 @@ export const CLAUDE_2_1_207_PROFILE: ClaudePatchProfile = {
 };
 
 export const CLAUDE_2_1_209_PROFILE: ClaudePatchProfile = {
+  cspFinalIdentifier: 'v',
   componentIdentifier: 'oQe',
   verbsIdentifier: 'M8t',
   randomIdentifier: 'Bj',
@@ -54,6 +56,11 @@ export const CLAUDE_2_1_209_PROFILE: ClaudePatchProfile = {
   animateIdentifier: 'A8t',
   stylesIdentifier: 'Fj',
   spinnerFramesIdentifier: 'iQe'
+};
+
+export const CLAUDE_2_1_212_PROFILE: ClaudePatchProfile = {
+  ...CLAUDE_2_1_209_PROFILE,
+  cspFinalIdentifier: 'h'
 };
 
 const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
@@ -68,6 +75,12 @@ const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
     hostSha256: '74fd568a28ccd54ec3902ed47ea8b33781325c4862c541613648684694ef072e',
     webviewSha256: '6cca18ca9b6952a0d737d7ab024fed1625dcdcd057a484fdc19e1fa019e62bc9',
     profile: CLAUDE_2_1_209_PROFILE
+  },
+  {
+    version: '2.1.212',
+    hostSha256: '4bf69e72516593859ceb3f520aa510918ea71bc63dec3a2f81816ccda28567d1',
+    webviewSha256: 'd02e1ffdb066a69458759262433fc9c972b773e56f99f36c3bf2605749959a76',
+    profile: CLAUDE_2_1_212_PROFILE
   }
 ] as const;
 
@@ -212,7 +225,7 @@ export class ClaudePatchInstaller {
     assertOriginalHash(paths.webviewPath, webviewSource, resolvedBuild.webviewSha256);
 
     const token = crypto.randomBytes(32).toString('hex');
-    const patchedHost = patchClaudeHostSource(hostSource);
+    const patchedHost = patchClaudeHostSource(hostSource, resolvedBuild.profile);
     const patchedWebview = patchClaudeWebviewSource(webviewSource, token, resolvedBuild.profile);
     assertJavaScriptParses(patchedHost, 'Claude Code extension.js');
     assertJavaScriptParses(patchedWebview, 'Claude Code webview/index.js');
@@ -328,7 +341,7 @@ export class ClaudePatchInstaller {
     const matches = profiles.filter((profile) => {
       try {
         const token = '0'.repeat(64);
-        const patchedHost = patchClaudeHostSource(hostSource);
+        const patchedHost = patchClaudeHostSource(hostSource, profile);
         const patchedWebview = patchClaudeWebviewSource(webviewSource, token, profile);
         assertJavaScriptParses(patchedHost, 'Claude Code extension.js');
         assertJavaScriptParses(patchedWebview, 'Claude Code webview/index.js');
@@ -440,21 +453,30 @@ export class ClaudePatchInstaller {
   }
 }
 
-export function patchClaudeHostSource(source: string): string {
+export function patchClaudeHostSource(
+  source: string,
+  profile: ClaudePatchProfile = CLAUDE_2_1_209_PROFILE
+): string {
+  validateProfile(profile);
   if (source.includes(CSP_MARKER_START)) {
     throw new Error('CSP-патч Kodpauza уже присутствует в Claude Code.');
   }
-  const patchedAnchor = CSP_ANCHOR.replace(
-    '${v};">',
-    `\${v}; connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};">`
-  );
+  const anchor = claudeCspAnchor(profile);
+  const patchedAnchor = claudeCspAnchor(profile, true);
   return replaceExact(
     source,
-    CSP_ANCHOR,
+    anchor,
     `${CSP_MARKER_START}${patchedAnchor}${CSP_MARKER_END}`,
     1,
     'Content Security Policy Claude Code'
   );
+}
+
+function claudeCspAnchor(profile: ClaudePatchProfile, patched = false): string {
+  const connectSource = patched
+    ? ` connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};`
+    : '';
+  return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; \${p}; \${f}; \${m}; script-src 'nonce-\${u}'; \${${profile.cspFinalIdentifier}};${connectSource}">`;
 }
 
 export function patchClaudeWebviewSource(
