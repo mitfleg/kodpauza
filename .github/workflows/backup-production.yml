@@ -31,19 +31,17 @@ jobs:
       PROD_SSH_PRIVATE_KEY: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
       PROD_SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
       PROD_SSH_PORT: ${{ vars.PROD_SSH_PORT }}
-      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
     steps:
+      - name: Check out backup helper
+        uses: actions/checkout@v4
+
       - name: Validate backup configuration
         run: |
           set -euo pipefail
           for name in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY PROD_HOST PROD_USER \
-            PROD_SSH_PRIVATE_KEY PROD_SSH_KNOWN_HOSTS BACKUP_ENCRYPTION_PASSPHRASE; do
+            PROD_SSH_PRIVATE_KEY PROD_SSH_KNOWN_HOSTS; do
             test -n "${!name}" || { echo "::error::Missing secret ${name}"; exit 1; }
           done
-          test "${#BACKUP_ENCRYPTION_PASSPHRASE}" -ge 32 || {
-            echo '::error::BACKUP_ENCRYPTION_PASSPHRASE must contain at least 32 characters'
-            exit 1
-          }
           aws --version
 
       - name: Configure SSH
@@ -53,6 +51,15 @@ jobs:
           printf '%s\n' "$PROD_SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
           printf '%s\n' "$PROD_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+          port="${PROD_SSH_PORT:-22}"
+          scp -P "$port" deploy/backup-production-remote.sh \
+            "${PROD_USER}@${PROD_HOST}:/opt/kodpauza/backup-production-remote.sh.tmp"
+          ssh -p "$port" "${PROD_USER}@${PROD_HOST}" \
+            'install -m 700 /opt/kodpauza/backup-production-remote.sh.tmp \
+              /opt/kodpauza/backup-production-remote.sh \
+              && rm -f /opt/kodpauza/backup-production-remote.sh.tmp \
+              && test -s /opt/kodpauza/.backup-encryption-passphrase'
 
       - name: Mark backup attempt on production
         run: |
@@ -67,19 +74,13 @@ jobs:
           timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
           object="${BACKUP_S3_PREFIX}/kodpauza-${timestamp}.dump.enc"
           backup="$RUNNER_TEMP/kodpauza.dump.enc"
-          key="$RUNNER_TEMP/backup-passphrase"
-          printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" > "$key"
-          chmod 600 "$key"
           port="${PROD_SSH_PORT:-22}"
           ssh -p "$port" "${PROD_USER}@${PROD_HOST}" \
-            'docker exec kodpauza-postgres-1 sh -lc '\''pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc --no-owner --no-privileges'\''' \
-            | openssl enc -aes-256-cbc -salt -pbkdf2 -iter 600000 -pass file:"$key" \
-            > "$backup"
+            '/opt/kodpauza/backup-production-remote.sh create' > "$backup"
           test -s "$backup"
           sha256sum "$backup" > "${backup}.sha256"
           echo "object=$object" >> "$GITHUB_OUTPUT"
           echo "backup=$backup" >> "$GITHUB_OUTPUT"
-          echo "key=$key" >> "$GITHUB_OUTPUT"
 
       - name: Upload encrypted backup to Timeweb S3
         run: |
@@ -93,38 +94,20 @@ jobs:
             "s3://${BACKUP_S3_BUCKET}/${{ steps.dump.outputs.object }}.sha256" \
             --only-show-errors
 
-      - name: Download and restore into clean PostgreSQL
+      - name: Download and restore on production
         run: |
           set -euo pipefail
           downloaded="$RUNNER_TEMP/downloaded.dump.enc"
-          decrypted="$RUNNER_TEMP/restored.dump"
           aws --endpoint-url "$BACKUP_S3_ENDPOINT" s3 cp \
             "s3://${BACKUP_S3_BUCKET}/${{ steps.dump.outputs.object }}" "$downloaded" \
             --only-show-errors
           test "$(sha256sum "$downloaded" | cut -d' ' -f1)" = \
             "$(cut -d' ' -f1 "${{ steps.dump.outputs.backup }}.sha256")"
-          openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 \
-            -pass file:"${{ steps.dump.outputs.key }}" \
-            -in "$downloaded" -out "$decrypted"
-          docker run -d --name kodpauza-backup-restore \
-            -e POSTGRES_PASSWORD=restore-test postgres:16-alpine
-          for attempt in {1..60}; do
-            if docker logs kodpauza-backup-restore 2>&1 \
-              | grep -q 'PostgreSQL init process complete; ready for start up.' \
-              && test "$(docker exec kodpauza-backup-restore \
-                psql -U postgres -d postgres -Atc 'SELECT 1' 2>/dev/null)" = '1'; then
-              break
-            fi
-            test "$attempt" -lt 60 || exit 1
-            sleep 1
-          done
-          docker exec kodpauza-backup-restore createdb -U postgres restore_test
-          docker exec -i kodpauza-backup-restore pg_restore \
-            -U postgres -d restore_test --no-owner --no-privileges < "$decrypted"
-          tables="$(docker exec kodpauza-backup-restore psql -U postgres -d restore_test -Atc \
-            "SELECT count(*) FROM pg_tables WHERE schemaname = 'public';")"
-          test "$tables" -ge 10
-          echo "Restore test passed: ${tables} public tables."
+          port="${PROD_SSH_PORT:-22}"
+          restore_db="kodpauza_restore_${GITHUB_RUN_ID}_${GITHUB_RUN_ATTEMPT}"
+          ssh -p "$port" "${PROD_USER}@${PROD_HOST}" \
+            "/opt/kodpauza/backup-production-remote.sh restore-test ${restore_db}" \
+            < "$downloaded"
 
       - name: Mark verified backup on production
         run: |
@@ -145,8 +128,7 @@ jobs:
                   "s3://${BACKUP_S3_BUCKET}/${key}" --only-show-errors
               done
 
-      - name: Clean restore container and secrets
+      - name: Clean encrypted runner files
         if: always()
         run: |
-          docker rm -f kodpauza-backup-restore >/dev/null 2>&1 || true
-          rm -f "$RUNNER_TEMP/backup-passphrase" "$RUNNER_TEMP"/*.dump "$RUNNER_TEMP"/*.enc
+          rm -f "$RUNNER_TEMP"/*.dump "$RUNNER_TEMP"/*.enc "$RUNNER_TEMP"/*.sha256
