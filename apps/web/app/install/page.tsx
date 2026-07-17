@@ -141,22 +141,30 @@ export default function InstallPage() {
               <div className="border-b border-line px-5 py-4">
                 <h2 className="text-lg font-bold text-ink">Первый запуск</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Все команды открываются через палитру VS Code:{' '}
+                  Откройте палитру команд:{' '}
+                  <kbd className="rounded border border-line bg-slate-50 px-1.5 py-0.5 font-mono text-xs text-ink">
+                    Ctrl + Shift + P
+                  </kbd>{' '}
+                  в Windows/Linux или{' '}
                   <kbd className="rounded border border-line bg-slate-50 px-1.5 py-0.5 font-mono text-xs text-ink">
                     Cmd + Shift + P
-                  </kbd>
-                  .
+                  </kbd>{' '}
+                  на macOS.
                 </p>
               </div>
               <ol className="divide-y divide-line">
                 {[
                   [
-                    'Kodpauza: Войти',
-                    'Используйте почту и пароль аккаунта разработчика. Найденные Codex и Claude Code подключатся автоматически.',
+                    'Откройте команду входа',
+                    'В строке вверху окна введите «Kodpauza: Войти», выберите эту команду в списке и нажмите Enter.',
+                  ],
+                  [
+                    'Введите почту и пароль',
+                    'Сначала укажите почту аккаунта Kodpauza, затем пароль. Оба поля появятся по очереди вверху окна редактора.',
                   ],
                   [
                     'Дождитесь подключения',
-                    'Kodpauza проверит версии и создаст резервные копии перед изменением файлов.',
+                    'Kodpauza найдет Codex и Claude Code, проверит версии и создаст резервные копии перед изменением файлов.',
                   ],
                   [
                     'Автоматический перезапуск',
@@ -164,7 +172,7 @@ export default function InstallPage() {
                   ],
                   [
                     'Отправьте запрос AI',
-                    'Объявление появится внутри активного статуса Codex или Claude Code и исчезнет после ответа.',
+                    'Работайте как обычно. Объявление появится внутри активного статуса Codex или Claude Code и исчезнет после ответа.',
                   ],
                 ].map(([command, text], index) => (
                   <li
