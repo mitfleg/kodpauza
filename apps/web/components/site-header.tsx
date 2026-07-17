@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Code2, LogIn, LogOut, Menu, UserPlus, X } from 'lucide-react';
+import { Code2, LogIn, LogOut, Menu, Settings, UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
 import { publicNav, roleHome, roleLabel, roleNavigation } from '@/lib/navigation';
@@ -96,6 +96,14 @@ export function SiteHeader() {
                 <p className="text-xs font-semibold text-ink">{roleLabel[user.role]}</p>
                 <p className="mt-0.5 max-w-52 truncate text-xs text-slate-500">{user.email}</p>
               </div>
+              <Link
+                href="/account/settings"
+                className="focus-ring grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-ink"
+                aria-label="Настройки аккаунта"
+                title="Настройки аккаунта"
+              >
+                <Settings aria-hidden className="h-4 w-4" />
+              </Link>
               <button
                 type="button"
                 onClick={handleLogout}
@@ -177,14 +185,24 @@ export function SiteHeader() {
                   );
                 })}
                 {user ? (
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="focus-ring mt-2 flex h-11 items-center gap-3 rounded-md border-t border-line px-3 text-sm font-semibold text-red-700"
-                  >
-                    <LogOut aria-hidden className="h-4 w-4" />
-                    Выйти
-                  </button>
+                  <div className="mt-2 grid gap-1 border-t border-line pt-2">
+                    <Link
+                      href="/account/settings"
+                      onClick={() => setIsOpen(false)}
+                      className="focus-ring flex h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                    >
+                      <Settings aria-hidden className="h-4 w-4" />
+                      Настройки аккаунта
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={handleLogout}
+                      className="focus-ring flex h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold text-red-700"
+                    >
+                      <LogOut aria-hidden className="h-4 w-4" />
+                      Выйти
+                    </button>
+                  </div>
                 ) : (
                   <div className="mt-2 grid grid-cols-2 gap-2 border-t border-line pt-4">
                     <Link
