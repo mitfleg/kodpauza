@@ -27,6 +27,8 @@ class ToolLifecycleController implements vscode.Disposable {
   private uiActiveValue = false;
   private staleTimer: NodeJS.Timeout | undefined;
   private queue: Promise<void> = Promise.resolve();
+  private lastSignalAtValue: string | undefined;
+  private lastSignalValue: string | undefined;
 
   constructor(
     private readonly state: KodpauzaState,
@@ -36,6 +38,14 @@ class ToolLifecycleController implements vscode.Disposable {
 
   get activeTurns(): number {
     return this.activeTurnsValue + Number(this.uiActiveValue);
+  }
+
+  get lastSignalAt(): string | undefined {
+    return this.lastSignalAtValue;
+  }
+
+  get lastSignal(): string | undefined {
+    return this.lastSignalValue;
   }
 
   handle(event: CodexLifecycleEvent): Promise<void> {
@@ -62,6 +72,7 @@ class ToolLifecycleController implements vscode.Disposable {
   }
 
   private async apply(event: CodexLifecycleEvent): Promise<void> {
+    this.recordSignal(`hook:${event.event}`);
     if (event.event === 'stop') {
       const wasActive = this.activeTurns > 0;
       this.activeTurnsValue = Math.max(0, this.activeTurnsValue - 1);
@@ -100,6 +111,7 @@ class ToolLifecycleController implements vscode.Disposable {
   }
 
   private async applyUiActivity(active: boolean): Promise<void> {
+    this.recordSignal(`ui:${active ? 'active' : 'inactive'}`);
     if (this.uiActiveValue === active) {
       return;
     }
@@ -155,6 +167,11 @@ class ToolLifecycleController implements vscode.Disposable {
       clearTimeout(this.staleTimer);
       this.staleTimer = undefined;
     }
+  }
+
+  private recordSignal(signal: string): void {
+    this.lastSignalAtValue = new Date().toISOString();
+    this.lastSignalValue = signal;
   }
 }
 

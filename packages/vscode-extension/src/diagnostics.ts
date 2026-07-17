@@ -63,10 +63,20 @@ export class DiagnosticsReporter {
       codexHooksInstalled: Boolean(codexHooks.value?.installed),
       codexBridgeListening: this.bridge.isListening,
       codexActiveTurns: this.lifecycles.codex.activeTurns,
+      codexLastSignalAt: this.lifecycles.codex.lastSignalAt,
+      codexLastSignal: this.lifecycles.codex.lastSignal,
+      codexAdSessionId: this.presenters.codex.sessionId,
+      codexAdSessionStartedAt: this.presenters.codex.sessionStartedAt,
+      codexNextRotationAt: this.presenters.codex.nextRotationAt,
       claudeExtensionDetected: claude.detected,
       claudeExtensionVersion: claude.version,
       claudeHooksInstalled: Boolean(claudeHooks.value?.installed),
-      claudeActiveTurns: this.lifecycles.claude.activeTurns
+      claudeActiveTurns: this.lifecycles.claude.activeTurns,
+      claudeLastSignalAt: this.lifecycles.claude.lastSignalAt,
+      claudeLastSignal: this.lifecycles.claude.lastSignal,
+      claudeAdSessionId: this.presenters.claude.sessionId,
+      claudeAdSessionStartedAt: this.presenters.claude.sessionStartedAt,
+      claudeNextRotationAt: this.presenters.claude.nextRotationAt
     };
 
     this.output.clear();
@@ -86,6 +96,10 @@ export class DiagnosticsReporter {
     this.output.appendLine(`Локальный bridge: ${snapshot.codexBridgeListening ? 'слушает' : 'остановлен'}`);
     this.output.appendLine(`Активных ожиданий Codex: ${snapshot.codexActiveTurns}`);
     this.output.appendLine(`Активных ожиданий Claude Code: ${snapshot.claudeActiveTurns}`);
+    this.output.appendLine(`Последний сигнал Codex: ${signalLabel(snapshot.codexLastSignalAt, snapshot.codexLastSignal)}`);
+    this.output.appendLine(`Последний сигнал Claude Code: ${signalLabel(snapshot.claudeLastSignalAt, snapshot.claudeLastSignal)}`);
+    this.output.appendLine(`Рекламная сессия Codex: ${sessionLabel(snapshot.codexAdSessionId, snapshot.codexAdSessionStartedAt, snapshot.codexNextRotationAt)}`);
+    this.output.appendLine(`Рекламная сессия Claude Code: ${sessionLabel(snapshot.claudeAdSessionId, snapshot.claudeAdSessionStartedAt, snapshot.claudeNextRotationAt)}`);
     this.output.appendLine(`Показ рекламы: ${snapshot.adPresenterRunning ? 'активен' : 'остановлен'}`);
     this.output.appendLine(`Объявление видно: ${snapshot.adVisible ? 'да' : 'нет'}`);
     this.output.appendLine(`Окно VS Code активно: ${snapshot.activeWindow ? 'да' : 'нет'}`);
@@ -154,4 +168,19 @@ function diagnosticValue(read: () => string): string {
   } catch (error) {
     return `ошибка настройки: ${error instanceof Error ? error.message : String(error)}`;
   }
+}
+
+function signalLabel(at: string | undefined, signal: string | undefined): string {
+  return at ? `${at} (${signal ?? 'неизвестный источник'})` : 'нет';
+}
+
+function sessionLabel(
+  sessionId: string | undefined,
+  startedAt: string | undefined,
+  nextRotationAt: string | undefined
+): string {
+  if (!sessionId) {
+    return 'нет';
+  }
+  return `${sessionId} · старт ${startedAt ?? 'неизвестен'} · следующая смена ${nextRotationAt ?? 'при возобновлении показа'}`;
 }

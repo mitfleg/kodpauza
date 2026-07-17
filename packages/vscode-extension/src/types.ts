@@ -76,8 +76,18 @@ export interface DiagnosticsSnapshot {
   codexHooksInstalled: boolean;
   codexBridgeListening: boolean;
   codexActiveTurns: number;
+  codexLastSignalAt?: string;
+  codexLastSignal?: string;
+  codexAdSessionId?: string;
+  codexAdSessionStartedAt?: string;
+  codexNextRotationAt?: string;
   claudeExtensionDetected: boolean;
   claudeExtensionVersion?: string;
   claudeHooksInstalled: boolean;
   claudeActiveTurns: number;
+  claudeLastSignalAt?: string;
+  claudeLastSignal?: string;
+  claudeAdSessionId?: string;
+  claudeAdSessionStartedAt?: string;
+  claudeNextRotationAt?: string;
 }

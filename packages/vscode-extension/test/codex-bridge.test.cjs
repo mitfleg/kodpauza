@@ -96,6 +96,18 @@ test('bridge принимает только подписанные локаль
     text: 'Тестовое объявление',
     format: 'standard',
   });
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.deepEqual(uiActivity, []);
+
+  const codexActivity = await fetch(
+    `http://127.0.0.1:${descriptor.port}/v1/codex/ad/activity?token=${uiToken}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ viewId: 'codex-view-1', active: true }),
+    },
+  );
+  assert.equal(codexActivity.status, 204);
   await waitFor(() => uiActivity.length === 1, 500);
   assert.deepEqual(uiActivity[0], { tool: 'codex', active: true });
   await waitFor(() => uiActivity.length === 2, 500);
@@ -130,6 +142,16 @@ test('bridge принимает только подписанные локаль
     text: 'Claude объявление',
     format: 'premium',
   });
+  assert.equal(uiActivity.length, 2);
+  const claudeActivity = await fetch(
+    `http://127.0.0.1:${descriptor.port}/v1/claude/ad/activity?token=${claudeUiToken}`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ viewId: 'claude-view-1', active: true }),
+    },
+  );
+  assert.equal(claudeActivity.status, 204);
   await waitFor(() => uiActivity.length === 3, 500);
   assert.deepEqual(uiActivity[2], { tool: 'claude', active: true });
   assert.deepEqual(visible, []);

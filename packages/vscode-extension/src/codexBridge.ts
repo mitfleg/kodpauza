@@ -8,7 +8,7 @@ const MAX_BODY_BYTES = 2_048;
 const HEARTBEAT_MS = 30_000;
 const STALE_DESCRIPTOR_MS = 5 * 60_000;
 const DEFAULT_PORT_RETRY_MS = 1_500;
-const DEFAULT_UI_ACTIVITY_GRACE_MS = 2_500;
+const DEFAULT_UI_ACTIVITY_GRACE_MS = 5_000;
 
 export type CodexLifecycleEvent = {
   version: 1;
@@ -31,6 +31,11 @@ export type UiVisibilityEvent = {
   adId: string;
   viewId: string;
   visible: boolean;
+};
+
+export type UiActivityEvent = {
+  viewId: string;
+  active: boolean;
 };
 
 export type CodexHookBridgeOptions = {
@@ -75,6 +80,8 @@ export class CodexHookBridge {
   private descriptorWrite: Promise<void> = Promise.resolve();
   private lastErrorValue: string | undefined;
   private readonly uiActivityTimers = new Map<IntegrationTool, NodeJS.Timeout>();
+  private readonly uiActivityViews = new Map<IntegrationTool, Map<string, number>>();
+  private readonly activeUiTools = new Set<IntegrationTool>();
 
   constructor(
     private readonly kodpauzaHome: string,
@@ -291,10 +298,20 @@ export class CodexHookBridge {
 
     if (request.method === 'GET' && requestUrl.pathname === `/v1/${tool}/ad/current`) {
       request.resume();
-      this.touchUiActivity(tool);
       const ad =
         adapter?.currentAd() ?? (tool === 'codex' ? this.options.currentAd?.() : undefined);
       respondJson(response, ad ?? { active: false }, corsHeaders);
+      return;
+    }
+
+    if (request.method === 'POST' && requestUrl.pathname === `/v1/${tool}/ad/activity`) {
+      try {
+        this.touchUiActivity(tool, parseUiActivityEvent(await readRequestBody(request)));
+        respond(response, 204, corsHeaders);
+      } catch (error) {
+        this.lastErrorValue = errorMessage(error);
+        respond(response, error instanceof BodyTooLargeError ? 413 : 400, corsHeaders);
+      }
       return;
     }
 
@@ -339,31 +356,65 @@ export class CodexHookBridge {
     respond(response, 404, corsHeaders);
   }
 
-  private touchUiActivity(tool: IntegrationTool): void {
+  private touchUiActivity(tool: IntegrationTool, event: UiActivityEvent): void {
+    const graceMs = this.options.uiActivityGraceMs ?? DEFAULT_UI_ACTIVITY_GRACE_MS;
+    const views = this.uiActivityViews.get(tool) ?? new Map<string, number>();
+    this.uiActivityViews.set(tool, views);
+    if (event.active) {
+      views.set(event.viewId, Date.now() + graceMs);
+    }
+    this.refreshUiActivity(tool);
+  }
+
+  private refreshUiActivity(tool: IntegrationTool): void {
+    const now = Date.now();
+    const views = this.uiActivityViews.get(tool);
+    if (views) {
+      for (const [viewId, expiresAt] of views) {
+        if (expiresAt <= now) {
+          views.delete(viewId);
+        }
+      }
+    }
+
     const previousTimer = this.uiActivityTimers.get(tool);
     if (previousTimer) {
       clearTimeout(previousTimer);
-    } else {
-      this.reportUiActivity(tool, true);
+      this.uiActivityTimers.delete(tool);
     }
 
-    const timer = setTimeout(() => {
-      if (this.uiActivityTimers.get(tool) !== timer) {
-        return;
+    const active = Boolean(views?.size);
+    const wasActive = this.activeUiTools.has(tool);
+    if (active !== wasActive) {
+      if (active) {
+        this.activeUiTools.add(tool);
+      } else {
+        this.activeUiTools.delete(tool);
       }
-      this.uiActivityTimers.delete(tool);
-      this.reportUiActivity(tool, false);
-    }, this.options.uiActivityGraceMs ?? DEFAULT_UI_ACTIVITY_GRACE_MS);
-    timer.unref();
-    this.uiActivityTimers.set(tool, timer);
+      this.reportUiActivity(tool, active);
+    }
+
+    const nextExpiry = Math.min(...(views?.values() ?? []));
+    if (Number.isFinite(nextExpiry)) {
+      const timer = setTimeout(
+        () => this.refreshUiActivity(tool),
+        Math.max(1, nextExpiry - now + 10)
+      );
+      timer.unref();
+      this.uiActivityTimers.set(tool, timer);
+    } else {
+      this.uiActivityViews.delete(tool);
+    }
   }
 
   private async stopUiActivity(): Promise<void> {
-    const activeTools = [...this.uiActivityTimers.keys()];
+    const activeTools = [...this.activeUiTools];
     for (const timer of this.uiActivityTimers.values()) {
       clearTimeout(timer);
     }
     this.uiActivityTimers.clear();
+    this.uiActivityViews.clear();
+    this.activeUiTools.clear();
     await Promise.all(activeTools.map((tool) => this.options.onUiActivity?.(tool, false)));
   }
 
@@ -471,6 +522,18 @@ function parseUiVisibilityEvent(body: string): UiVisibilityEvent {
     throw new Error('Некорректное подтверждение видимости объявления.');
   }
   return { adId: value.adId, viewId: value.viewId, visible: value.visible };
+}
+
+function parseUiActivityEvent(body: string): UiActivityEvent {
+  const value = JSON.parse(body) as Partial<UiActivityEvent>;
+  if (
+    typeof value.viewId !== 'string' ||
+    !/^[A-Za-z0-9_-]{8,100}$/.test(value.viewId) ||
+    typeof value.active !== 'boolean'
+  ) {
+    throw new Error('Некорректный heartbeat активности агента.');
+  }
+  return { viewId: value.viewId, active: value.active };
 }
 
 async function readRequestBody(request: http.IncomingMessage): Promise<string> {

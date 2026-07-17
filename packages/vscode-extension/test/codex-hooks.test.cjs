@@ -31,6 +31,23 @@ test('добавляет два lifecycle hook и сохраняет чужие 
   assert.deepEqual(removed, root);
 });
 
+test('на Windows основной command использует совместимое quoting', () => {
+  const installed = withInstalledHooks(
+    {},
+    'C:\\Users\\Dev User\\.kodpauza\\kodpauza-codex-lifecycle-hook.cjs',
+    'C:\\Program Files\\nodejs\\node.exe',
+    'win32',
+  );
+  const start = installed.hooks.UserPromptSubmit[0].hooks[0];
+  const stop = installed.hooks.Stop[0].hooks[0];
+
+  assert.match(start.command, /^"C:\\Program Files\\nodejs\\node\.exe"/);
+  assert.match(start.command, /"C:\\Users\\Dev User\\\.kodpauza\\kodpauza-codex-lifecycle-hook\.cjs" start$/);
+  assert.equal(start.command, start.commandWindows);
+  assert.match(stop.command, / stop$/);
+  assert.doesNotMatch(start.command, /'/);
+});
+
 test('установка атомарна, повторяемая и удаляет только Kodpauza', async (context) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-hooks-'));
   context.after(() => fs.rm(root, { recursive: true, force: true }));

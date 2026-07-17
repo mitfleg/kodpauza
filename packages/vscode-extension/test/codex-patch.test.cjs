@@ -97,6 +97,8 @@ test('патч заменяет активные ожидания, сохран�
   assert.match(patchedWebview, /document\.visibilityState!=="visible"/);
   assert.match(patchedWebview, /elementFromPoint/);
   assert.match(patchedWebview, /\/visibility\?token=/);
+  assert.match(patchedWebview, /\/activity\?token=/);
+  assert.match(patchedWebview, /__kpUseActivity/);
   assert.match(patchedWebview, /e\.format==="premium"/);
   assert.doesNotMatch(patchedWebview, /children:"Премиум"/);
   assert.equal((patchedWebview.match(/__kpAdMessage/g) ?? []).length, 7);
@@ -347,7 +349,7 @@ test('автоматическая проверка обновляет стар�
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 4);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 5);
 });
 
 test('автоматическая проверка переносит патч на новый каталог Codex', async (context) => {

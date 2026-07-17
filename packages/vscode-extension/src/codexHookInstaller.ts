@@ -117,13 +117,18 @@ export function defaultKodpauzaHome(): string {
   return process.env.KODPAUZA_HOME?.trim() || path.join(os.homedir(), '.kodpauza');
 }
 
-export function withInstalledHooks(root: JsonRecord, scriptPath: string, nodeExecutable = 'node'): JsonRecord {
+export function withInstalledHooks(
+  root: JsonRecord,
+  scriptPath: string,
+  nodeExecutable = 'node',
+  platform: NodeJS.Platform = process.platform
+): JsonRecord {
   const hooks = cloneHooks(root);
   for (const eventName of HOOK_EVENTS) {
     const entries = eventEntries(hooks, eventName);
     hooks[eventName] = [
       ...removeOwnHandlers(entries),
-      ownHookGroup(eventName, scriptPath, nodeExecutable)
+      ownHookGroup(eventName, scriptPath, nodeExecutable, platform)
     ];
   }
   return { ...root, hooks };
@@ -143,13 +148,22 @@ export function withoutInstalledHooks(root: JsonRecord): JsonRecord {
   return { ...root, hooks };
 }
 
-function ownHookGroup(eventName: HookEventName, scriptPath: string, nodeExecutable: string): JsonRecord {
+function ownHookGroup(
+  eventName: HookEventName,
+  scriptPath: string,
+  nodeExecutable: string,
+  platform: NodeJS.Platform
+): JsonRecord {
   const action = eventName === 'UserPromptSubmit' ? 'start' : 'stop';
+  const windowsCommand = `${windowsQuote(nodeExecutable)} ${windowsQuote(scriptPath)} ${action}`;
+  const command = platform === 'win32'
+    ? windowsCommand
+    : `${shellQuote(nodeExecutable)} ${shellQuote(scriptPath)} ${action}`;
   return {
     hooks: [{
       type: 'command',
-      command: `${shellQuote(nodeExecutable)} ${shellQuote(scriptPath)} ${action}`,
-      commandWindows: `${windowsQuote(nodeExecutable)} ${windowsQuote(scriptPath)} ${action}`,
+      command,
+      commandWindows: windowsCommand,
       timeout: 2
     }]
   };

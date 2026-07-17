@@ -63,6 +63,8 @@ test('Claude UI-патч устанавливается, не трогает Com
   assert.match(patchedWebview, /document\.visibilityState!=="visible"/);
   assert.match(patchedWebview, /elementFromPoint/);
   assert.match(patchedWebview, /\/visibility\?token=/);
+  assert.match(patchedWebview, /\/activity\?token=/);
+  assert.match(patchedWebview, /__kpClaudeUseActivity/);
   assert.match(patchedWebview, /e\.format==="premium"/);
   assert.doesNotMatch(patchedWebview, /children:"Премиум"/);
   assert.doesNotThrow(() => new vm.Script(patchedWebview));
@@ -133,7 +135,7 @@ test('Claude UI-патч автоматически обновляет стар�
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 4);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 5);
 });
 
 test('Claude UI-патч принимает новую версию при неизменной структуре цели', async (context) => {

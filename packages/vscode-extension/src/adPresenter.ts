@@ -4,9 +4,11 @@ import { KodpauzaApiClient } from './apiClient';
 import { KodpauzaState } from './state';
 import { TelemetryOutbox } from './telemetryOutbox';
 import { AdPlacement, KodpauzaAd, KodpauzaEvent, KodpauzaEventType } from './types';
+import { PausableCountdown } from './pausableCountdown';
 
 const IMPRESSION_THRESHOLD_MS = 5_000;
 const LOCAL_QUEUE_RETRY_MS = 30_000;
+export const AD_ROTATION_INTERVAL_MS = 30_000;
 
 export class StatusBarAdPresenter implements vscode.Disposable {
   private readonly item: vscode.StatusBarItem;
@@ -25,6 +27,9 @@ export class StatusBarAdPresenter implements vscode.Disposable {
   private patchedUiEnabled = false;
   private readonly patchedUiViews = new Map<string, number>();
   private patchedUiVisibilityTimer: NodeJS.Timeout | undefined;
+  private readonly rotationClock: PausableCountdown;
+  private sessionIdValue: string | undefined;
+  private sessionStartedAtValue: string | undefined;
 
   constructor(
     private readonly api: KodpauzaApiClient,
@@ -32,8 +37,13 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     private readonly outbox: TelemetryOutbox,
     private readonly clientVersion: string,
     itemId = 'kodpauza.ad',
-    private readonly allowStatusBarFallback = false
+    private readonly allowStatusBarFallback = false,
+    rotationIntervalMs = AD_ROTATION_INTERVAL_MS
   ) {
+    this.rotationClock = new PausableCountdown(
+      rotationIntervalMs,
+      () => void this.rotateAd()
+    );
     this.item = vscode.window.createStatusBarItem(itemId, vscode.StatusBarAlignment.Right, 97);
     this.item.name = 'Kodpauza: рекламная пауза';
     this.item.tooltip = 'Kodpauza: ожидание запуска';
@@ -78,6 +88,19 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     return this.currentAd;
   }
 
+  get sessionId(): string | undefined {
+    return this.sessionIdValue;
+  }
+
+  get sessionStartedAt(): string | undefined {
+    return this.sessionStartedAtValue;
+  }
+
+  get nextRotationAt(): string | undefined {
+    const deadlineAt = this.rotationClock.deadlineAt;
+    return deadlineAt === undefined ? undefined : new Date(deadlineAt).toISOString();
+  }
+
   setPatchedUiEnabled(value: boolean): void {
     this.patchedUiEnabled = value;
     if (!value) {
@@ -90,6 +113,8 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     }
     if (this.presentationSurfaceAvailable) {
       this.resumeVisibility();
+    } else if (!this.currentAd) {
+      this.resumeEmptyAdRetry();
     } else {
       this.pauseVisibility();
     }
@@ -114,16 +139,24 @@ export class StatusBarAdPresenter implements vscode.Disposable {
   }
 
   async startWait(placement: AdPlacement): Promise<void> {
+    if (this.running && this.placement?.surface === placement.surface) {
+      this.placement = placement;
+      return;
+    }
+
     const generation = ++this.generation;
     this.loadController?.abort();
-    this.loadController = new AbortController();
+    this.rotationClock.cancel();
     this.resetExposure();
     this.running = true;
     this.placement = placement;
+    this.sessionIdValue = crypto.randomUUID();
+    this.sessionStartedAtValue = new Date().toISOString();
 
     if (!this.state.adsEnabled || !this.state.integrationEnabled) {
       this.running = false;
       this.placement = undefined;
+      this.clearSession();
       this.hideItem();
       return;
     }
@@ -131,6 +164,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     if (!this.patchedUiEnabled && !this.allowStatusBarFallback) {
       this.running = false;
       this.placement = undefined;
+      this.clearSession();
       this.hideItem();
       return;
     }
@@ -143,26 +177,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     }
 
     try {
-      const ad = await this.api.currentAd(placement.surface, this.loadController.signal);
-      if (!this.isCurrentGeneration(generation)) {
-        return;
-      }
-
-      if (!ad) {
-        this.currentAd = undefined;
-        this.visible = false;
-        this.hideItem();
-        return;
-      }
-
-      this.currentAd = ad;
-      if (this.patchedUiEnabled) {
-        this.item.hide();
-      } else if (this.allowStatusBarFallback) {
-        this.showCurrentAdInStatusBar();
-      }
-      this.visible = true;
-      this.resumeVisibility();
+      await this.loadAd(generation);
     } catch (error) {
       if (!this.isCurrentGeneration(generation)) {
         return;
@@ -170,12 +185,9 @@ export class StatusBarAdPresenter implements vscode.Disposable {
 
       this.running = false;
       this.placement = undefined;
+      this.clearSession();
       this.hideItem();
       throw error;
-    } finally {
-      if (this.generation === generation) {
-        this.loadController = undefined;
-      }
     }
   }
 
@@ -184,8 +196,10 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     this.loadController?.abort();
     this.loadController = undefined;
     this.running = false;
+    this.rotationClock.cancel();
     this.resetExposure();
     this.placement = undefined;
+    this.clearSession();
     this.hideItem();
   }
 
@@ -252,6 +266,92 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     );
   }
 
+  private async loadAd(generation: number): Promise<void> {
+    const placement = this.placement;
+    if (!placement || !this.isCurrentGeneration(generation)) {
+      return;
+    }
+
+    this.loadController?.abort();
+    const controller = new AbortController();
+    this.loadController = controller;
+    this.rotationClock.pause();
+    this.resetExposure();
+
+    if (!this.patchedUiEnabled && this.allowStatusBarFallback) {
+      this.item.text = `$(loading~spin) ${placement.waitingLabel}`;
+      this.item.tooltip = 'Реклама появится после загрузки безопасного объявления.';
+      this.item.command = undefined;
+      this.item.show();
+    }
+
+    try {
+      const ad = await this.api.currentAd(placement.surface, controller.signal);
+      if (!this.isCurrentGeneration(generation) || this.loadController !== controller) {
+        return;
+      }
+
+      if (!ad) {
+        this.hideItem();
+        this.rotationClock.reset();
+        this.resumeEmptyAdRetry();
+        return;
+      }
+
+      this.currentAd = ad;
+      if (this.patchedUiEnabled) {
+        this.item.hide();
+      } else if (this.allowStatusBarFallback) {
+        this.showCurrentAdInStatusBar();
+      }
+      this.visible = true;
+      this.rotationClock.reset();
+      this.resumeVisibility();
+    } finally {
+      if (this.loadController === controller) {
+        this.loadController = undefined;
+      }
+    }
+  }
+
+  private async rotateAd(): Promise<void> {
+    const generation = this.generation;
+    if (!this.isCurrentGeneration(generation) || !this.placement) {
+      return;
+    }
+
+    try {
+      await this.loadAd(generation);
+    } catch {
+      if (!this.isCurrentGeneration(generation)) {
+        return;
+      }
+      this.hideItem();
+      this.rotationClock.reset();
+      this.resumeEmptyAdRetry();
+    }
+  }
+
+  private resumeEmptyAdRetry(): void {
+    if (
+      this.currentAd ||
+      !this.running ||
+      !this.placement ||
+      !vscode.window.state.focused ||
+      !this.state.adsEnabled ||
+      !this.state.integrationEnabled ||
+      (!this.patchedUiEnabled && !this.allowStatusBarFallback)
+    ) {
+      return;
+    }
+    this.rotationClock.resume();
+  }
+
+  private clearSession(): void {
+    this.sessionIdValue = undefined;
+    this.sessionStartedAtValue = undefined;
+  }
+
   private resetExposure(): void {
     this.clearPatchedUiVisibility();
     this.pauseVisibility();
@@ -271,7 +371,15 @@ export class StatusBarAdPresenter implements vscode.Disposable {
   }
 
   private resumeVisibility(): void {
-    if (!this.canAccumulateVisibility || this.impressionQueued) {
+    if (!this.canAccumulateVisibility) {
+      if (!this.currentAd) {
+        this.resumeEmptyAdRetry();
+      }
+      return;
+    }
+
+    this.rotationClock.resume();
+    if (this.impressionQueued) {
       return;
     }
 
@@ -283,6 +391,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
   }
 
   private pauseVisibility(): void {
+    this.rotationClock.pause();
     this.visibleStartedAt = undefined;
     this.accumulatedVisibleMs = 0;
     this.clearImpressionTimer();

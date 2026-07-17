@@ -11,7 +11,7 @@ import {
 import { webviewVisibilityRuntime } from './uiVisibilityRuntime';
 
 const PATCH_STATE_FILE = 'claude-ui-patch.json';
-const PATCH_REVISION = 4;
+const PATCH_REVISION = 5;
 const UI_MARKER_PREFIX = '/*__KODPAUZA_CLAUDE_UI_START__:';
 const UI_MARKER_END = '/*__KODPAUZA_CLAUDE_UI_END__*/';
 const CSP_MARKER_START = '<!--__KODPAUZA_CLAUDE_CSP_START__-->';
@@ -502,7 +502,8 @@ function spinnerComponentSource(profile: ClaudePatchProfile, patched: boolean): 
 
 function claudeUiRuntime(token: string): string {
   const endpoint = `http://127.0.0.1:${CODEX_UI_BRIDGE_PORT}/v1/claude/ad`;
-  const visibilityRuntime = webviewVisibilityRuntime('__kpClaude', '__kpClaudeEndpoint', '__kpClaudeToken');
+  const activityRuntime = 'var __kpClaudeActivityRefs=0,__kpClaudeActivityTimer,__kpClaudeActivityViewId="kp-"+Math.random().toString(36).slice(2)+Date.now().toString(36);function __kpClaudeSendActivity(e){fetch(__kpClaudeEndpoint+"/activity?token="+encodeURIComponent(__kpClaudeToken),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({viewId:__kpClaudeActivityViewId,active:e})}).catch(()=>{})}function __kpClaudeStartActivity(){__kpClaudeActivityRefs+=1,__kpClaudeActivityRefs===1&&(__kpClaudeSendActivity(!0),__kpClaudeActivityTimer=setInterval(()=>__kpClaudeSendActivity(!0),1e3))}function __kpClaudeStopActivity(){__kpClaudeActivityRefs=Math.max(0,__kpClaudeActivityRefs-1),__kpClaudeActivityRefs===0&&(__kpClaudeActivityTimer!=null&&clearInterval(__kpClaudeActivityTimer),__kpClaudeActivityTimer=void 0,__kpClaudeSendActivity(!1))}function __kpClaudeUseActivity(){de(()=>{__kpClaudeStartActivity();return()=>__kpClaudeStopActivity()},[])}var __kpClaudeBaseUseAd=__kpClaudeUseAd;__kpClaudeUseAd=function(){__kpClaudeUseActivity();return __kpClaudeBaseUseAd()};';
+  const visibilityRuntime = `${activityRuntime}${webviewVisibilityRuntime('__kpClaude', '__kpClaudeEndpoint', '__kpClaudeToken')}`;
   return `${UI_MARKER_PREFIX}${token}__*/var __kpClaudeEndpoint=${JSON.stringify(endpoint)},__kpClaudeToken=${JSON.stringify(token)};function __kpClaudeUseAd(){let[e,t]=ne(null);return de(()=>{let i=!0,n;function o(){fetch(__kpClaudeEndpoint+"/current?token="+encodeURIComponent(__kpClaudeToken),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(r=>{if(i)t(a=>a?.adId===r?.adId&&a?.text===r?.text&&a?.format===r?.format?a:r&&r.active===!0&&(r.format==="standard"||r.format==="premium")?r:null)}).catch(()=>{i&&t(null)}).finally(()=>{i&&(n=setTimeout(o,750))})}return o(),()=>{i=!1,n!=null&&clearTimeout(n)}},[]),e}${visibilityRuntime}function __kpClaudeOpenAd(e){fetch(__kpClaudeEndpoint+"/click?token="+encodeURIComponent(__kpClaudeToken),{method:"POST",headers:{"content-type":"text/plain"},body:e.adId}).catch(()=>{})}function __kpClaudeAdLink({ad:e}){let[t,i]=ne(null);de(()=>t?__kpClaudeObserveVisibility(t,e):void 0,[t,e.adId]);let n=t=>{t.preventDefault(),t.stopPropagation(),__kpClaudeOpenAd(e)},o=e=>{(e.key==="Enter"||e.key===" ")&&n(e)},a=e.format==="premium";return E("span",{ref:i,role:"link",tabIndex:0,title:a?"Премиальная реклама Kodpauza. Нажмите, чтобы открыть предложение.":"Реклама Kodpauza. Нажмите, чтобы открыть предложение.",onClick:n,onKeyDown:o,style:{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:"6px",maxWidth:"100%",border:a?"1px solid rgba(245,158,11,.55)":void 0,borderRadius:a?"6px":void 0,padding:a?"2px 6px":void 0,background:a?"linear-gradient(90deg,rgba(245,158,11,.12),rgba(16,185,129,.08))":void 0,boxShadow:a?"0 0 0 1px rgba(245,158,11,.08)":void 0},children:[b("span",{style:{color:a?"#f59e0b":"#10b981",fontWeight:600},children:"Реклама"}),b("span",{style:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},children:e.text})]})}${UI_MARKER_END}`;
 }
 
