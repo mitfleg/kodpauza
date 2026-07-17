@@ -1,7 +1,11 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { eventSignaturePayload, type SignableKodpauzaEvent } from '@kodpauza/shared';
+import {
+  eventSignaturePayload,
+  legalDocumentVersions,
+  type SignableKodpauzaEvent,
+} from '@kodpauza/shared';
 import { buildApp } from '../src/app.js';
 import { signToken } from '../src/auth.js';
 import { config } from '../src/config.js';
@@ -109,6 +113,21 @@ type Ad = {
 const tokenIps = new Map<string, string>();
 let nextTestIp = 10;
 
+const legalRegistrationFields = {
+  termsAccepted: true,
+  termsVersion: legalDocumentVersions.terms,
+  privacyAcknowledged: true,
+  privacyVersion: legalDocumentVersions.privacy,
+  personalDataConsentAccepted: true,
+  personalDataConsentVersion: legalDocumentVersions.personalDataConsent,
+} as const;
+
+const developerPayoutRecipient = {
+  recipientName: 'Иван Иванов',
+  sbpPhone: '+7 999 123-45-67',
+  bankName: 'Т-Банк',
+} as const;
+
 function rememberTokenIp(token: string, ip = `198.51.100.${nextTestIp++}`) {
   tokenIps.set(token, ip);
   return ip;
@@ -139,11 +158,28 @@ async function registerAndVerifyDeveloper(email: string, password = 'password123
       password,
       role: 'developer',
       captchaToken: 'kodpauza-local-captcha-pass',
+      ...legalRegistrationFields,
     },
   });
   expect(response.statusCode).toBe(201);
   expect(response.json()).toMatchObject({ verificationRequired: true });
   expect(response.body).not.toContain('token');
+  const registeredUser = await prisma.user.findUniqueOrThrow({ where: { email: email.toLowerCase() } });
+  const acceptances = await prisma.legalAcceptance.findMany({
+    where: { userId: registeredUser.id },
+    orderBy: { documentType: 'asc' },
+  });
+  expect(acceptances).toHaveLength(3);
+  expect(acceptances.map(({ documentType, documentVersion }) => ({ documentType, documentVersion })))
+    .toEqual(expect.arrayContaining([
+      { documentType: 'terms', documentVersion: legalDocumentVersions.terms },
+      { documentType: 'privacy', documentVersion: legalDocumentVersions.privacy },
+      {
+        documentType: 'personal_data_consent',
+        documentVersion: legalDocumentVersions.personalDataConsent,
+      },
+    ]));
+  expect(acceptances.every((acceptance) => Boolean(acceptance.ipHash))).toBe(true);
   const normalizedEmail = email.toLowerCase();
   const code = verificationCodes.get(normalizedEmail);
   expect(code).toMatch(/^\d{6}$/);
@@ -324,6 +360,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         password: 'password123',
         role: 'admin',
         captchaToken: 'kodpauza-local-captcha-pass',
+        ...legalRegistrationFields,
       },
     });
     const typo = await app.inject({
@@ -334,11 +371,112 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         password: 'password123',
         role: 'developer',
         captchaToken: 'kodpauza-local-captcha-pass',
+        ...legalRegistrationFields,
         name: 'Лишнее поле',
       },
     });
     expect(admin.statusCode).toBe(403);
     expect(typo.statusCode).toBe(400);
+  });
+
+  it('не регистрирует аккаунт без отдельных юридических согласий', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/auth/register',
+      payload: {
+        email: `no-consent-${randomUUID()}@kodpauza.local`,
+        password: 'password123',
+        role: 'developer',
+        captchaToken: 'kodpauza-local-captcha-pass',
+      },
+    });
+    expect(response.statusCode).toBe(400);
+    expect(verificationCodes.has(response.json<{ email?: string }>().email ?? '')).toBe(false);
+  });
+
+  it('дает пользователю экспорт данных и создает отслеживаемые privacy-заявки', async () => {
+    const developer = await registerDeveloper();
+    const exported = await app.inject({
+      method: 'GET',
+      url: '/v1/privacy/export',
+      headers: auth(developer.token),
+    });
+    expect(exported.statusCode).toBe(200);
+    expect(exported.headers['content-disposition']).toContain('kodpauza-data-');
+    expect(exported.json()).toMatchObject({
+      formatVersion: '1.0',
+      user: { id: developer.user.id, role: 'developer' },
+    });
+    expect(exported.body).not.toContain('passwordHash');
+    expect(exported.body).not.toContain('ipHash');
+    expect(exported.body).not.toContain('userAgentHash');
+
+    const missingCorrection = await app.inject({
+      method: 'POST',
+      url: '/v1/privacy/requests',
+      headers: auth(developer.token),
+      payload: { type: 'correction' },
+    });
+    expect(missingCorrection.statusCode).toBe(400);
+
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/privacy/requests',
+      headers: auth(developer.token),
+      payload: { type: 'access' },
+    });
+    expect(created.statusCode).toBe(201);
+    const requestId = created.json<{ request: { id: string } }>().request.id;
+
+    const duplicate = await app.inject({
+      method: 'POST',
+      url: '/v1/privacy/requests',
+      headers: auth(developer.token),
+      payload: { type: 'access' },
+    });
+    expect(duplicate.statusCode).toBe(409);
+
+    const withdrawn = await app.inject({
+      method: 'POST',
+      url: '/v1/privacy/requests',
+      headers: auth(developer.token),
+      payload: { type: 'consent_withdrawal' },
+    });
+    expect(withdrawn.statusCode).toBe(201);
+    expect(
+      await prisma.legalAcceptance.count({
+        where: {
+          userId: developer.user.id,
+          documentType: 'personal_data_consent',
+          withdrawnAt: { not: null },
+        },
+      }),
+    ).toBe(1);
+
+    const admin = await login('admin@kodpauza.local', 'admin123456');
+    const adminList = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/privacy-requests',
+      headers: auth(admin.token),
+    });
+    expect(adminList.statusCode).toBe(200);
+    expect(adminList.json<{ requests: Array<{ id: string }> }>().requests).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: requestId })]),
+    );
+
+    const completed = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/privacy-requests/${requestId}/status`,
+      headers: auth(admin.token),
+      payload: { status: 'completed', resolution: 'Экспорт предоставлен пользователю.' },
+    });
+    expect(completed.statusCode).toBe(200);
+    expect(completed.json()).toMatchObject({ request: { status: 'completed' } });
+    expect(
+      await prisma.adminAuditLog.count({
+        where: { targetType: 'privacy-request', targetId: requestId },
+      }),
+    ).toBe(1);
   });
 
   it('требует CAPTCHA, блокирует временную почту и не пускает до ввода кода', async () => {
@@ -352,6 +490,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         password,
         role: 'developer',
         captchaToken: 'invalid-captcha-token',
+        ...legalRegistrationFields,
       },
     });
     const disposableResponses = await Promise.all(
@@ -364,6 +503,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
             password,
             role: 'developer',
             captchaToken: 'kodpauza-local-captcha-pass',
+            ...legalRegistrationFields,
           },
         }),
       ),
@@ -399,6 +539,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         password,
         role: 'developer',
         captchaToken: 'kodpauza-local-captcha-pass',
+        ...legalRegistrationFields,
       },
     });
     expect(registered.statusCode).toBe(201);
@@ -1075,6 +1216,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       name: 'Проверка контракта',
       text: 'Надежное облако для разработчиков',
       url: 'https://example.ru/product',
+      erid: '2Vtzq-contract',
       cpmKopecks: 30_000,
       budgetKopecks: 100_000,
     };
@@ -1123,6 +1265,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       format: 'premium',
       cpmKopecks: 40_000,
       billableCpmKopecks: 60_000,
+      erid: null,
     });
 
     const campaignId = created.json().campaign.id as string;
@@ -1155,6 +1298,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         name: 'Кампания модерации',
         text: 'Инфраструктура для быстрой разработки',
         url: 'https://example.ru/cloud',
+        erid: '2Vtzq-moderation',
         cpmKopecks: 30_000,
         budgetKopecks: 100_000,
       },
@@ -1393,12 +1537,29 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       method: 'POST',
       url: '/v1/developer/payouts',
       headers: auth(developer.token),
-      payload: { amountKopecks: 29_999, requestId: randomUUID() },
+      payload: {
+        amountKopecks: 29_999,
+        requestId: randomUUID(),
+        ...developerPayoutRecipient,
+      },
     });
     expect(belowMinimum.statusCode).toBe(400);
 
+    const invalidSbpPhone = await app.inject({
+      method: 'POST',
+      url: '/v1/developer/payouts',
+      headers: auth(developer.token),
+      payload: {
+        amountKopecks: 30_000,
+        requestId: randomUUID(),
+        ...developerPayoutRecipient,
+        sbpPhone: '+1 202 555 0100',
+      },
+    });
+    expect(invalidSbpPhone.statusCode).toBe(400);
+
     const requestId = randomUUID();
-    const payload = { amountKopecks: 150_000, requestId };
+    const payload = { amountKopecks: 150_000, requestId, ...developerPayoutRecipient };
 
     const created = await app.inject({
       method: 'POST',
@@ -1407,8 +1568,19 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       payload,
     });
     expect(created.statusCode).toBe(201);
-    const payout = created.json().payout as { id: string; status: string };
-    expect(payout.status).toBe('requested');
+    const payout = created.json().payout as {
+      id: string;
+      status: string;
+      recipientName: string;
+      sbpPhone: string;
+      bankName: string;
+    };
+    expect(payout).toMatchObject({
+      status: 'requested',
+      recipientName: developerPayoutRecipient.recipientName,
+      sbpPhone: '+79991234567',
+      bankName: developerPayoutRecipient.bankName,
+    });
     expect(created.body).not.toContain('idempotenceKey');
     expect(created.body).not.toContain('clientRequestId');
 
@@ -1425,13 +1597,17 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       method: 'POST',
       url: '/v1/developer/payouts',
       headers: auth(developer.token),
-      payload: { amountKopecks: 160_000, requestId },
+      payload: { amountKopecks: 160_000, requestId, ...developerPayoutRecipient },
     });
     const secondOpenRequest = await app.inject({
       method: 'POST',
       url: '/v1/developer/payouts',
       headers: auth(developer.token),
-      payload: { amountKopecks: 100_000, requestId: randomUUID() },
+      payload: {
+        amountKopecks: 100_000,
+        requestId: randomUUID(),
+        ...developerPayoutRecipient,
+      },
     });
     expect(changedAmount.statusCode).toBe(409);
     expect(secondOpenRequest.statusCode).toBe(409);
@@ -1489,9 +1665,26 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       method: 'POST',
       url: '/v1/developer/payouts',
       headers: auth(developer.token),
-      payload: { amountKopecks: 100_000, requestId: randomUUID() },
+      payload: {
+        amountKopecks: 100_000,
+        requestId: randomUUID(),
+        ...developerPayoutRecipient,
+      },
     });
     const firstPayoutId = first.json().payout.id as string;
+    const adminPayouts = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/payouts',
+      headers: auth(admin.token),
+    });
+    expect(adminPayouts.statusCode).toBe(200);
+    expect(
+      adminPayouts.json().payouts.find((item: { id: string }) => item.id === firstPayoutId),
+    ).toMatchObject({
+      recipientName: developerPayoutRecipient.recipientName,
+      sbpPhone: '+79991234567',
+      bankName: developerPayoutRecipient.bankName,
+    });
     const paidRequest = {
       method: 'POST' as const,
       url: `/v1/admin/payouts/${firstPayoutId}/paid`,
@@ -1529,7 +1722,11 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       method: 'POST',
       url: '/v1/developer/payouts',
       headers: auth(developer.token),
-      payload: { amountKopecks: 100_000, requestId: randomUUID() },
+      payload: {
+        amountKopecks: 100_000,
+        requestId: randomUUID(),
+        ...developerPayoutRecipient,
+      },
     });
     const secondPayoutId = second.json().payout.id as string;
     const duplicateTransfer = await app.inject({

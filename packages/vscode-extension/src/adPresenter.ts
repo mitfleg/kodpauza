@@ -408,7 +408,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
       return;
     }
     this.item.text = `$(megaphone) ${ad.text}`;
-    this.item.tooltip = 'Реклама Kodpauza. Нажмите, чтобы открыть предложение.';
+    this.item.tooltip = `Реклама · ${ad.advertiserName}${ad.erid ? ` · erid: ${ad.erid}` : ''}. Нажмите, чтобы открыть предложение.`;
     this.item.command = 'kodpauza.openAd';
     this.item.show();
   }

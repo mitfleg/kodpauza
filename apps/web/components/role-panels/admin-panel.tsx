@@ -12,6 +12,7 @@ import {
   History,
   RefreshCw,
   ShieldAlert,
+  ShieldCheck,
   TrendingUp,
   type LucideIcon,
   UsersRound,
@@ -28,6 +29,7 @@ import {
   UserList,
 } from './lists';
 import { AdminPaymentList } from './admin-payments';
+import { AdminPrivacyRequests } from './admin-privacy-requests';
 import {
   AdminDeveloperPayoutList,
   AdminPayoutReviewDialog,
@@ -37,13 +39,14 @@ import type { AdminData, ApiError } from './types';
 import { LoadingBlock, Message, PrimaryButton, SecondaryButton, WorkSurface } from './ui';
 
 export type AdminSection = 'overview' | 'campaigns' | 'users' | 'finance' | 'security';
-type SecurityTab = 'events' | 'fraud' | 'versions' | 'audit';
+type SecurityTab = 'events' | 'fraud' | 'versions' | 'privacy' | 'audit';
 type Notice = { text: string; tone: 'success' | 'error' | 'info' };
 
 const securityTabs = [
   { id: 'events' as const, label: 'События', icon: Activity },
   { id: 'fraud' as const, label: 'Сигналы накрутки', icon: ShieldAlert },
   { id: 'versions' as const, label: 'Интеграции', icon: BellRing },
+  { id: 'privacy' as const, label: 'Персональные данные', icon: ShieldCheck },
   { id: 'audit' as const, label: 'Журнал', icon: History },
 ];
 
@@ -82,13 +85,14 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
         ]);
         setData({ payments, payouts, finance });
       } else {
-        const [events, fraud, audit, integrationVersions] = await Promise.all([
+        const [events, fraud, audit, integrationVersions, privacyRequests] = await Promise.all([
           api<AdminData['events']>('/v1/admin/events'),
           api<AdminData['fraud']>('/v1/admin/fraud-flags'),
           api<AdminData['audit']>('/v1/admin/audit-log'),
           api<AdminData['integrationVersions']>('/v1/admin/integration-versions'),
+          api<AdminData['privacyRequests']>('/v1/admin/privacy-requests'),
         ]);
-        setData({ events, fraud, audit, integrationVersions });
+        setData({ events, fraud, audit, integrationVersions, privacyRequests });
       }
     } catch (error) {
       setNotice({ text: (error as ApiError).message, tone: 'error' });
@@ -151,6 +155,26 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
     }
   }
 
+  async function resolvePrivacyRequest(
+    id: string,
+    status: 'processing' | 'completed' | 'rejected',
+    resolution: string,
+  ) {
+    setBusyId(id);
+    try {
+      await api(`/v1/admin/privacy-requests/${id}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status, resolution }),
+      });
+      await load();
+      setNotice({ text: 'Статус обращения обновлен и записан в журнал.', tone: 'success' });
+    } catch (error) {
+      setNotice({ text: (error as ApiError).message, tone: 'error' });
+    } finally {
+      setBusyId('');
+    }
+  }
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -163,6 +187,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
   const fraudFlags = data.fraud?.fraudFlags ?? [];
   const auditLog = data.audit?.auditLog ?? [];
   const integrationVersions = data.integrationVersions?.reports ?? [];
+  const privacyRequests = data.privacyRequests?.requests ?? [];
   const pendingVersions = integrationVersions.filter(
     (report) => !report.supported && !report.acknowledgedAt,
   );
@@ -289,7 +314,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
           ) : null}
 
           <WorkSurface
-            title="Воронка закрытой беты"
+            title="Воронка разработчика"
             description="Путь разработчика от регистрации до первого начисления. Установка считается после первого авторизованного heartbeat расширения."
           >
             {isLoading ? (
@@ -514,6 +539,15 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
           <div className="max-h-[680px] overflow-auto">
             <AuditLogList auditLog={auditLog} />
           </div>
+        </WorkSurface>
+      ) : null}
+      {!isLoading && section === 'security' && activeSecurityTab === 'privacy' ? (
+        <WorkSurface title="Обращения по персональным данным" description="Запросы пользователей на доступ, исправление, удаление и отзыв согласия.">
+          <AdminPrivacyRequests
+            requests={privacyRequests}
+            busyId={busyId}
+            onResolve={(id, status, resolution) => void resolvePrivacyRequest(id, status, resolution)}
+          />
         </WorkSurface>
       ) : null}
 

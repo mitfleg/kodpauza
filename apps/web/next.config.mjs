@@ -55,6 +55,7 @@ const nextConfig = {
       { source: '/admin/:path*', headers: noIndexHeaders },
       { source: '/advertiser/:path*', headers: noIndexHeaders },
       { source: '/developer/:path*', headers: noIndexHeaders },
+      { source: '/account/:path*', headers: noIndexHeaders },
       { source: '/login', headers: noIndexHeaders },
       { source: '/register', headers: noIndexHeaders },
     ];

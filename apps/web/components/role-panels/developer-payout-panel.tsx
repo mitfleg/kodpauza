@@ -13,10 +13,8 @@ import {
   RefreshCw,
   ShieldCheck,
   WalletCards,
-  ExternalLink,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { SUPPORT_TELEGRAM_URL, SUPPORT_TELEGRAM_USERNAME } from '@/lib/support';
 import { dateTime, developerPayoutLabels, kopecksFromRubles, money } from './format';
 import type {
   ApiError,
@@ -68,13 +66,22 @@ export function DeveloperPayoutPanel() {
 
   async function requestPayout(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const amountKopecks = kopecksFromRubles(new FormData(event.currentTarget).get('amount'));
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const amountKopecks = kopecksFromRubles(form.get('amount'));
     setIsSubmitting(true);
     try {
       await api('/v1/developer/payouts', {
         method: 'POST',
-        body: JSON.stringify({ amountKopecks, requestId: crypto.randomUUID() }),
+        body: JSON.stringify({
+          amountKopecks,
+          requestId: crypto.randomUUID(),
+          recipientName: String(form.get('recipientName') ?? ''),
+          sbpPhone: String(form.get('sbpPhone') ?? ''),
+          bankName: String(form.get('bankName') ?? ''),
+        }),
       });
+      formElement.reset();
       setAmount('');
       setPage(1);
       await load(1);
@@ -182,23 +189,53 @@ export function DeveloperPayoutPanel() {
                   disabled={!canRequestMinimum || hasOpenPayout || isSubmitting}
                 />
               </Field>
+              <Field label="ФИО получателя" hint="Как указано в банке для перевода по СБП.">
+                <input
+                  className={inputClass}
+                  name="recipientName"
+                  autoComplete="name"
+                  minLength={3}
+                  maxLength={120}
+                  placeholder="Иван Иванов"
+                  required
+                  disabled={!canRequestMinimum || hasOpenPayout || isSubmitting}
+                />
+              </Field>
+              <Field label="Телефон СБП" hint="Российский номер, привязанный к выбранному банку.">
+                <input
+                  className={inputClass}
+                  name="sbpPhone"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  maxLength={32}
+                  placeholder="+7 999 123-45-67"
+                  required
+                  disabled={!canRequestMinimum || hasOpenPayout || isSubmitting}
+                />
+              </Field>
+              <Field label="Банк" hint="Банк, который нужно выбрать при переводе через СБП.">
+                <input
+                  className={inputClass}
+                  name="bankName"
+                  autoComplete="off"
+                  minLength={2}
+                  maxLength={120}
+                  placeholder="Т-Банк"
+                  required
+                  disabled={!canRequestMinimum || hasOpenPayout || isSubmitting}
+                />
+              </Field>
               <div className="rounded-md border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-900">
                 <div className="flex items-center gap-2 font-semibold">
                   <ShieldCheck aria-hidden className="h-4 w-4" /> Ручная проверка
                 </div>
                 <p className="mt-1">
-                  Банковские реквизиты не хранятся в Kodpauza. После проверки перевод выполняется во
-                  внешнем платежном контуре, а его номер фиксируется в заявке.
+                  Проверка событий занимает до {policy?.reviewPeriodDays ?? 3} дней. Перевод по СБП
+                  выполняется вручную в течение {policy?.paymentPeriodBusinessDays ?? 7} рабочих дней.
+                  Kodpauza хранит только ФИО, телефон и название банка из этой заявки.
                 </p>
-                <a
-                  href={SUPPORT_TELEGRAM_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="focus-ring mt-3 inline-flex items-center gap-1.5 rounded-md font-semibold text-signal hover:underline"
-                >
-                  Передать банк и телефон СБП @{SUPPORT_TELEGRAM_USERNAME}
-                  <ExternalLink aria-hidden className="h-3.5 w-3.5" />
-                </a>
+                <p className="mt-2">Номер карты, CVC, PIN и коды из SMS не нужны.</p>
               </div>
               <PrimaryButton disabled={!validAmount || hasOpenPayout || isSubmitting}>
                 <HandCoins aria-hidden className="h-4 w-4" />
@@ -300,6 +337,11 @@ function PayoutRow({
         ) : null}
         {payout.reviewNote ? (
           <p className="mt-2 text-sm leading-6 text-slate-600">{payout.reviewNote}</p>
+        ) : null}
+        {payout.bankName && payout.sbpPhone ? (
+          <p className="mt-2 text-sm text-slate-500">
+            {payout.bankName} · {payout.sbpPhone}
+          </p>
         ) : null}
       </div>
       {payout.status === 'requested' ? (

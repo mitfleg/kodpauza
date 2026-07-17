@@ -13,6 +13,7 @@ import { registerDeveloperRoutes } from './routes/developer.js';
 import { registerDeveloperPayoutRoutes } from './routes/developerPayouts.js';
 import { registerEventRoutes } from './routes/events.js';
 import { registerPaymentRoutes } from './routes/payments.js';
+import { registerPrivacyRoutes } from './routes/privacy.js';
 import { YooKassaClient, type YooKassaClientContract } from './services/yookassa.js';
 import { TelegramAdminNotifier, type AdminNotifier } from './services/adminNotifier.js';
 
@@ -81,6 +82,7 @@ export function buildApp(
   registerDeveloperPayoutRoutes(app);
   registerAdvertiserRoutes(app);
   registerPaymentRoutes(app, options.yooKassaClient ?? new YooKassaClient());
+  registerPrivacyRoutes(app);
   registerAdminRoutes(app);
 
   app.setNotFoundHandler((_request, reply) => {

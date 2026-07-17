@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Code2, Eye, EyeOff, Loader2, MailCheck, Megaphone, Send } from 'lucide-react';
+import { legalDocumentVersions } from '@kodpauza/shared';
 import { CaptchaWidget } from '@/components/captcha-widget';
 import { ApiClientError, type ApiErrorPayload, apiClient } from '@/lib/api-client';
 import { pendingVerificationEmailKey } from '@/lib/auth-state';
@@ -188,6 +189,7 @@ export function AuthForm({ mode }: AuthFormProps) {
     const form = new FormData(event.currentTarget);
     const normalizedEmail = email.trim().toLowerCase();
     const password = String(form.get('password') ?? '');
+    const legalAccepted = form.get('legalAccepted') === 'on';
 
     try {
       const endpoint = mode === 'login' ? '/v1/auth/login' : '/v1/auth/register';
@@ -200,6 +202,12 @@ export function AuthForm({ mode }: AuthFormProps) {
               password,
               role,
               captchaToken: captchaToken as string,
+              termsAccepted: legalAccepted,
+              termsVersion: legalDocumentVersions.terms,
+              privacyAcknowledged: legalAccepted,
+              privacyVersion: legalDocumentVersions.privacy,
+              personalDataConsentAccepted: legalAccepted,
+              personalDataConsentVersion: legalDocumentVersions.personalDataConsent,
               ...(role === 'advertiser'
                 ? {
                     companyName: String(form.get('companyName') ?? '').trim(),
@@ -540,15 +548,19 @@ export function AuthForm({ mode }: AuthFormProps) {
           <>
             <CaptchaWidget onTokenChange={setCaptchaToken} resetKey={captchaResetKey} />
             <label className="flex items-start gap-3 text-sm leading-6 text-slate-600">
-              <input type="checkbox" required className="mt-1 h-4 w-4 accent-emerald-700" />
+              <input name="legalAccepted" type="checkbox" required className="mt-1 h-4 w-4 accent-emerald-700" />
               <span>
                 Я принимаю{' '}
                 <Link href="/terms" className="font-medium text-signal hover:underline">
                   условия использования
-                </Link>{' '}
-                и{' '}
+                </Link>
+                , ознакомлен(а) с{' '}
                 <Link href="/privacy" className="font-medium text-signal hover:underline">
-                  политику конфиденциальности
+                  политикой обработки персональных данных
+                </Link>
+                {' '}и даю{' '}
+                <Link href="/personal-data-consent" className="font-medium text-signal hover:underline">
+                  согласие на обработку персональных данных
                 </Link>
                 .
               </span>

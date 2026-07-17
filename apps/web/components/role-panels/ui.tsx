@@ -97,12 +97,23 @@ export function SoftBadge({ children, tone = 'slate' }: { children: ReactNode; t
   );
 }
 
-export function PrimaryButton({ children, disabled = false }: { children: ReactNode; disabled?: boolean }) {
+export function PrimaryButton({
+  children,
+  disabled = false,
+  onClick,
+  type = 'submit',
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  onClick?: () => void;
+  type?: 'button' | 'submit';
+}) {
   return (
     <button
       disabled={disabled}
+      onClick={onClick}
       className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-md bg-mint px-4 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-      type="submit"
+      type={type}
     >
       {children}
     </button>

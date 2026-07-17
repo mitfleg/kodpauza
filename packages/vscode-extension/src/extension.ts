@@ -694,6 +694,8 @@ function createUiAdapter(runtime: IntegrationRuntime): {
         adId: string;
         text: string;
         format: 'standard' | 'premium';
+        advertiserName: string;
+        erid: string;
       }
     | undefined;
   onAdClick: (adId: string) => Promise<void>;
@@ -704,7 +706,18 @@ function createUiAdapter(runtime: IntegrationRuntime): {
     currentAd: () => {
       const ad = runtime.presenter.ad;
       return runtime.presenter.canRenderPatchedUi && ad
-        ? { active: true, adId: ad.adId, text: adDisplayText(ad.text), format: ad.format }
+        ? {
+            active: true,
+            adId: ad.adId,
+            text: [
+              adDisplayText(ad.text),
+              ad.advertiserName,
+              ad.erid ? `erid: ${ad.erid}` : undefined,
+            ].filter(Boolean).join(' · '),
+            format: ad.format,
+            advertiserName: ad.advertiserName,
+            erid: ad.erid ?? '',
+          }
         : undefined;
     },
     onAdClick: async (adId) => {

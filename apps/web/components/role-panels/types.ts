@@ -21,6 +21,9 @@ export type DeveloperPayout = {
   currency: string;
   status: DeveloperPayoutStatus;
   provider: string;
+  recipientName?: string | null;
+  sbpPhone?: string | null;
+  bankName?: string | null;
   externalReference?: string | null;
   reviewNote?: string | null;
   requestedAt: string;
@@ -41,6 +44,8 @@ export type DeveloperPayoutsResponse = {
     minAmountKopecks: number;
     maxAmountKopecks: number;
     manualReview: boolean;
+    reviewPeriodDays: number;
+    paymentPeriodBusinessDays: number;
   };
   payouts: DeveloperPayout[];
   pagination: Pagination;
@@ -209,6 +214,7 @@ export type AdminData = {
   fraud?: { fraudFlags: FraudFlag[] };
   audit?: { auditLog: AdminAuditLog[] };
   integrationVersions?: { reports: IntegrationVersionReport[] };
+  privacyRequests?: { requests: AdminPrivacyRequest[] };
   payments?: { payments: AdminPayment[] };
   payouts?: AdminDeveloperPayoutsResponse;
   finance?: {
@@ -217,6 +223,16 @@ export type AdminData = {
     platformMarginKopecks: number;
     creditedKopecks: number;
   };
+};
+
+export type AdminPrivacyRequest = {
+  id: string;
+  type: 'access' | 'correction' | 'deletion' | 'consent_withdrawal';
+  status: 'requested' | 'processing' | 'completed' | 'rejected' | 'canceled';
+  details?: string | null;
+  resolution?: string | null;
+  createdAt: string;
+  user: { email: string; role: string; displayName?: string | null };
 };
 
 export type AdminDeveloperPayout = DeveloperPayout & {

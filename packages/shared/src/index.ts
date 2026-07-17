@@ -1,4 +1,10 @@
 import { z } from 'zod';
+export {
+  legalDocumentVersions,
+  registrationLegalDocuments,
+  type RegistrationLegalDocumentType,
+} from './legal.js';
+import { legalDocumentVersions } from './legal.js';
 
 export const surfaces = ['claude_code_vscode', 'codex_vscode'] as const;
 
@@ -47,6 +53,12 @@ export const registerSchema = z
     companyName: z.string().trim().min(2).max(160).optional(),
     inn: z.string().trim().max(32).optional(),
     captchaToken: z.string().trim().min(1).max(2048),
+    termsAccepted: z.literal(true),
+    termsVersion: z.literal(legalDocumentVersions.terms),
+    privacyAcknowledged: z.literal(true),
+    privacyVersion: z.literal(legalDocumentVersions.privacy),
+    personalDataConsentAccepted: z.literal(true),
+    personalDataConsentVersion: z.literal(legalDocumentVersions.personalDataConsent),
   })
   .strict();
 
@@ -120,7 +132,10 @@ export const createCampaignSchema = z
     name: z.string().trim().min(2).max(120),
     text: z.string().trim().min(8).max(120),
     url: httpsUrlSchema,
-    erid: z.string().trim().max(80).nullable().optional(),
+    erid: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+      z.string().trim().min(5).max(80).nullable().optional(),
+    ),
     cpmKopecks: cpmKopecksSchema,
     budgetKopecks: moneyKopecksSchema.min(100),
     impressionsLimit: z.number().int().min(1).max(10_000_000).nullable().optional(),

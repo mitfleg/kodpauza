@@ -2,13 +2,13 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
-import { loginSchema, registerSchema } from '@kodpauza/shared';
+import { loginSchema, registerSchema, registrationLegalDocuments } from '@kodpauza/shared';
 import { authenticate, signToken } from '../auth.js';
 import { verifyCaptcha } from '../captcha.js';
 import { config } from '../config.js';
 import { isDisposableEmail } from '../disposable-email.js';
 import type { EmailVerificationMailer } from '../email.js';
-import { getClientIp } from '../http.js';
+import { getClientIp, hashNullable } from '../http.js';
 import { prisma } from '../prisma.js';
 
 const dummyPasswordHash = bcrypt.hashSync('kodpauza-invalid-password', config.passwordSaltRounds);
@@ -44,6 +44,8 @@ export function registerAuthRoutes(app: FastifyInstance, mailer: EmailVerificati
 
     const passwordHash = await bcrypt.hash(parsed.data.password, config.passwordSaltRounds);
     const verification = createVerification(parsed.data.email);
+    const ipHash = hashNullable(getClientIp(request));
+    const userAgentHash = hashNullable(request.headers['user-agent']);
     const user = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
@@ -75,6 +77,17 @@ export function registerAuthRoutes(app: FastifyInstance, mailer: EmailVerificati
               : undefined,
         },
         select: { id: true, email: true, role: true, displayName: true },
+      });
+
+      await tx.legalAcceptance.createMany({
+        data: registrationLegalDocuments.map((document) => ({
+          userId: created.id,
+          documentType: document.type,
+          documentVersion: document.version,
+          source: 'registration',
+          ipHash,
+          userAgentHash,
+        })),
       });
 
       if (created.role === 'advertiser' && config.testAdvertiserCreditKopecks > 0) {

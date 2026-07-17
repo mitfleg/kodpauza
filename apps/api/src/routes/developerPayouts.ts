@@ -21,6 +21,12 @@ const createPayoutSchema = z
   .object({
     amountKopecks: z.number().int().positive(),
     requestId: z.string().uuid(),
+    recipientName: z.string().trim().min(3).max(120),
+    sbpPhone: z.preprocess(
+      (value) => (typeof value === 'string' ? normalizeRussianPhone(value) : value),
+      z.string().regex(/^\+7\d{10}$/, 'Укажите российский номер телефона для СБП.'),
+    ),
+    bankName: z.string().trim().min(2).max(120),
   })
   .strict();
 
@@ -39,6 +45,9 @@ const payoutSelect = {
   currency: true,
   status: true,
   provider: true,
+  recipientName: true,
+  sbpPhone: true,
+  bankName: true,
   externalReference: true,
   reviewNote: true,
   requestedAt: true,
@@ -83,6 +92,8 @@ export function registerDeveloperPayoutRoutes(app: FastifyInstance) {
           minAmountKopecks: config.developerPayoutMinKopecks,
           maxAmountKopecks: config.developerPayoutMaxKopecks,
           manualReview: true,
+          reviewPeriodDays: 3,
+          paymentPeriodBusinessDays: 7,
         },
         payouts,
         pagination: pagination(total, page, pageSize),
@@ -107,6 +118,11 @@ export function registerDeveloperPayoutRoutes(app: FastifyInstance) {
         request.authUser!.id,
         parsed.data.amountKopecks,
         parsed.data.requestId,
+        {
+          recipientName: parsed.data.recipientName,
+          sbpPhone: parsed.data.sbpPhone,
+          bankName: parsed.data.bankName,
+        },
       );
       return reply.code(result.created ? 201 : 200).send({ payout: payoutResponse(result.payout) });
     },
@@ -192,6 +208,9 @@ function payoutResponse(payout: {
   currency: string;
   status: string;
   provider: string;
+  recipientName: string | null;
+  sbpPhone: string | null;
+  bankName: string | null;
   externalReference: string | null;
   reviewNote: string | null;
   requestedAt: Date;
@@ -207,6 +226,9 @@ function payoutResponse(payout: {
     currency: payout.currency,
     status: payout.status,
     provider: payout.provider,
+    recipientName: payout.recipientName,
+    sbpPhone: payout.sbpPhone,
+    bankName: payout.bankName,
     externalReference: payout.externalReference,
     reviewNote: payout.reviewNote,
     requestedAt: payout.requestedAt,
@@ -216,4 +238,13 @@ function payoutResponse(payout: {
     createdAt: payout.createdAt,
     updatedAt: payout.updatedAt,
   };
+}
+
+function normalizeRussianPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  if (digits.length === 10 && digits.startsWith('9')) return `+7${digits}`;
+  if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) {
+    return `+7${digits.slice(1)}`;
+  }
+  return value.trim();
 }

@@ -37,11 +37,18 @@ export function AdminDeveloperPayoutList({
         >
           <div className="min-w-0">
             <div className="font-semibold text-ink">
-              {payout.developer.user.displayName || 'Разработчик'}
+              {payout.recipientName || payout.developer.user.displayName || 'Разработчик'}
             </div>
             <div className="mt-1 truncate text-sm text-slate-500">
               {payout.developer.user.email}
             </div>
+            {payout.bankName && payout.sbpPhone ? (
+              <div className="mt-1 text-sm font-medium text-slate-700">
+                {payout.bankName} · {payout.sbpPhone}
+              </div>
+            ) : (
+              <div className="mt-1 text-xs text-amber-700">Старая заявка без реквизитов СБП</div>
+            )}
             <div className="mt-1 text-xs text-slate-400">{dateTime(payout.requestedAt)}</div>
           </div>
           <div className="lg:text-right">
@@ -156,6 +163,16 @@ export function AdminPayoutReviewDialog({
         </div>
 
         <div className="mt-5 grid gap-4">
+          <div className="rounded-md border border-line bg-slate-50 p-4 text-sm leading-6">
+            <div className="font-semibold text-ink">
+              {review.payout.recipientName || 'ФИО не указано'}
+            </div>
+            <div className="mt-1 text-slate-600">
+              {review.payout.bankName && review.payout.sbpPhone
+                ? `${review.payout.bankName} · ${review.payout.sbpPhone}`
+                : 'Реквизиты СБП отсутствуют: заявка создана до обновления формы.'}
+            </div>
+          </div>
           {paid ? (
             <>
               <Field

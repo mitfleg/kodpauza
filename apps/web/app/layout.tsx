@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { SiteFooter } from '@/components/site-footer';
 import { SiteHeader } from '@/components/site-header';
 import { YandexMetrika } from '@/components/yandex-metrika';
+import { CookieConsentBanner } from '@/components/cookie-consent-banner';
 import { AuthProvider } from '@/lib/auth-state';
 import {
   DEFAULT_DESCRIPTION,
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             {children}
           </main>
           <SiteFooter />
+          <CookieConsentBanner />
         </AuthProvider>
       </body>
     </html>

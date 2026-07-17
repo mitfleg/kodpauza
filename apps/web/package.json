@@ -4,13 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p ${WEB_PORT:-3000}",
+    "dev": "pnpm --filter @kodpauza/shared build && next dev -p ${WEB_PORT:-3000}",
     "build": "next build",
     "start": "next start -p ${WEB_PORT:-3000}",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint . --max-warnings=0"
   },
   "dependencies": {
+    "@kodpauza/shared": "workspace:*",
     "@gsap/react": "^2.1.2",
     "@react-three/fiber": "^9.6.1",
     "clsx": "^2.1.1",

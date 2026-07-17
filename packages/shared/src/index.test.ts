@@ -3,7 +3,9 @@ import {
   billableCpmKopecks,
   createCampaignSchema,
   impressionCostKopecks,
+  legalDocumentVersions,
   nextAdQuerySchema,
+  registerSchema,
   rewardForImpression,
   surfaceSchema,
   updateCampaignSchema,
@@ -32,6 +34,8 @@ describe('shared helpers', () => {
       cpmKopecks: 2_000,
     };
     expect(createCampaignSchema.safeParse(base).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ ...base, erid: '' }).success).toBe(true);
+    expect(createCampaignSchema.safeParse({ ...base, erid: '123' }).success).toBe(false);
     expect(createCampaignSchema.safeParse({ ...base, cpmKopecks: 1999 }).success).toBe(false);
     expect(createCampaignSchema.safeParse({ ...base, url: 'file:///tmp/ad' }).success).toBe(false);
   });
@@ -46,5 +50,23 @@ describe('shared helpers', () => {
 
   it('не сбрасывает премиальный формат при частичном изменении кампании', () => {
     expect(updateCampaignSchema.parse({ text: 'Обновленный текст объявления' })).not.toHaveProperty('format');
+  });
+
+  it('требует отдельные актуальные согласия при регистрации', () => {
+    const base = {
+      email: 'legal@example.ru',
+      password: 'password123',
+      role: 'developer' as const,
+      captchaToken: 'captcha-token',
+      termsAccepted: true as const,
+      termsVersion: legalDocumentVersions.terms,
+      privacyAcknowledged: true as const,
+      privacyVersion: legalDocumentVersions.privacy,
+      personalDataConsentAccepted: true as const,
+      personalDataConsentVersion: legalDocumentVersions.personalDataConsent,
+    };
+    expect(registerSchema.safeParse(base).success).toBe(true);
+    expect(registerSchema.safeParse({ ...base, personalDataConsentAccepted: false }).success).toBe(false);
+    expect(registerSchema.safeParse({ ...base, termsVersion: 'old-version' }).success).toBe(false);
   });
 });

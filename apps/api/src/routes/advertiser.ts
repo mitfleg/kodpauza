@@ -33,7 +33,7 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
         name: parsed.data.name,
         text: parsed.data.text,
         url: parsed.data.url,
-        erid: null,
+        erid: parsed.data.erid ?? null,
         status: 'pending',
         cpmKopecks: parsed.data.cpmKopecks,
         billableCpmKopecks: campaignBillableCpmKopecks,
@@ -91,7 +91,6 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
     const nextStatus = deliveryChanged ? 'pending' : parsed.data.status;
     const changes = { ...parsed.data };
     delete changes.status;
-    delete changes.erid;
     const nextCpmKopecks = parsed.data.cpmKopecks ?? existing.cpmKopecks;
     const nextFormat = parsed.data.format ?? existing.format;
     let nextBillableCpmKopecks: number;
@@ -113,7 +112,6 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
         ...changes,
         billableCpmKopecks: nextBillableCpmKopecks,
         ...(nextStatus ? { status: nextStatus } : {}),
-        erid: null,
       },
     });
     return { campaign };

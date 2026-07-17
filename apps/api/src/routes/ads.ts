@@ -15,7 +15,7 @@ export function registerAdsRoutes(app: FastifyInstance) {
       where: { status: 'active' },
       orderBy: [{ billableCpmKopecks: 'desc' }, { createdAt: 'asc' }],
       take: 100,
-      include: { advertiser: { select: { balanceKopecks: true } } },
+      include: { advertiser: { select: { balanceKopecks: true, companyName: true } } },
     });
     const eligibleCampaigns = campaigns.filter((item) => {
       const costKopecks = impressionCostKopecks(item.billableCpmKopecks);
@@ -66,6 +66,7 @@ export function registerAdsRoutes(app: FastifyInstance) {
       text: campaign.text,
       url: campaign.url,
       erid: campaign.erid,
+      advertiserName: campaign.advertiser.companyName,
       durationSec: adPolicy.impressionVisibleMs / 1000,
       surface: parsed.data.surface,
       format: campaign.format,

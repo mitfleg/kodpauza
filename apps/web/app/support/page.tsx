@@ -10,7 +10,7 @@ import { breadcrumbJsonLd } from '@/lib/structured-data';
 export const metadata: Metadata = buildPublicMetadata({
   title: 'Поддержка Kodpauza',
   description:
-    'Связь с поддержкой Kodpauza в Telegram: вопросы по регистрации, расширению, рекламе и ручным выплатам участникам беты.',
+    'Связь с поддержкой Kodpauza в Telegram: вопросы по регистрации, расширению, рекламе и ручным выплатам.',
   path: '/support',
 });
 
@@ -34,7 +34,7 @@ export default function SupportPage() {
         compact
         eyebrow="Поддержка"
         title="Связаться с Kodpauza"
-        description="Во время закрытой беты вопросы по аккаунту, расширению, кампаниям и выплатам разбираются вручную в Telegram."
+        description="Вопросы по аккаунту, расширению, кампаниям и выплатам разбираются вручную в Telegram."
       >
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,0.75fr)]">
           <section className="rounded-md border border-line bg-white p-5 shadow-sm">
@@ -80,11 +80,11 @@ export default function SupportPage() {
             <section className="rounded-md border border-line bg-white p-5 shadow-sm">
               <div className="flex items-center gap-2 font-semibold text-ink">
                 <WalletCards aria-hidden className="h-5 w-5 text-mint" />
-                Данные для выплаты в бете
+                Выплата по СБП
               </div>
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Сначала создайте заявку в кабинете. Затем отправьте в личный чат email аккаунта, имя
-                получателя, банк и телефон, привязанный к СБП.
+                Создайте заявку в кабинете разработчика и укажите там ФИО получателя, банк и телефон,
+                привязанный к СБП.
               </p>
             </section>
             <section className="rounded-md border border-amber-200 bg-amber-50 p-5">

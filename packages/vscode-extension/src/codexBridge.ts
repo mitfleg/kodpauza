@@ -23,6 +23,8 @@ export type CodexUiAd = {
   adId: string;
   text: string;
   format: 'standard' | 'premium';
+  advertiserName: string;
+  erid: string;
 };
 
 export type UiVisibilityEvent = {

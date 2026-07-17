@@ -40,6 +40,7 @@ export function AdvertiserNewCampaignPanel() {
     const formElement = event.currentTarget;
     const form = new FormData(formElement);
     const impressionsLimit = optionalPositiveInteger(form.get('impressionsLimit'));
+    const erid = String(form.get('erid') ?? '').trim();
 
     try {
       await api('/v1/advertiser/campaigns', {
@@ -48,6 +49,7 @@ export function AdvertiserNewCampaignPanel() {
           name: String(form.get('name') ?? ''),
           text: String(form.get('text') ?? ''),
           url: String(form.get('url') ?? ''),
+          ...(erid ? { erid } : {}),
           cpmKopecks: kopecksFromRubles(form.get('cpmRubles')),
           budgetKopecks: kopecksFromRubles(form.get('budgetRubles')),
           format,
@@ -105,6 +107,10 @@ export function AdvertiserNewCampaignPanel() {
               maxLength={120}
               required
             />
+          </Field>
+
+          <Field label="erid" hint="Необязательно. Укажите идентификатор, если он уже получен у оператора рекламных данных.">
+            <input className={inputClass} name="erid" minLength={5} maxLength={80} placeholder="2Vtzq..." />
           </Field>
 
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">

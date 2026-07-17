@@ -95,6 +95,12 @@ jobs:
               NEXT_PUBLIC_API_BASE_URL=https://api.example.test
               NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
               NEXT_PUBLIC_LOCAL_DEVELOPMENT=false
+              NEXT_PUBLIC_LEGAL_OPERATOR_NAME=Test Operator
+              NEXT_PUBLIC_LEGAL_OPERATOR_STATUS=Individual entrepreneur
+              NEXT_PUBLIC_LEGAL_OPERATOR_INN=000000000000
+              NEXT_PUBLIC_LEGAL_OPERATOR_REGISTRATION_NUMBER=000000000000000
+              NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS=Test address
+              NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL=legal@example.test
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -135,6 +141,12 @@ jobs:
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
           NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          NEXT_PUBLIC_LEGAL_OPERATOR_NAME: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_NAME }}
+          NEXT_PUBLIC_LEGAL_OPERATOR_STATUS: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_STATUS }}
+          NEXT_PUBLIC_LEGAL_OPERATOR_INN: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_INN }}
+          NEXT_PUBLIC_LEGAL_OPERATOR_REGISTRATION_NUMBER: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_REGISTRATION_NUMBER }}
+          NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS }}
+          NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL }}
         run: |
           test -n "$NEXT_PUBLIC_API_BASE_URL" || {
             echo "::error::Repository variable NEXT_PUBLIC_API_BASE_URL is required"
@@ -144,6 +156,15 @@ jobs:
             echo "::error::Repository variable NEXT_PUBLIC_TURNSTILE_SITE_KEY is required"
             exit 1
           }
+          for variable in \
+            NEXT_PUBLIC_LEGAL_OPERATOR_NAME \
+            NEXT_PUBLIC_LEGAL_OPERATOR_STATUS \
+            NEXT_PUBLIC_LEGAL_OPERATOR_INN; do
+            test -n "${!variable}" || {
+              echo "::error::Repository variable ${variable} is required"
+              exit 1
+            }
+          done
 
       - name: Resolve image names
         id: image_names
@@ -223,6 +244,12 @@ jobs:
             NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=${{ vars.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }}
             NEXT_PUBLIC_YANDEX_SITE_VERIFICATION=${{ vars.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION }}
             NEXT_PUBLIC_BING_SITE_VERIFICATION=${{ vars.NEXT_PUBLIC_BING_SITE_VERIFICATION }}
+            NEXT_PUBLIC_LEGAL_OPERATOR_NAME=${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_NAME }}
+            NEXT_PUBLIC_LEGAL_OPERATOR_STATUS=${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_STATUS }}
+            NEXT_PUBLIC_LEGAL_OPERATOR_INN=${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_INN }}
+            NEXT_PUBLIC_LEGAL_OPERATOR_REGISTRATION_NUMBER=${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_REGISTRATION_NUMBER }}
+            NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS=${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS }}
+            NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL=${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL }}
           cache-from: type=gha,scope=production-web
           provenance: false
           sbom: true

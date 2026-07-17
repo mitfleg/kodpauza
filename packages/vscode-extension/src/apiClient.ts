@@ -438,6 +438,9 @@ function parseAd(value: unknown, expectedSurface: Surface): KodpauzaAd {
     !value.text.trim() ||
     value.text.length > 500 ||
     typeof value.url !== 'string' ||
+    typeof value.advertiserName !== 'string' ||
+    !value.advertiserName.trim() ||
+    value.advertiserName.length > 160 ||
     typeof durationSec !== 'number' ||
     !Number.isFinite(durationSec) ||
     durationSec < 1 ||
@@ -456,6 +459,7 @@ function parseAd(value: unknown, expectedSurface: Surface): KodpauzaAd {
     text: value.text.trim(),
     url: normalizeExternalUrl(value.url, 'Объявление содержит небезопасную ссылку'),
     erid,
+    advertiserName: value.advertiserName.trim(),
     durationSec,
     surface: expectedSurface,
     trackable,

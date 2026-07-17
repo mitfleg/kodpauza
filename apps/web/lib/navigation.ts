@@ -8,6 +8,7 @@ import {
   Megaphone,
   PlugZap,
   ShieldAlert,
+  ShieldCheck,
   Sparkles,
   UsersRound,
   WalletCards,
@@ -34,6 +35,7 @@ export const roleNavigation = {
     { href: '/developer/events', label: 'События', icon: Activity },
     { href: '/developer/payouts', label: 'Выплаты', icon: HandCoins },
     { href: '/developer/integration', label: 'Подключение', icon: PlugZap },
+    { href: '/account/privacy', label: 'Мои данные', icon: ShieldCheck },
     { href: '/support', label: 'Поддержка', icon: LifeBuoy },
   ],
   advertiser: [
@@ -41,6 +43,7 @@ export const roleNavigation = {
     { href: '/advertiser/campaigns', label: 'Кампании', icon: Megaphone },
     { href: '/advertiser/new', label: 'Создать', icon: FilePlus2 },
     { href: '/advertiser/billing', label: 'Баланс', icon: WalletCards },
+    { href: '/account/privacy', label: 'Мои данные', icon: ShieldCheck },
     { href: '/support', label: 'Поддержка', icon: LifeBuoy },
   ],
   admin: [
@@ -49,6 +52,7 @@ export const roleNavigation = {
     { href: '/admin/users', label: 'Пользователи', icon: UsersRound },
     { href: '/admin/finance', label: 'Финансы', icon: WalletCards },
     { href: '/admin/security', label: 'Безопасность', icon: ShieldAlert },
+    { href: '/account/privacy', label: 'Мои данные', icon: ShieldCheck },
     { href: '/support', label: 'Поддержка', icon: LifeBuoy },
   ],
 } satisfies Record<NavigationRole, typeof publicNav>;
@@ -68,4 +72,8 @@ export const roleLabel: Record<NavigationRole, string> = {
 export const legalNav = [
   { href: '/privacy', label: 'Конфиденциальность' },
   { href: '/terms', label: 'Условия использования' },
+  { href: '/personal-data-consent', label: 'Согласие на обработку данных' },
+  { href: '/cookies', label: 'Cookie' },
+  { href: '/advertising-rules', label: 'Правила рекламы' },
+  { href: '/developer-agreement', label: 'Условия выплат' },
 ];

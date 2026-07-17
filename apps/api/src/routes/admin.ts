@@ -161,6 +161,51 @@ export function registerAdminRoutes(app: FastifyInstance) {
     }),
   }));
 
+  app.get('/v1/admin/privacy-requests', { preHandler: requireRole('admin') }, async () => ({
+    requests: await prisma.privacyRequest.findMany({
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      take: 200,
+      include: { user: { select: { email: true, role: true, displayName: true } } },
+    }),
+  }));
+
+  app.post(
+    '/v1/admin/privacy-requests/:id/status',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const body = z
+        .object({
+          status: z.enum(['processing', 'completed', 'rejected']),
+          resolution: z.string().trim().min(3).max(2_000),
+        })
+        .strict()
+        .safeParse(request.body);
+      if (!body.success) return reply.code(400).send({ error: 'Укажите статус и результат.' });
+      const existing = await prisma.privacyRequest.findUnique({ where: { id } });
+      if (!existing) return reply.code(404).send({ error: 'Заявка не найдена.' });
+
+      const privacyRequest = await prisma.$transaction(async (tx) => {
+        const updated = await tx.privacyRequest.update({
+          where: { id },
+          data: {
+            status: body.data.status,
+            resolution: body.data.resolution,
+            reviewedAt: new Date(),
+            completedAt: body.data.status === 'completed' ? new Date() : null,
+          },
+        });
+        await writeAuditLog(tx, request.authUser!.id, 'privacy.request.status', 'privacy-request', id, {
+          previousStatus: existing.status,
+          nextStatus: updated.status,
+          type: existing.type,
+        });
+        return updated;
+      });
+      return { request: privacyRequest };
+    },
+  );
+
   app.get('/v1/admin/integration-versions', { preHandler: requireRole('admin') }, async () => {
     const reports = await prisma.integrationVersionReport.findMany({
       orderBy: [{ acknowledgedAt: 'asc' }, { lastSeenAt: 'desc' }],
@@ -269,7 +314,6 @@ export function registerAdminRoutes(app: FastifyInstance) {
       if (existing.status !== 'pending') {
         return reply.code(409).send({ error: 'Одобрить можно только кампанию на модерации.' });
       }
-
       const advertiser = await prisma.advertiserProfile.findUnique({
         where: { id: existing.advertiserId },
       });

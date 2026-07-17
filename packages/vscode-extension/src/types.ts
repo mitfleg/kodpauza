@@ -6,6 +6,7 @@ export interface KodpauzaAd {
   text: string;
   url: string;
   erid: string | null;
+  advertiserName: string;
   durationSec: number;
   surface: Surface;
   trackable: boolean;

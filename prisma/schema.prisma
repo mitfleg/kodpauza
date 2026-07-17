@@ -80,6 +80,27 @@ enum PaymentStatus {
   failed
 }
 
+enum LegalDocumentType {
+  terms
+  privacy
+  personal_data_consent
+}
+
+enum PrivacyRequestType {
+  access
+  correction
+  deletion
+  consent_withdrawal
+}
+
+enum PrivacyRequestStatus {
+  requested
+  processing
+  completed
+  rejected
+  canceled
+}
+
 model User {
   id                             String             @id @default(cuid())
   email                          String             @unique
@@ -102,8 +123,44 @@ model User {
   extensionInstalls              ExtensionInstall[]
   extensionSessions              ExtensionSession[]
   adminAuditLogs                 AdminAuditLog[]
+  legalAcceptances               LegalAcceptance[]
+  privacyRequests                PrivacyRequest[]
 
   @@index([emailVerifiedAt])
+}
+
+model LegalAcceptance {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentType    LegalDocumentType
+  documentVersion String
+  source          String            @default("registration")
+  ipHash          String?
+  userAgentHash   String?
+  acceptedAt      DateTime          @default(now())
+  withdrawnAt     DateTime?
+
+  @@unique([userId, documentType, documentVersion])
+  @@index([userId, acceptedAt])
+}
+
+model PrivacyRequest {
+  id          String               @id @default(cuid())
+  userId      String
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        PrivacyRequestType
+  status      PrivacyRequestStatus @default(requested)
+  details     String?
+  resolution  String?
+  requestedAt DateTime             @default(now())
+  reviewedAt  DateTime?
+  completedAt DateTime?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 model ExtensionSession {
@@ -146,6 +203,9 @@ model DeveloperPayout {
   currency          String                @default("RUB")
   status            DeveloperPayoutStatus @default(requested)
   provider          String                @default("manual")
+  recipientName     String?
+  sbpPhone          String?
+  bankName          String?
   externalReference String?
   reviewNote        String?
   requestedAt       DateTime              @default(now())

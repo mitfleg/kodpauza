@@ -15,6 +15,11 @@ export async function requestDeveloperPayout(
   userId: string,
   amountKopecks: number,
   clientRequestId: string,
+  recipient: {
+    recipientName: string;
+    sbpPhone: string;
+    bankName: string;
+  },
 ) {
   try {
     return await serializable(async (tx) => {
@@ -27,9 +32,14 @@ export async function requestDeveloperPayout(
         },
       });
       if (existing) {
-        if (existing.amountKopecks !== amountKopecks) {
+        if (
+          existing.amountKopecks !== amountKopecks ||
+          existing.recipientName !== recipient.recipientName ||
+          existing.sbpPhone !== recipient.sbpPhone ||
+          existing.bankName !== recipient.bankName
+        ) {
           throw new DeveloperPayoutError(
-            'Этот идентификатор запроса уже использован для другой суммы.',
+            'Этот идентификатор запроса уже использован для другой заявки.',
             409,
           );
         }
@@ -63,6 +73,9 @@ export async function requestDeveloperPayout(
           clientRequestId,
           idempotenceKey: randomUUID(),
           amountKopecks,
+          recipientName: recipient.recipientName,
+          sbpPhone: recipient.sbpPhone,
+          bankName: recipient.bankName,
         },
       });
       await tx.ledgerEntry.create({
@@ -86,7 +99,13 @@ export async function requestDeveloperPayout(
             },
           })
         : null;
-      if (existing && existing.amountKopecks === amountKopecks) {
+      if (
+        existing &&
+        existing.amountKopecks === amountKopecks &&
+        existing.recipientName === recipient.recipientName &&
+        existing.sbpPhone === recipient.sbpPhone &&
+        existing.bankName === recipient.bankName
+      ) {
         return { payout: existing, created: false };
       }
       throw new DeveloperPayoutError('У разработчика уже есть заявка, ожидающая обработки.', 409);
