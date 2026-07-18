@@ -61,6 +61,29 @@ function latestModernFixtureWebview() {
     .replace('children:Of', 'children:kf');
 }
 
+function inferredFixtureWebview() {
+  const thinkingInferred = '(0,J.jsx)(I,{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`})';
+  const reasoningInferred = '(0,J.jsx)(I,{id:`reasoningItem.thinking`,defaultMessage:`Thinking`,description:`Message shown when AI is currently thinking`})';
+  const exploringInferred = '(0,J.jsx)(I,{id:`localConversationTurn.exploration.accordion.header.active`,defaultMessage:`Exploring`,description:`Header for the exploration accordion while Codex is listing or reading files`,children:Child})';
+  const descriptorInferred = '(0,J.jsx)(I,{...Messages.thinking})';
+  return `var J=n();var R=q(u(),1),Next=(0,R.useSyncExternalStore)(subscribe,snapshot,snapshot);(0,R.useEffect)(()=>{},[]);let ref=(0,R.useRef)(null);${[
+    thinkingInferred,
+    thinkingInferred,
+    reasoningInferred,
+    exploringInferred,
+    descriptorInferred
+  ].join(';')}`;
+}
+
+function inferredFixtureHost(suffix = '') {
+  return `function buildPolicy({cspSource:a,devOrigin:b,extensionSentryOrigin:c}){let destinations=[a,c,...maps,...sockets];return ["default-src 'none'",\`img-src ${'${a}'} https: data:\`,\`script-src ${'${a}'}\`,\`connect-src ${'${destinations.join(" ")}'}\`].join("; ")+";"}${suffix}`;
+}
+
+function inferredFixtureShimmer() {
+  const fallback = '(0,J.jsx)(I,{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`})';
+  return `var R=q(u(),1),Next={};function shimmer(){let ref=(0,R.useRef)(null);(0,R.useEffect)(()=>{},[]);return ${fallback}}`;
+}
+
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
@@ -100,7 +123,14 @@ test('патч заменяет активные ожидания, сохран�
   assert.match(patchedWebview, /\/activity\?token=/);
   assert.match(patchedWebview, /__kpUseActivity/);
   assert.match(patchedWebview, /e\.format==="premium"/);
-  assert.doesNotMatch(patchedWebview, /children:"Премиум"/);
+  assert.doesNotMatch(patchedWebview, /children:"Реклама"/);
+  assert.doesNotMatch(patchedWebview, /linear-gradient/);
+  assert.match(patchedWebview, /Спонсорское предложение/);
+  assert.match(patchedWebview, /width:"14px",height:"14px"/);
+  assert.match(patchedWebview, /data:image\\\/\(\?:png\|jpeg\|webp\)/);
+  assert.match(patchedWebview, /data:image\/svg\+xml,/);
+  assert.match(patchedWebview, /<foreignObject/);
+  assert.match(patchedWebview, /borderBottom:o\?/);
   assert.equal((patchedWebview.match(/__kpAdMessage/g) ?? []).length, 7);
   assert.doesNotThrow(() => new vm.Script(patchedWebview));
 
@@ -130,6 +160,8 @@ test('патч принимает новую версию Codex при неиз�
 
   const installer = new CodexPatchInstaller(extensionPath, 'future-version', home);
 
+  const preflight = await installer.inspect();
+  assert.equal(preflight.compatibilityMode, 'structural');
   const installed = await installer.install();
   assert.equal(installed.installed, true);
   assert.equal(installed.compatibilityMode, 'structural');
@@ -157,6 +189,101 @@ test('патч Codex fail-closed отклоняет измененную цел�
   await assert.rejects(() => installer.install(), /безопасно отключена/);
   assert.equal(await fs.readFile(hostPath, 'utf8'), hostSource);
   assert.equal(await fs.readFile(webviewPath, 'utf8'), changed);
+});
+
+test('UI-патч Codex принимает только безопасные inline-иконки', () => {
+  const token = 'e'.repeat(64);
+  const patched = patchWebviewSource(fixtureWebview(), token);
+  const originalAnchor = 'var X=e(r()),Po=';
+  const runtime = patched.slice(0, patched.indexOf(originalAnchor));
+  const safeSvg = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16"/></svg>'
+  )}`;
+  const remoteIcon = 'https://tracker.example/icon.png';
+  const unsafeSvg = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://tracker.example/pixel"/></svg>'
+  )}`;
+  const result = vm.runInNewContext(
+    `${runtime};[__kpSafeIcon(${JSON.stringify(safeSvg)}),__kpSafeIcon(${JSON.stringify(remoteIcon)}),__kpSafeIcon(${JSON.stringify(unsafeSvg)})]`
+  );
+  assert.equal(result[0], safeSvg);
+  assert.equal(result[1], null);
+  assert.equal(result[2], null);
+});
+
+test('структурный fallback Codex выводит профиль из переименованных якорей', async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-patch-'));
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const extensionPath = path.join(root, 'codex');
+  const home = path.join(root, 'kodpauza');
+  const hostPath = path.join(extensionPath, 'out', 'extension.js');
+  const assetsPath = path.join(extensionPath, 'webview', 'assets');
+  const webviewPath = path.join(assetsPath, 'local-conversation-turn-future.js');
+  const shimmerPath = path.join(assetsPath, 'thinking-shimmer-future.js');
+  const hostSource = inferredFixtureHost();
+  const webviewSource = inferredFixtureWebview();
+  const shimmerSource = inferredFixtureShimmer();
+  await fs.mkdir(path.dirname(hostPath), { recursive: true });
+  await fs.mkdir(assetsPath, { recursive: true });
+  await Promise.all([
+    fs.writeFile(hostPath, hostSource),
+    fs.writeFile(webviewPath, webviewSource),
+    fs.writeFile(shimmerPath, shimmerSource)
+  ]);
+
+  const installer = new CodexPatchInstaller(extensionPath, 'future-renamed-version', home);
+  const installed = await installer.install();
+  assert.equal(installed.compatibilityMode, 'structural');
+  assert.equal(installed.installed, true);
+  assert.match(await fs.readFile(hostPath, 'utf8'), /let destinations=\[a,c,\/\*__KODPAUZA_CSP_START__/);
+  assert.match(await fs.readFile(webviewPath, 'utf8'), /__KODPAUZA_UI_START__/);
+  assert.match(await fs.readFile(shimmerPath, 'utf8'), /__KODPAUZA_UI_START__/);
+
+  const restored = await installer.restore();
+  assert.equal(restored.changed, true);
+  assert.equal(await fs.readFile(hostPath, 'utf8'), hostSource);
+  assert.equal(await fs.readFile(webviewPath, 'utf8'), webviewSource);
+  assert.equal(await fs.readFile(shimmerPath, 'utf8'), shimmerSource);
+});
+
+test('структурный fallback Codex fail-closed при двух React-якорях', async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-patch-'));
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const extensionPath = path.join(root, 'codex');
+  const home = path.join(root, 'kodpauza');
+  const hostPath = path.join(extensionPath, 'out', 'extension.js');
+  const webviewPath = path.join(extensionPath, 'webview', 'assets', 'local-conversation-turn-future.js');
+  const hostSource = inferredFixtureHost();
+  const ambiguousWebview = `${inferredFixtureWebview()};let duplicate=(0,R.useSyncExternalStore)(a,b,b)`;
+  await fs.mkdir(path.dirname(hostPath), { recursive: true });
+  await fs.mkdir(path.dirname(webviewPath), { recursive: true });
+  await fs.writeFile(hostPath, hostSource);
+  await fs.writeFile(webviewPath, ambiguousWebview);
+
+  const installer = new CodexPatchInstaller(extensionPath, 'future-ambiguous-version', home);
+  const status = await installer.inspect();
+  assert.equal(status.compatible, false);
+  assert.equal(status.compatibilityMode, 'unsupported');
+  await assert.rejects(() => installer.install(), /безопасно отключена/);
+  assert.equal(await fs.readFile(hostPath, 'utf8'), hostSource);
+  assert.equal(await fs.readFile(webviewPath, 'utf8'), ambiguousWebview);
+});
+
+test('структурный fallback Codex требует независимые React hooks', async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-patch-'));
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const extensionPath = path.join(root, 'codex');
+  const hostPath = path.join(extensionPath, 'out', 'extension.js');
+  const webviewPath = path.join(extensionPath, 'webview', 'assets', 'local-conversation-turn-future.js');
+  const incompleteWebview = inferredFixtureWebview().replace('(0,R.useRef)', '(0,Other.useRef)');
+  await fs.mkdir(path.dirname(hostPath), { recursive: true });
+  await fs.mkdir(path.dirname(webviewPath), { recursive: true });
+  await fs.writeFile(hostPath, inferredFixtureHost());
+  await fs.writeFile(webviewPath, incompleteWebview);
+
+  const status = await new CodexPatchInstaller(extensionPath, 'future-incomplete-version', path.join(root, 'home')).inspect();
+  assert.equal(status.compatible, false);
+  assert.equal(status.compatibilityMode, 'unsupported');
 });
 
 test('чистые функции патча отклоняют повторное применение', () => {
@@ -349,7 +476,7 @@ test('автоматическая проверка обновляет стар�
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 5);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 6);
 });
 
 test('автоматическая проверка переносит патч на новый каталог Codex', async (context) => {

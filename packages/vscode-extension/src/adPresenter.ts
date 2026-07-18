@@ -8,6 +8,9 @@ import { PausableCountdown } from './pausableCountdown';
 
 const IMPRESSION_THRESHOLD_MS = 5_000;
 const LOCAL_QUEUE_RETRY_MS = 30_000;
+const RECENT_CAMPAIGN_LIMIT = 2;
+const AD_SELECTION_ATTEMPTS = 3;
+const UI_CANARY_PREFIX = 'house-canary-';
 export const AD_ROTATION_INTERVAL_MS = 30_000;
 
 export class StatusBarAdPresenter implements vscode.Disposable {
@@ -28,6 +31,8 @@ export class StatusBarAdPresenter implements vscode.Disposable {
   private readonly patchedUiViews = new Map<string, number>();
   private patchedUiVisibilityTimer: NodeJS.Timeout | undefined;
   private readonly rotationClock: PausableCountdown;
+  private readonly recentCampaignIds: string[] = [];
+  private confirmingCanary = false;
   private sessionIdValue: string | undefined;
   private sessionStartedAtValue: string | undefined;
 
@@ -45,7 +50,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
       () => void this.rotateAd()
     );
     this.item = vscode.window.createStatusBarItem(itemId, vscode.StatusBarAlignment.Right, 97);
-    this.item.name = 'Kodpauza: рекламная пауза';
+    this.item.name = 'Kodpauza: спонсорское предложение';
     this.item.tooltip = 'Kodpauza: ожидание запуска';
 
     this.disposables.push(
@@ -136,6 +141,9 @@ export class StatusBarAdPresenter implements vscode.Disposable {
       this.patchedUiViews.delete(viewId);
     }
     this.refreshPatchedUiVisibility();
+    if (visible && this.isCurrentCanary(adId)) {
+      void this.confirmCanary(adId);
+    }
   }
 
   async startWait(placement: AdPlacement): Promise<void> {
@@ -152,6 +160,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     this.placement = placement;
     this.sessionIdValue = crypto.randomUUID();
     this.sessionStartedAtValue = new Date().toISOString();
+    this.confirmingCanary = false;
 
     if (!this.state.adsEnabled || !this.state.integrationEnabled) {
       this.running = false;
@@ -171,9 +180,14 @@ export class StatusBarAdPresenter implements vscode.Disposable {
 
     if (!this.patchedUiEnabled && this.allowStatusBarFallback) {
       this.item.text = `$(loading~spin) ${placement.waitingLabel}`;
-      this.item.tooltip = 'Реклама появится после загрузки безопасного объявления.';
+      this.item.tooltip = 'Спонсорское предложение появится после безопасной загрузки.';
       this.item.command = undefined;
       this.item.show();
+    }
+
+    if (this.patchedUiEnabled) {
+      this.showUiCanary(placement);
+      return;
     }
 
     try {
@@ -196,6 +210,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     this.loadController?.abort();
     this.loadController = undefined;
     this.running = false;
+    this.confirmingCanary = false;
     this.rotationClock.cancel();
     this.resetExposure();
     this.placement = undefined;
@@ -280,13 +295,13 @@ export class StatusBarAdPresenter implements vscode.Disposable {
 
     if (!this.patchedUiEnabled && this.allowStatusBarFallback) {
       this.item.text = `$(loading~spin) ${placement.waitingLabel}`;
-      this.item.tooltip = 'Реклама появится после загрузки безопасного объявления.';
+      this.item.tooltip = 'Спонсорское предложение появится после безопасной загрузки.';
       this.item.command = undefined;
       this.item.show();
     }
 
     try {
-      const ad = await this.api.currentAd(placement.surface, controller.signal);
+      const ad = await this.selectAd(placement, controller.signal);
       if (!this.isCurrentGeneration(generation) || this.loadController !== controller) {
         return;
       }
@@ -299,6 +314,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
       }
 
       this.currentAd = ad;
+      this.rememberCampaign(ad);
       if (this.patchedUiEnabled) {
         this.item.hide();
       } else if (this.allowStatusBarFallback) {
@@ -329,6 +345,82 @@ export class StatusBarAdPresenter implements vscode.Disposable {
       this.hideItem();
       this.rotationClock.reset();
       this.resumeEmptyAdRetry();
+    }
+  }
+
+  private showUiCanary(placement: AdPlacement): void {
+    const sessionId = this.sessionIdValue ?? crypto.randomUUID();
+    this.currentAd = {
+      adId: `${UI_CANARY_PREFIX}${sessionId}`,
+      campaignId: 'house',
+      text: 'Зарабатывайте, пока AI работает',
+      url: this.api.dashboardUrl,
+      erid: null,
+      advertiserName: 'Kodpauza',
+      durationSec: 1,
+      surface: placement.surface,
+      trackable: false,
+      format: 'standard',
+    };
+    this.visible = true;
+    this.item.hide();
+    this.rotationClock.cancel();
+  }
+
+  private isCurrentCanary(adId: string): boolean {
+    return (
+      this.currentAd?.adId === adId &&
+      this.currentAd.campaignId === 'house' &&
+      adId.startsWith(UI_CANARY_PREFIX)
+    );
+  }
+
+  private async confirmCanary(adId: string): Promise<void> {
+    if (this.confirmingCanary || !this.isCurrentCanary(adId)) {
+      return;
+    }
+    const generation = this.generation;
+    this.confirmingCanary = true;
+    try {
+      await this.loadAd(generation);
+    } catch {
+      if (this.isCurrentGeneration(generation) && this.placement) {
+        this.showUiCanary(this.placement);
+      }
+    } finally {
+      this.confirmingCanary = false;
+    }
+  }
+
+  private async selectAd(
+    placement: AdPlacement,
+    signal: AbortSignal,
+  ): Promise<KodpauzaAd | undefined> {
+    let repeatedCandidate: KodpauzaAd | undefined;
+    for (let attempt = 0; attempt < AD_SELECTION_ATTEMPTS; attempt += 1) {
+      const candidate = await this.api.currentAd(placement.surface, signal);
+      if (!candidate) {
+        return repeatedCandidate;
+      }
+      if (!this.recentCampaignIds.includes(candidate.campaignId)) {
+        return candidate;
+      }
+      repeatedCandidate ??= candidate;
+    }
+    return repeatedCandidate;
+  }
+
+  private rememberCampaign(ad: KodpauzaAd): void {
+    if (ad.trackable === false || ad.campaignId === 'house') {
+      return;
+    }
+    const existing = this.recentCampaignIds.indexOf(ad.campaignId);
+    if (existing >= 0) {
+      this.recentCampaignIds.splice(existing, 1);
+    }
+    this.recentCampaignIds.push(ad.campaignId);
+    while (this.recentCampaignIds.length > RECENT_CAMPAIGN_LIMIT) {
+      this.recentCampaignIds.shift();
     }
   }
 
@@ -517,7 +609,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
       return;
     }
     this.item.text = `$(megaphone) ${ad.text}`;
-    this.item.tooltip = `Реклама · ${ad.advertiserName}${ad.erid ? ` · erid: ${ad.erid}` : ''}. Нажмите, чтобы открыть предложение.`;
+    this.item.tooltip = `Спонсорское предложение · ${ad.advertiserName}${ad.erid ? ` · erid: ${ad.erid}` : ''}. Нажмите, чтобы открыть.`;
     this.item.command = 'kodpauza.openAd';
     this.item.show();
   }

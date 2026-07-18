@@ -48,6 +48,11 @@ type IntegrationConnectionResult = {
   changed: boolean;
 };
 
+const KODPAUZA_FALLBACK_ICON = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="4" fill="#10b981"/><path d="M4.25 4.5 2 8l2.25 3.5M11.75 4.5 14 8l-2.25 3.5M9.5 3.5l-3 9" fill="none" stroke="white" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+)}`;
+const RUNTIME_WATCHDOG_INTERVAL_MS = 30_000;
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const state = new KodpauzaState(context);
   await state.initialize();
@@ -275,7 +280,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             .filter((runtime) => runtime.detection.detected)
             .map(async (runtime) => {
               try {
-                await runtime.hooks.install();
+                const hooks = await runtime.hooks.inspect();
+                if (!hooks.installed) {
+                  await runtime.hooks.install();
+                }
               } catch (error) {
                 failures.push(`${runtime.name}: ${userErrorMessage(error)}`);
               }
@@ -296,6 +304,65 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
       });
     return reconciliation;
+  };
+
+  let runtimeWatchdog: Promise<void> | undefined;
+  let runtimeReloadScheduled = false;
+  const ensureRuntimeHealthy = (): Promise<void> => {
+    if (runtimeWatchdog) {
+      return runtimeWatchdog;
+    }
+    const operation = (async () => {
+      if (
+        !state.adsEnabled ||
+        !state.integrationEnabled ||
+        !vscode.window.state.focused
+      ) {
+        return;
+      }
+
+      refreshIntegrationDetections();
+      let changed = false;
+      await Promise.all(
+        Object.values(integrations)
+          .filter((runtime) => runtime.detection.detected && runtime.patch)
+          .map(async (runtime) => {
+            try {
+              const status = await runtime.patch!.ensureInstalled();
+              runtime.compatible = status.compatible;
+              runtime.compatibilityMode = status.compatibilityMode;
+              runtime.patchToken = status.token;
+              runtime.presenter.setPatchedUiEnabled(status.installed);
+              changed ||= status.changed;
+            } catch {
+              runtime.presenter.setPatchedUiEnabled(false);
+              return;
+            }
+            try {
+              const hooks = await runtime.hooks.inspect();
+              if (!hooks.installed) {
+                await runtime.hooks.install();
+              }
+            } catch {
+              // UI activity remains usable; the next watchdog pass retries hooks independently.
+            }
+          }),
+      );
+      await reconcileIntegration();
+      if (changed && !runtimeReloadScheduled) {
+        runtimeReloadScheduled = true;
+        scheduleReload('Kodpauza автоматически восстановила интеграцию. Перезапускаю окно...');
+      }
+    })();
+    const tracked: Promise<void> = operation
+      .catch(() => undefined)
+      .finally(() => {
+        if (runtimeWatchdog === tracked) {
+          runtimeWatchdog = undefined;
+        }
+      });
+    runtimeWatchdog = tracked;
+    return runtimeWatchdog;
   };
 
   const register = (command: string, handler: CommandHandler): vscode.Disposable =>
@@ -661,6 +728,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const heartbeatTimer = setInterval(() => void reportInstallHeartbeat(), 6 * 60 * 60 * 1000);
   heartbeatTimer.unref();
   context.subscriptions.push({ dispose: () => clearInterval(heartbeatTimer) });
+  const runtimeWatchdogTimer = setInterval(
+    () => void ensureRuntimeHealthy(),
+    RUNTIME_WATCHDOG_INTERVAL_MS,
+  );
+  runtimeWatchdogTimer.unref();
+  context.subscriptions.push({ dispose: () => clearInterval(runtimeWatchdogTimer) });
   if (autoReloadRequired) {
     scheduleReload('Kodpauza восстановила интеграции после обновления. Перезапускаю окно...');
   }
@@ -696,6 +769,11 @@ function createUiAdapter(runtime: IntegrationRuntime): {
         format: 'standard' | 'premium';
         advertiserName: string;
         erid: string;
+        iconUrl?: string;
+        domain?: string;
+        destinationHost?: string;
+        tooltipDomain?: string;
+        canary?: boolean;
       }
     | undefined;
   onAdClick: (adId: string) => Promise<void>;
@@ -705,20 +783,25 @@ function createUiAdapter(runtime: IntegrationRuntime): {
     token: () => runtime.patchToken,
     currentAd: () => {
       const ad = runtime.presenter.ad;
-      return runtime.presenter.canRenderPatchedUi && ad
-        ? {
-            active: true,
-            adId: ad.adId,
-            text: [
-              adDisplayText(ad.text),
-              ad.advertiserName,
-              ad.erid ? `erid: ${ad.erid}` : undefined,
-            ].filter(Boolean).join(' · '),
-            format: ad.format,
-            advertiserName: ad.advertiserName,
-            erid: ad.erid ?? '',
-          }
-        : undefined;
+      if (!runtime.presenter.canRenderPatchedUi || !ad) {
+        return undefined;
+      }
+      const domain = safeAdDomain(ad.url);
+      const canary = ad.campaignId === 'house' || ad.trackable === false;
+      return {
+        active: true,
+        adId: ad.adId,
+        text: `${ad.advertiserName} — ${adDisplayText(ad.text)}`,
+        format: ad.format,
+        advertiserName: ad.advertiserName,
+        erid: ad.erid ?? '',
+        iconUrl: canary ? KODPAUZA_FALLBACK_ICON : undefined,
+        domain,
+        // Kept temporarily for patched UIs released before the `domain` field was agreed.
+        destinationHost: domain,
+        tooltipDomain: domain,
+        canary,
+      };
     },
     onAdClick: async (adId) => {
       const ad = runtime.presenter.ad;
@@ -730,6 +813,15 @@ function createUiAdapter(runtime: IntegrationRuntime): {
     onVisibility: ({ adId, viewId, visible }) =>
       runtime.presenter.markPatchedUiVisibility(adId, viewId, visible),
   };
+}
+
+function safeAdDomain(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.hostname : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function removeRuntimeIntegrations(
