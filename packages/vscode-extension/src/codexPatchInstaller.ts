@@ -12,7 +12,7 @@ import { webviewVisibilityRuntime } from './uiVisibilityRuntime';
 export const CODEX_UI_BRIDGE_PORT = 37_491;
 
 const PATCH_STATE_FILE = 'codex-ui-patch.json';
-const PATCH_REVISION = 5;
+const PATCH_REVISION = 6;
 const UI_MARKER_PREFIX = '/*__KODPAUZA_UI_START__:';
 const UI_MARKER_END = '/*__KODPAUZA_UI_END__*/';
 const CSP_MARKER_START = '/*__KODPAUZA_CSP_START__*/';
@@ -490,13 +490,19 @@ export class CodexPatchInstaller {
   private resolveCompatibleBuild(candidates: CodexSourceCandidates): void {
     const currentBuild = this.supportedBuild;
     if (currentBuild && codexBuildHashesMatch(currentBuild, candidates)) {
-      this.compatibilityMode = 'exact';
+      if (this.compatibilityMode !== 'structural') {
+        this.compatibilityMode = 'exact';
+      }
       return;
     }
 
-    const profiles = uniqueCodexProfiles([
+    const inferredProfile = inferCodexCompatibilityProfile(candidates);
+    const profiles = uniqueCompatibilityProfiles([
+      ...uniqueCodexProfiles([
       ...(currentBuild ? [currentBuild] : []),
       ...SUPPORTED_BUILDS
+      ]),
+      ...(inferredProfile ? [inferredProfile] : [])
     ]);
     const matches = profiles.filter((profile) => {
       try {
@@ -747,8 +753,10 @@ export function patchHostSource(
   }
   validatePatchProfile(profile);
   const anchor = profile.hostAnchor;
-  const prefix = 'let n=[t,r,';
-  if (!anchor.startsWith(prefix)) {
+  const prefix = anchor.match(
+    /^let [A-Za-z_$][A-Za-z0-9_$]*=\[[A-Za-z_$][A-Za-z0-9_$]*,[A-Za-z_$][A-Za-z0-9_$]*,/
+  )?.[0];
+  if (!prefix) {
     throw new Error('Некорректный профиль CSP-патча Codex.');
   }
   const replacement = `${prefix}${CSP_MARKER_START}"http://127.0.0.1:${CODEX_UI_BRIDGE_PORT}"${CSP_MARKER_END},${anchor.slice(prefix.length)}`;
@@ -763,7 +771,7 @@ function uiRuntime(
   const react = profile.reactIdentifier;
   const jsx = profile.jsxIdentifier;
   const visibilityRuntime = webviewVisibilityRuntime('__kp', '__kpEndpoint', '__kpToken');
-  return `${UI_MARKER_PREFIX}${token}__*/var __kpEndpoint=${JSON.stringify(endpoint)},__kpToken=${JSON.stringify(token)},__kpAdState=null,__kpSubscribers=new Set,__kpTimer,__kpActivityRefs=0,__kpActivityTimer,__kpActivityViewId="kp-"+Math.random().toString(36).slice(2)+Date.now().toString(36);function __kpSendActivity(e){fetch(__kpEndpoint+"/activity?token="+encodeURIComponent(__kpToken),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({viewId:__kpActivityViewId,active:e})}).catch(()=>{})}function __kpStartActivity(){__kpActivityRefs+=1,__kpActivityRefs===1&&(__kpSendActivity(!0),__kpActivityTimer=setInterval(()=>__kpSendActivity(!0),1e3))}function __kpStopActivity(){__kpActivityRefs=Math.max(0,__kpActivityRefs-1),__kpActivityRefs===0&&(__kpActivityTimer!=null&&clearInterval(__kpActivityTimer),__kpActivityTimer=void 0,__kpSendActivity(!1))}function __kpUseActivity(){(0,${react}.useEffect)(()=>{__kpStartActivity();return()=>__kpStopActivity()},[])}function __kpSnapshot(){return __kpAdState}function __kpNotify(){for(let e of __kpSubscribers)e()}function __kpSetAd(e){let t=e&&e.active===!0&&typeof e.adId=="string"&&typeof e.text=="string"&&(e.format==="standard"||e.format==="premium")?{active:!0,adId:e.adId,text:e.text,format:e.format}:null;if(__kpAdState?.adId===t?.adId&&__kpAdState?.text===t?.text&&__kpAdState?.format===t?.format)return;__kpAdState=t,__kpNotify()}function __kpPoll(){fetch(__kpEndpoint+"/current?token="+encodeURIComponent(__kpToken),{cache:"no-store"}).then(e=>e.ok?e.json():null).then(__kpSetAd).catch(()=>__kpSetAd(null)).finally(()=>{__kpSubscribers.size>0&&(__kpTimer=setTimeout(__kpPoll,750))})}function __kpSubscribe(e){return __kpSubscribers.add(e),__kpSubscribers.size===1&&__kpPoll(),()=>{__kpSubscribers.delete(e),__kpSubscribers.size===0&&(__kpTimer!=null&&clearTimeout(__kpTimer),__kpTimer=void 0)}}function __kpUseAd(){return(0,${react}.useSyncExternalStore)(__kpSubscribe,__kpSnapshot,__kpSnapshot)}${visibilityRuntime}function __kpOpenAd(e){fetch(__kpEndpoint+"/click?token="+encodeURIComponent(__kpToken),{method:"POST",headers:{"content-type":"text/plain"},body:e.adId}).catch(()=>{})}function __kpAdMessage(e){__kpUseActivity();let t=__kpUseAd(),n=(0,${react}.useRef)(null);(0,${react}.useEffect)(()=>t?__kpObserveVisibility(n.current,t):void 0,[t?.adId]);if(t==null)return e.fallback;let r=e=>{e.preventDefault(),e.stopPropagation(),__kpOpenAd(t)},i=e=>{(e.key==="Enter"||e.key===" ")&&r(e)},o=t.format==="premium";return(0,${jsx}.jsxs)("span",{"data-kodpauza-ad":"",ref:n,className:"inline-flex max-w-full min-w-0 items-center gap-1.5",role:"link",tabIndex:0,title:o?"Премиальная реклама Kodpauza. Нажмите, чтобы открыть предложение.":"Реклама Kodpauza. Нажмите, чтобы открыть предложение.",onClick:r,onKeyDown:i,style:o?{border:"1px solid rgba(245,158,11,.55)",borderRadius:"6px",padding:"2px 6px",background:"linear-gradient(90deg,rgba(245,158,11,.12),rgba(16,185,129,.08))",boxShadow:"0 0 0 1px rgba(245,158,11,.08)"}:void 0,children:[(0,${jsx}.jsx)("span",{className:"shrink-0 font-semibold",style:{color:o?"#f59e0b":"#10b981"},children:"Реклама"}),(0,${jsx}.jsx)("span",{className:"min-w-0 truncate",children:t.text})]})}${UI_MARKER_END}`;
+  return `${UI_MARKER_PREFIX}${token}__*/var __kpEndpoint=${JSON.stringify(endpoint)},__kpToken=${JSON.stringify(token)},__kpAdState=null,__kpSubscribers=new Set,__kpTimer,__kpActivityRefs=0,__kpActivityTimer,__kpActivityViewId="kp-"+Math.random().toString(36).slice(2)+Date.now().toString(36);function __kpSendActivity(e){fetch(__kpEndpoint+"/activity?token="+encodeURIComponent(__kpToken),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({viewId:__kpActivityViewId,active:e})}).catch(()=>{})}function __kpStartActivity(){__kpActivityRefs+=1,__kpActivityRefs===1&&(__kpSendActivity(!0),__kpActivityTimer=setInterval(()=>__kpSendActivity(!0),1e3))}function __kpStopActivity(){__kpActivityRefs=Math.max(0,__kpActivityRefs-1),__kpActivityRefs===0&&(__kpActivityTimer!=null&&clearInterval(__kpActivityTimer),__kpActivityTimer=void 0,__kpSendActivity(!1))}function __kpUseActivity(){(0,${react}.useEffect)(()=>{__kpStartActivity();return()=>__kpStopActivity()},[])}function __kpSnapshot(){return __kpAdState}function __kpNotify(){for(let e of __kpSubscribers)e()}function __kpSafeIcon(e){if(typeof e!="string")return null;if(e.length<=9e4&&/^data:image\\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(e))return e;if(e.length>8e3||!e.startsWith("data:image/svg+xml,"))return null;try{let t=decodeURIComponent(e.slice(19));return/^<svg[\\s>]/i.test(t)&&/<\\/svg>$/i.test(t)&&!/(?:<script|<foreignObject|<image|\\bhref\\s*=|\\burl\\s*\\(|@import|\\bon[a-z]+\\s*=)/i.test(t)?e:null}catch{return null}}function __kpSafeDomain(e){return typeof e=="string"&&e.length<=253&&/^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(e)?e:null}function __kpSetAd(e){let t=e&&e.active===!0&&typeof e.adId=="string"&&typeof e.text=="string"&&(e.format==="standard"||e.format==="premium")?{active:!0,adId:e.adId,text:e.text,format:e.format,advertiserName:typeof e.advertiserName=="string"&&e.advertiserName.trim().length>0&&e.advertiserName.length<=160?e.advertiserName.trim():"Kodpauza",iconUrl:__kpSafeIcon(e.iconUrl),domain:__kpSafeDomain(e.domain)}:null;if(__kpAdState?.adId===t?.adId&&__kpAdState?.text===t?.text&&__kpAdState?.format===t?.format&&__kpAdState?.iconUrl===t?.iconUrl&&__kpAdState?.domain===t?.domain&&__kpAdState?.advertiserName===t?.advertiserName)return;__kpAdState=t,__kpNotify()}function __kpPoll(){fetch(__kpEndpoint+"/current?token="+encodeURIComponent(__kpToken),{cache:"no-store"}).then(e=>e.ok?e.json():null).then(__kpSetAd).catch(()=>__kpSetAd(null)).finally(()=>{__kpSubscribers.size>0&&(__kpTimer=setTimeout(__kpPoll,750))})}function __kpSubscribe(e){return __kpSubscribers.add(e),__kpSubscribers.size===1&&__kpPoll(),()=>{__kpSubscribers.delete(e),__kpSubscribers.size===0&&(__kpTimer!=null&&clearTimeout(__kpTimer),__kpTimer=void 0)}}function __kpUseAd(){return(0,${react}.useSyncExternalStore)(__kpSubscribe,__kpSnapshot,__kpSnapshot)}${visibilityRuntime}function __kpOpenAd(e){fetch(__kpEndpoint+"/click?token="+encodeURIComponent(__kpToken),{method:"POST",headers:{"content-type":"text/plain"},body:e.adId}).catch(()=>{})}function __kpAdMessage(e){__kpUseActivity();let t=__kpUseAd(),n=(0,${react}.useRef)(null);(0,${react}.useEffect)(()=>t?__kpObserveVisibility(n.current,t):void 0,[t?.adId]);if(t==null)return e.fallback;let r=e=>{e.preventDefault(),e.stopPropagation(),__kpOpenAd(t)},i=e=>{(e.key==="Enter"||e.key===" ")&&r(e)},o=t.format==="premium",a=t.advertiserName.slice(0,1).toUpperCase()||"K",s="Спонсорское предложение"+(t.domain?" · "+t.domain:"")+". Нажмите, чтобы открыть.";return(0,${jsx}.jsxs)("span",{"data-kodpauza-ad":"",ref:n,className:"inline-flex max-w-full min-w-0 items-center gap-1.5",role:"link",tabIndex:0,title:s,"aria-label":s,onClick:r,onKeyDown:i,style:{cursor:"pointer",borderBottom:o?"1px solid rgba(245,158,11,.72)":"1px solid rgba(148,163,184,.34)",paddingBottom:"1px",maxWidth:"100%"},children:[t.iconUrl?(0,${jsx}.jsx)("img",{src:t.iconUrl,alt:"",width:14,height:14,className:"shrink-0",style:{width:"14px",height:"14px",objectFit:"contain",borderRadius:"3px"}}):(0,${jsx}.jsx)("span",{"aria-hidden":"true",className:"shrink-0 inline-flex items-center justify-center",style:{width:"14px",height:"14px",borderRadius:"3px",fontSize:"9px",lineHeight:"14px",fontWeight:700,color:o?"#fbbf24":"#34d399",background:o?"rgba(245,158,11,.14)":"rgba(16,185,129,.12)"},children:a}),(0,${jsx}.jsx)("span",{className:"min-w-0 truncate",children:t.text})]})}${UI_MARKER_END}`;
 }
 
 function validatePatchProfile(profile: CodexPatchProfile): void {
@@ -854,6 +862,190 @@ function uniqueCodexProfiles(builds: readonly CodexSupportedBuild[]): CodexCompa
     unique.set(JSON.stringify(profile), profile);
   }
   return [...unique.values()];
+}
+
+function uniqueCompatibilityProfiles(
+  profiles: readonly CodexCompatibilityProfile[]
+): CodexCompatibilityProfile[] {
+  const unique = new Map<string, CodexCompatibilityProfile>();
+  for (const profile of profiles) {
+    unique.set(JSON.stringify(profile), profile);
+  }
+  return [...unique.values()];
+}
+
+function inferCodexCompatibilityProfile(
+  candidates: CodexSourceCandidates
+): CodexCompatibilityProfile | undefined {
+  try {
+    const patchProfile = inferCodexPatchProfile(candidates.webviewSource, candidates.hostSource);
+    if (!candidates.shimmerSource) {
+      return { patchProfile };
+    }
+    if (!candidates.shimmerSource.includes('thinkingShimmer.default')) {
+      return undefined;
+    }
+    return {
+      patchProfile,
+      shimmerPatchProfile: inferCodexShimmerPatchProfile(candidates.shimmerSource)
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function inferCodexPatchProfile(webviewSource: string, hostSource: string): CodexPatchProfile {
+  const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
+  const thinkingPattern = new RegExp(
+    `\\(0,(${identifier})\\.jsx\\)\\((${identifier}),\\{id:\\x60thinkingShimmer\\.default\\x60,defaultMessage:\\x60Thinking\\x60,description:\\x60Default placeholder shown while the assistant is thinking\\x60\\}\\)`,
+    'g'
+  );
+  const thinkingMatches = [...webviewSource.matchAll(thinkingPattern)];
+  const thinkingPairs = new Set(thinkingMatches.map((match) => `${match[1]}:${match[2]}`));
+  if (thinkingMatches.length < 1 || thinkingMatches.length > 32 || thinkingPairs.size !== 1) {
+    throw new Error('Неоднозначная строка Thinking Codex.');
+  }
+  const jsxIdentifier = requiredCapture(thinkingMatches[0], 1);
+  const intlIdentifier = requiredCapture(thinkingMatches[0], 2);
+  const reasoningPattern = new RegExp(
+    `\\(0,${escapeRegExp(jsxIdentifier)}\\.jsx\\)\\(${escapeRegExp(intlIdentifier)},\\{id:\\x60reasoningItem\\.thinking\\x60,defaultMessage:\\x60Thinking\\x60,description:\\x60Message shown when AI is currently thinking\\x60\\}\\)`,
+    'g'
+  );
+  if ([...webviewSource.matchAll(reasoningPattern)].length !== 1) {
+    throw new Error('Неоднозначная строка reasoning Codex.');
+  }
+
+  const exploringPattern = new RegExp(
+    `\\(0,${escapeRegExp(jsxIdentifier)}\\.jsx\\)\\(${escapeRegExp(intlIdentifier)},\\{id:\\x60localConversationTurn\\.exploration\\.accordion\\.header\\.active\\x60,defaultMessage:\\x60Exploring\\x60,description:\\x60Header for the exploration accordion while Codex is listing or reading files\\x60,children:(${identifier})\\}\\)`,
+    'g'
+  );
+  const exploringMatches = [...webviewSource.matchAll(exploringPattern)];
+  if (exploringMatches.length !== 1) {
+    throw new Error('Неоднозначная строка Exploring Codex.');
+  }
+
+  const reactMatches = [...webviewSource.matchAll(
+    new RegExp(`\\(0,(${identifier})\\.useSyncExternalStore\\)`, 'g')
+  )];
+  if (reactMatches.length !== 1) {
+    throw new Error('Неоднозначный React runtime Codex.');
+  }
+  const reactIdentifier = requiredCapture(reactMatches[0], 1);
+  for (const hook of ['useEffect', 'useRef']) {
+    const hookPattern = new RegExp(`\\(0,${escapeRegExp(reactIdentifier)}\\.${hook}\\)`, 'g');
+    if ([...webviewSource.matchAll(hookPattern)].length < 1) {
+      throw new Error(`React runtime Codex не содержит ${hook}.`);
+    }
+  }
+  const reactAnchor = inferReactAnchor(webviewSource, reactIdentifier);
+  const hostAnchor = inferHostAnchor(hostSource);
+
+  const descriptorPattern = new RegExp(
+    `\\(0,${escapeRegExp(jsxIdentifier)}\\.jsx\\)\\(${escapeRegExp(intlIdentifier)},\\{\\.\\.\\.(${identifier})\\.thinking\\}\\)`,
+    'g'
+  );
+  const descriptorMatches = [...webviewSource.matchAll(descriptorPattern)];
+  const descriptorIdentifiers = new Set(descriptorMatches.map((match) => match[1]));
+  if (descriptorIdentifiers.size > 1) {
+    throw new Error('Неоднозначный descriptor Thinking Codex.');
+  }
+
+  return {
+    reactAnchor,
+    reactIdentifier,
+    jsxIdentifier,
+    intlIdentifier,
+    thinkingCount: thinkingMatches.length,
+    ...(descriptorMatches.length > 0
+      ? {
+          thinkingDescriptorIdentifier: requiredCapture(descriptorMatches[0], 1),
+          thinkingDescriptorCount: descriptorMatches.length
+        }
+      : {}),
+    exploringChildrenIdentifier: requiredCapture(exploringMatches[0], 1),
+    hostAnchor
+  };
+}
+
+function inferCodexShimmerPatchProfile(source: string): CodexShimmerPatchProfile {
+  const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
+  const thinkingPattern = new RegExp(
+    `\\(0,(${identifier})\\.jsx\\)\\((${identifier}),\\{id:\\x60thinkingShimmer\\.default\\x60,defaultMessage:\\x60Thinking\\x60,description:\\x60Default placeholder shown while the assistant is thinking\\x60\\}\\)`,
+    'g'
+  );
+  const thinkingMatches = [...source.matchAll(thinkingPattern)];
+  if (thinkingMatches.length !== 1) {
+    throw new Error('Неоднозначная строка Thinking в shimmer Codex.');
+  }
+  const refIdentifiers = new Set(
+    [...source.matchAll(new RegExp(`\\(0,(${identifier})\\.useRef\\)`, 'g'))].map((match) => match[1])
+  );
+  const effectIdentifiers = new Set(
+    [...source.matchAll(new RegExp(`\\(0,(${identifier})\\.useEffect\\)`, 'g'))].map((match) => match[1])
+  );
+  const reactIdentifiers = [...refIdentifiers].filter((value) => effectIdentifiers.has(value));
+  if (reactIdentifiers.length !== 1) {
+    throw new Error('Неоднозначный React runtime shimmer Codex.');
+  }
+  const reactIdentifier = reactIdentifiers[0];
+  return {
+    reactAnchor: inferReactAnchor(source, reactIdentifier),
+    reactIdentifier,
+    jsxIdentifier: requiredCapture(thinkingMatches[0], 1),
+    intlIdentifier: requiredCapture(thinkingMatches[0], 2)
+  };
+}
+
+function inferReactAnchor(source: string, reactIdentifier: string): string {
+  const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
+  const pattern = new RegExp(
+    `var ${escapeRegExp(reactIdentifier)}=${identifier}\\(${identifier}\\(\\)(?:,1)?\\),${identifier}=`,
+    'g'
+  );
+  const matches = [...source.matchAll(pattern)];
+  if (matches.length !== 1) {
+    throw new Error('Неоднозначная точка подключения React Codex.');
+  }
+  return matches[0][0];
+}
+
+function inferHostAnchor(source: string): string {
+  const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
+  const pattern = new RegExp(
+    `function ${identifier}\\(\\{cspSource:(${identifier}),devOrigin:(${identifier}),extensionSentryOrigin:(${identifier})\\}\\)\\{(let (${identifier})=\\[\\1,\\3,\\.\\.\\.${identifier},\\.\\.\\.${identifier}\\];)`,
+    'g'
+  );
+  const matches = [...source.matchAll(pattern)].filter((match) => {
+    const index = match.index ?? -1;
+    if (index < 0) {
+      return false;
+    }
+    const listIdentifier = requiredCapture(match, 5);
+    const contract = source.slice(index, index + 4_000);
+    return [
+      `"default-src 'none'"`,
+      '`img-src ',
+      '`script-src ',
+      '`connect-src ',
+      `${listIdentifier}.join(" ")`
+    ].every((anchor) => contract.includes(anchor));
+  });
+  if (matches.length !== 1) {
+    throw new Error('Неоднозначная CSP-политика Codex.');
+  }
+  return requiredCapture(matches[0], 4);
+}
+
+function requiredCapture(match: RegExpMatchArray, index: number): string {
+  const value = match[index];
+  if (!value) {
+    throw new Error('Структурный якорь Codex не содержит ожидаемое значение.');
+  }
+  return value;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function codexBuildHashesMatch(build: CodexSupportedBuild, candidates: CodexSourceCandidates): boolean {

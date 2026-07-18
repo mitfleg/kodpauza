@@ -25,6 +25,12 @@ export type CodexUiAd = {
   format: 'standard' | 'premium';
   advertiserName: string;
   erid: string;
+  /** Optional presentation hints. Older patched UIs safely ignore them. */
+  iconUrl?: string;
+  domain?: string;
+  destinationHost?: string;
+  tooltipDomain?: string;
+  canary?: boolean;
 };
 
 export type UiVisibilityEvent = {
@@ -164,6 +170,25 @@ export class CodexHookBridge {
     }
 
     this.server = server;
+    server.on('error', (error) => {
+      if (this.server === server) {
+        this.lastErrorValue = errorMessage(error);
+      }
+    });
+    server.on('close', () => {
+      if (this.server !== server) {
+        return;
+      }
+      this.server = undefined;
+      if (this.heartbeat) {
+        clearInterval(this.heartbeat);
+        this.heartbeat = undefined;
+      }
+      if (this.shouldRun) {
+        this.lastErrorValue = 'Локальный UI bridge неожиданно остановился. Перезапускаю его.';
+        this.schedulePortRetry();
+      }
+    });
     this.lastErrorValue = undefined;
     try {
       await this.queueDescriptorWrite();

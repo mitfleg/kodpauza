@@ -31,6 +31,9 @@ test('bridge принимает только подписанные локаль
         adId: 'ad-1',
         text: 'Тестовое объявление',
         format: 'standard',
+        iconUrl: 'data:image/svg+xml,%3Csvg/%3E',
+        domain: 'example.com',
+        canary: true,
       }),
       onAdClick: async (adId) => {
         clicks.push(adId);
@@ -43,6 +46,7 @@ test('bridge принимает только подписанные локаль
             adId: 'ad-claude',
             text: 'Claude объявление',
             format: 'premium',
+            domain: 'claude.example.com',
           }),
           onAdClick: async (adId) => clicks.push(adId),
           onVisibility: (event) => visible.push(event),
@@ -95,6 +99,9 @@ test('bridge принимает только подписанные локаль
     adId: 'ad-1',
     text: 'Тестовое объявление',
     format: 'standard',
+    iconUrl: 'data:image/svg+xml,%3Csvg/%3E',
+    domain: 'example.com',
+    canary: true,
   });
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(uiActivity, []);
@@ -141,6 +148,7 @@ test('bridge принимает только подписанные локаль
     adId: 'ad-claude',
     text: 'Claude объявление',
     format: 'premium',
+    domain: 'claude.example.com',
   });
   assert.equal(uiActivity.length, 2);
   const claudeActivity = await fetch(
@@ -260,6 +268,29 @@ test('bridge не роняет второе окно и занимает UI-по
   await waitFor(() => bridge.isListening, 1_000);
   assert.equal(bridge.lastError, undefined);
 
+  const descriptors = await fs.readdir(path.join(root, 'bridges'));
+  assert.equal(descriptors.length, 1);
+});
+
+test('bridge сам перезапускается после неожиданной остановки сервера', async (context) => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-bridge-recovery-'));
+  context.after(() => fs.rm(root, { recursive: true, force: true }));
+  const bridge = new CodexHookBridge(
+    root,
+    () => ['/workspace/project'],
+    async () => undefined,
+    { portRetryMs: 20 },
+  );
+  context.after(() => bridge.stop());
+
+  await bridge.start();
+  assert.equal(bridge.isListening, true);
+  const server = bridge.server;
+  assert.ok(server);
+  await new Promise((resolve) => server.close(resolve));
+
+  await waitFor(() => bridge.isListening, 1_000);
+  assert.equal(bridge.lastError, undefined);
   const descriptors = await fs.readdir(path.join(root, 'bridges'));
   assert.equal(descriptors.length, 1);
 });

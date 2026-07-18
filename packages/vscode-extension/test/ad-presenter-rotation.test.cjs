@@ -44,6 +44,7 @@ Module._load = originalLoad;
 test('в одной активной сессии запрашивает новое объявление каждые 30 секунд показа', async () => {
   let requests = 0;
   const api = {
+    dashboardUrl: 'https://kodpauza.ru',
     currentAd: async (surface) => {
       requests += 1;
       return {
@@ -73,6 +74,13 @@ test('в одной активной сессии запрашивает нов�
   });
   const sessionId = presenter.sessionId;
   assert.match(sessionId, /^[0-9a-f-]{36}$/);
+  assert.equal(requests, 0);
+  assert.equal(presenter.ad.campaignId, 'house');
+  assert.equal(presenter.ad.trackable, false);
+  assert.equal(presenter.ad.text, 'Зарабатывайте, пока AI работает');
+
+  presenter.markPatchedUiVisibility(presenter.ad.adId, 'canary-view-1', true);
+  await waitFor(() => presenter.ad?.adId === 'ad-1', 500);
   assert.equal(presenter.ad.adId, 'ad-1');
 
   presenter.markPatchedUiVisibility('ad-1', 'rotation-view-1', true);
@@ -88,6 +96,56 @@ test('в одной активной сессии запрашивает нов�
   await new Promise((resolve) => setTimeout(resolve, 60));
   assert.equal(requests, requestsAfterStop);
   assert.equal(presenter.sessionId, undefined);
+  presenter.dispose();
+});
+
+test('не повторяет две последние кампании, если сервер может выдать альтернативу', async () => {
+  const campaigns = ['alpha', 'alpha', 'beta', 'alpha', 'beta', 'gamma'];
+  let requests = 0;
+  const api = {
+    dashboardUrl: 'https://kodpauza.ru',
+    currentAd: async (surface) => {
+      const campaignId = campaigns[requests] ?? 'gamma';
+      requests += 1;
+      return {
+        adId: `${campaignId}-${requests}`,
+        campaignId,
+        text: campaignId,
+        url: 'https://example.com',
+        erid: null,
+        advertiserName: campaignId,
+        durationSec: 5,
+        surface,
+        trackable: true,
+        format: 'standard',
+      };
+    },
+  };
+  const presenter = new StatusBarAdPresenter(
+    api,
+    { adsEnabled: true, integrationEnabled: true },
+    { enqueue: async () => undefined },
+    'test',
+    'test.recent',
+    false,
+    25,
+  );
+  presenter.setPatchedUiEnabled(true);
+  await presenter.startWait({
+    surface: 'codex_vscode',
+    toolName: 'codex_vscode',
+    toolVersion: 'test',
+    waitingLabel: 'Codex работает',
+  });
+
+  presenter.markPatchedUiVisibility(presenter.ad.adId, 'canary-view-2', true);
+  await waitFor(() => presenter.ad?.campaignId === 'alpha', 500);
+  presenter.markPatchedUiVisibility(presenter.ad.adId, 'recent-view-1', true);
+  await waitFor(() => presenter.ad?.campaignId === 'beta', 500);
+  presenter.markPatchedUiVisibility(presenter.ad.adId, 'recent-view-2', true);
+  await waitFor(() => presenter.ad?.campaignId === 'gamma', 500);
+
+  assert.equal(requests, 6);
   presenter.dispose();
 });
 

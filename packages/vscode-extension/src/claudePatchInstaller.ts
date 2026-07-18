@@ -1,6 +1,7 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as acorn from './vendor/acorn';
 import { CODEX_UI_BRIDGE_PORT } from './codexPatchInstaller';
 import { defaultKodpauzaHome } from './codexHookInstaller';
 import {
@@ -11,7 +12,7 @@ import {
 import { webviewVisibilityRuntime } from './uiVisibilityRuntime';
 
 const PATCH_STATE_FILE = 'claude-ui-patch.json';
-const PATCH_REVISION = 5;
+const PATCH_REVISION = 6;
 const UI_MARKER_PREFIX = '/*__KODPAUZA_CLAUDE_UI_START__:';
 const UI_MARKER_END = '/*__KODPAUZA_CLAUDE_UI_END__*/';
 const CSP_MARKER_START = '<!--__KODPAUZA_CLAUDE_CSP_START__-->';
@@ -20,6 +21,10 @@ const MAX_PATCH_FILE_BYTES = 8 * 1024 * 1024;
 
 export type ClaudePatchProfile = {
   cspFinalIdentifier: string;
+  cspFirstIdentifier?: string;
+  cspSecondIdentifier?: string;
+  cspThirdIdentifier?: string;
+  cspNonceIdentifier?: string;
   componentIdentifier: string;
   verbsIdentifier: string;
   randomIdentifier: string;
@@ -27,6 +32,13 @@ export type ClaudePatchProfile = {
   animateIdentifier: string;
   stylesIdentifier: string;
   spinnerFramesIdentifier: string;
+  structuralSpinnerAnchor?: string;
+  stateHookIdentifier?: string;
+  effectHookIdentifier?: string;
+  containerElementIdentifier?: string;
+  childElementIdentifier?: string;
+  statusLocalIdentifier?: string;
+  animatedLocalIdentifier?: string;
 };
 
 export type ClaudeSupportedBuild = {
@@ -229,6 +241,7 @@ export class ClaudePatchInstaller {
     const patchedWebview = patchClaudeWebviewSource(webviewSource, token, resolvedBuild.profile);
     assertJavaScriptParses(patchedHost, 'Claude Code extension.js');
     assertJavaScriptParses(patchedWebview, 'Claude Code webview/index.js');
+    assertClaudePatchedContract(patchedHost, patchedWebview, token);
     const backupDirectory = await this.createBackup(paths);
     const manifest: PatchManifest = {
       version: 1,
@@ -334,22 +347,15 @@ export class ClaudePatchInstaller {
       return;
     }
 
-    const profiles = uniqueClaudeProfiles([
+    const knownProfiles = uniqueClaudeProfiles([
       ...(currentBuild ? [currentBuild.profile] : []),
       ...SUPPORTED_BUILDS.map((build) => build.profile)
     ]);
-    const matches = profiles.filter((profile) => {
-      try {
-        const token = '0'.repeat(64);
-        const patchedHost = patchClaudeHostSource(hostSource, profile);
-        const patchedWebview = patchClaudeWebviewSource(webviewSource, token, profile);
-        assertJavaScriptParses(patchedHost, 'Claude Code extension.js');
-        assertJavaScriptParses(patchedWebview, 'Claude Code webview/index.js');
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    let matches = compatibleClaudeProfiles(hostSource, webviewSource, knownProfiles);
+    if (matches.length === 0) {
+      const derivedProfiles = deriveClaudePatchProfiles(hostSource, webviewSource);
+      matches = compatibleClaudeProfiles(hostSource, webviewSource, derivedProfiles);
+    }
 
     if (matches.length !== 1) {
       this.supportedBuild = undefined;
@@ -453,6 +459,254 @@ export class ClaudePatchInstaller {
   }
 }
 
+function compatibleClaudeProfiles(
+  hostSource: string,
+  webviewSource: string,
+  profiles: readonly ClaudePatchProfile[]
+): ClaudePatchProfile[] {
+  return profiles.filter((profile) => {
+      try {
+        const token = '0'.repeat(64);
+        const patchedHost = patchClaudeHostSource(hostSource, profile);
+        const patchedWebview = patchClaudeWebviewSource(webviewSource, token, profile);
+        assertJavaScriptParses(patchedHost, 'Claude Code extension.js');
+        assertJavaScriptParses(patchedWebview, 'Claude Code webview/index.js');
+        assertClaudePatchedContract(patchedHost, patchedWebview, token);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+}
+
+type AstNode = {
+  type?: string;
+  start?: number;
+  end?: number;
+  [key: string]: unknown;
+};
+
+function deriveClaudePatchProfiles(
+  hostSource: string,
+  webviewSource: string
+): ClaudePatchProfile[] {
+  const csp = deriveClaudeCspIdentifiers(hostSource);
+  if (!csp) {
+    return [];
+  }
+  const spinnerProfiles = deriveClaudeSpinnerProfiles(webviewSource);
+  if (spinnerProfiles.length !== 1) {
+    return [];
+  }
+  return [{ ...spinnerProfiles[0], ...csp }];
+}
+
+function deriveClaudeCspIdentifiers(
+  source: string
+): Pick<
+  ClaudePatchProfile,
+  | 'cspFirstIdentifier'
+  | 'cspSecondIdentifier'
+  | 'cspThirdIdentifier'
+  | 'cspNonceIdentifier'
+  | 'cspFinalIdentifier'
+> | undefined {
+  const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
+  const pattern = new RegExp(
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
+      + '\\$\\{(?<first>' + identifier + ')\\}; '
+      + '\\$\\{(?<second>' + identifier + ')\\}; '
+      + '\\$\\{(?<third>' + identifier + ')\\}; '
+      + 'script-src \'nonce-\\$\\{(?<nonce>' + identifier + ')\\}\'; '
+      + '\\$\\{(?<final>' + identifier + ')\\};">',
+    'g'
+  );
+  const matches = [...source.matchAll(pattern)];
+  if (matches.length !== 1 || !matches[0].groups) {
+    return undefined;
+  }
+  return {
+    cspFirstIdentifier: matches[0].groups.first,
+    cspSecondIdentifier: matches[0].groups.second,
+    cspThirdIdentifier: matches[0].groups.third,
+    cspNonceIdentifier: matches[0].groups.nonce,
+    cspFinalIdentifier: matches[0].groups.final
+  };
+}
+
+function deriveClaudeSpinnerProfiles(source: string): ClaudePatchProfile[] {
+  const ast = parseJavaScriptAst(source);
+  const functions: AstNode[] = [];
+  walkAst(ast, (node) => {
+    if (
+      node.type === 'FunctionDeclaration' &&
+      typeof node.start === 'number' &&
+      Number.isInteger(node.start) &&
+      typeof node.end === 'number' &&
+      Number.isInteger(node.end)
+    ) {
+      functions.push(node);
+    }
+  });
+  const profiles: ClaudePatchProfile[] = [];
+  for (const node of functions) {
+    const candidate = source.slice(node.start as number, node.end as number);
+    const profile = deriveClaudeSpinnerProfile(candidate);
+    if (profile) {
+      profiles.push(profile);
+    }
+  }
+  return uniqueClaudeProfiles(profiles);
+}
+
+function deriveClaudeSpinnerProfile(source: string): ClaudePatchProfile | undefined {
+  const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
+  const signature = source.match(new RegExp(
+    '^function (?<component>' + identifier + ')\\(\\{size:(?<size>' + identifier
+      + ')=16,permissionMode:(?<permission>' + identifier + '),status:(?<status>' + identifier
+      + '),spinnerVerbsConfig:(?<config>' + identifier + ')\\}\\)\\{'
+  ));
+  const setup = source.match(new RegExp(
+    '\\{let (?<verbsList>' + identifier + ')=(?<memo>' + identifier + ')\\(\\(\\)=>(?<verbs>'
+      + identifier + ')\\((?<config>' + identifier + ')\\),\\[\\k<config>\\]\\),(?<width>'
+      + identifier + ')=\\k<memo>\\(\\(\\)=>Math\\.max\\(\\.\\.\\.\\k<verbsList>\\.map\\(\\((?<mapValue>'
+      + identifier + ')\\)=>\\k<mapValue>\\.length\\)\\),\\[\\k<verbsList>\\]\\),\\[(?<frameIndex>'
+      + identifier + '),(?<setFrame>' + identifier + ')\\]=(?<state>' + identifier
+      + ')\\(0\\),\\[(?<phrase>' + identifier + '),(?<setPhrase>' + identifier
+      + ')\\]=\\k<state>\\(\\(\\)=>(?<random>' + identifier + ')\\(\\k<verbsList>\\)\\);'
+  ));
+  const animation = source.match(new RegExp(
+    '(?<effect>' + identifier + ')\\(\\(\\)=>\\{let (?<timer>' + identifier
+      + ')=setInterval\\(\\(\\)=>\\{(?<setFrame>' + identifier + ')\\(\\((?<frame>'
+      + identifier + ')\\)=>\\(\\k<frame>\\+1\\)%(?<frames>' + identifier
+      + ')\\.length\\)\\},120\\);return\\(\\)=>clearInterval\\(\\k<timer>\\)\\},\\[\\]\\)'
+  ));
+  const schedulerPattern = new RegExp(
+    '(?<scheduler>' + identifier + ')\\(\\(\\)=>\\{(?<setPhrase>' + identifier
+      + ')\\((?<random>' + identifier + ')\\((?<verbsList>' + identifier
+      + ')\\)\\)\\},\\((?<attempt>' + identifier + ')\\)=>\\{let (?<delays>'
+      + identifier + ')=\\[2000,3000,5000\\];return (?<returnAttempt>' + identifier
+      + ')<(?<returnDelays>' + identifier + ')\\.length\\?(?<indexDelays>' + identifier
+      + ')\\[(?<indexAttempt>' + identifier + ')\\]:5000\\}\\)'
+  );
+  const scheduler = source.match(schedulerPattern);
+  const status = source.match(new RegExp(
+    'let (?<current>' + identifier + ')=(?<phrase>' + identifier + ');if\\((?<status>'
+      + identifier + ')==="compacting"\\)\\k<current>="Compacting";let (?<animated>'
+      + identifier + ')=(?<animate>' + identifier + ')\\(\\k<current>\\+"\\.\\.\\.",(?<width>'
+      + identifier + ')\\+3\\);'
+  ));
+  const output = source.match(new RegExp(
+    'return (?<container>' + identifier + ')\\("div",\\{className:(?<styles>' + identifier
+      + ')\\.container,"data-permission-mode":(?<permission>' + identifier
+      + '),children:\\[(?<child>' + identifier + ')\\("span",\\{className:\\k<styles>\\.icon,style:\\{fontSize:`\\$\\{(?<size>'
+      + identifier + ')\\}px`\\},children:(?<frames>' + identifier + ')\\[(?<frameIndex>'
+      + identifier + ')\\]\\}\\),\\k<child>\\("span",\\{className:\\k<styles>\\.text,children:(?<animated>'
+      + identifier + ')\\}\\)\\]\\}\\)\\}$'
+  ));
+  const groups = [signature, setup, animation, scheduler, status, output]
+    .map((match) => match?.groups);
+  if (groups.some((value) => !value)) {
+    return undefined;
+  }
+  const [signatureGroups, setupGroups, animationGroups, schedulerGroups, statusGroups, outputGroups] = groups as RegExpGroups[];
+  if (
+    setupGroups.config !== signatureGroups.config ||
+    animationGroups.setFrame !== setupGroups.setFrame ||
+    animationGroups.frames !== outputGroups.frames ||
+    schedulerGroups.setPhrase !== setupGroups.setPhrase ||
+    schedulerGroups.random !== setupGroups.random ||
+    schedulerGroups.verbsList !== setupGroups.verbsList ||
+    schedulerGroups.returnAttempt !== schedulerGroups.attempt ||
+    schedulerGroups.returnDelays !== schedulerGroups.delays ||
+    schedulerGroups.indexDelays !== schedulerGroups.delays ||
+    schedulerGroups.indexAttempt !== schedulerGroups.attempt ||
+    statusGroups.phrase !== setupGroups.phrase ||
+    statusGroups.status !== signatureGroups.status ||
+    statusGroups.width !== setupGroups.width ||
+    outputGroups.permission !== signatureGroups.permission ||
+    outputGroups.size !== signatureGroups.size ||
+    outputGroups.frames !== animationGroups.frames ||
+    outputGroups.frameIndex !== setupGroups.frameIndex ||
+    outputGroups.animated !== statusGroups.animated
+  ) {
+    return undefined;
+  }
+  return {
+    cspFinalIdentifier: 'v',
+    componentIdentifier: signatureGroups.component,
+    verbsIdentifier: setupGroups.verbs,
+    randomIdentifier: setupGroups.random,
+    schedulerIdentifier: schedulerGroups.scheduler,
+    animateIdentifier: statusGroups.animate,
+    stylesIdentifier: outputGroups.styles,
+    spinnerFramesIdentifier: outputGroups.frames,
+    structuralSpinnerAnchor: source,
+    stateHookIdentifier: setupGroups.state,
+    effectHookIdentifier: animationGroups.effect,
+    containerElementIdentifier: outputGroups.container,
+    childElementIdentifier: outputGroups.child,
+    statusLocalIdentifier: signatureGroups.status,
+    animatedLocalIdentifier: statusGroups.animated
+  };
+}
+
+type RegExpGroups = Record<string, string>;
+
+function parseJavaScriptAst(source: string): AstNode {
+  try {
+    return acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'script' }) as AstNode;
+  } catch {
+    return acorn.parse(source, { ecmaVersion: 'latest', sourceType: 'module' }) as AstNode;
+  }
+}
+
+function walkAst(value: unknown, visitor: (node: AstNode) => void): void {
+  if (!value || typeof value !== 'object') {
+    return;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      walkAst(item, visitor);
+    }
+    return;
+  }
+  const node = value as AstNode;
+  if (typeof node.type === 'string') {
+    visitor(node);
+  }
+  for (const [key, child] of Object.entries(node)) {
+    if (key !== 'start' && key !== 'end') {
+      walkAst(child, visitor);
+    }
+  }
+}
+
+function assertClaudePatchedContract(hostSource: string, webviewSource: string, token: string): void {
+  assertOccurrenceCount(hostSource, CSP_MARKER_START, 1, 'начало CSP-маркера Claude Code');
+  assertOccurrenceCount(hostSource, CSP_MARKER_END, 1, 'конец CSP-маркера Claude Code');
+  assertOccurrenceCount(
+    hostSource,
+    `connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};`,
+    1,
+    'локальный bridge в CSP Claude Code'
+  );
+  assertOccurrenceCount(webviewSource, `${UI_MARKER_PREFIX}${token}__*/`, 1, 'начало UI-маркера Claude Code');
+  assertOccurrenceCount(webviewSource, UI_MARKER_END, 1, 'конец UI-маркера Claude Code');
+  assertOccurrenceCount(webviewSource, '"data-kodpauza-ad":""', 1, 'контракт рекламного элемента Claude Code');
+  assertOccurrenceCount(webviewSource, 'Спонсорское предложение', 1, 'подсказка рекламного элемента Claude Code');
+  if (webviewSource.includes('children:"Реклама"') || webviewSource.includes('Премиальная реклама Kodpauza')) {
+    throw new Error('UI-патч Claude Code содержит устаревшую видимую маркировку.');
+  }
+}
+
+function assertOccurrenceCount(source: string, search: string, expected: number, label: string): void {
+  const actual = source.split(search).length - 1;
+  if (actual !== expected) {
+    throw new Error(`Claude Code несовместим с патчем: ${label} (${actual} вместо ${expected}).`);
+  }
+}
+
 export function patchClaudeHostSource(
   source: string,
   profile: ClaudePatchProfile = CLAUDE_2_1_209_PROFILE
@@ -476,7 +730,11 @@ function claudeCspAnchor(profile: ClaudePatchProfile, patched = false): string {
   const connectSource = patched
     ? ` connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};`
     : '';
-  return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; \${p}; \${f}; \${m}; script-src 'nonce-\${u}'; \${${profile.cspFinalIdentifier}};${connectSource}">`;
+  const first = profile.cspFirstIdentifier ?? 'p';
+  const second = profile.cspSecondIdentifier ?? 'f';
+  const third = profile.cspThirdIdentifier ?? 'm';
+  const nonce = profile.cspNonceIdentifier ?? 'u';
+  return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; \${${first}}; \${${second}}; \${${third}}; script-src 'nonce-\${${nonce}}'; \${${profile.cspFinalIdentifier}};${connectSource}">`;
 }
 
 export function patchClaudeWebviewSource(
@@ -490,27 +748,102 @@ export function patchClaudeWebviewSource(
     throw new Error('UI-патч Kodpauza уже присутствует в Claude Code.');
   }
   const original = spinnerComponentSource(profile, false);
-  const patched = `${claudeUiRuntime(token)}${spinnerComponentSource(profile, true)}`;
+  const patched = `${claudeUiRuntime(token, profile)}${spinnerComponentSource(profile, true)}`;
   return replaceExact(source, original, patched, 1, 'активный spinner Claude Code');
 }
 
 function spinnerComponentSource(profile: ClaudePatchProfile, patched: boolean): string {
+  if (profile.structuralSpinnerAnchor) {
+    if (!patched) {
+      return profile.structuralSpinnerAnchor;
+    }
+    return patchStructuralSpinnerComponent(profile.structuralSpinnerAnchor, profile);
+  }
   const adState = patched ? 'k=__kpClaudeUseAd(),' : '';
   const content = patched ? 'k&&i!=="compacting"?b(__kpClaudeAdLink,{ad:k}):h' : 'h';
   return `function ${profile.componentIdentifier}({size:e=16,permissionMode:t,status:i,spinnerVerbsConfig:n}){let ${adState}o=co(()=>${profile.verbsIdentifier}(n),[n]),r=co(()=>Math.max(...o.map((p)=>p.length)),[o]),[s,a]=ne(0),[l,c]=ne(()=>${profile.randomIdentifier}(o));de(()=>{let p=setInterval(()=>{a((f)=>(f+1)%${profile.spinnerFramesIdentifier}.length)},120);return()=>clearInterval(p)},[]),${profile.schedulerIdentifier}(()=>{c(${profile.randomIdentifier}(o))},(p)=>{let f=[2000,3000,5000];return p<f.length?f[p]:5000});let u=l;if(i==="compacting")u="Compacting";let h=${profile.animateIdentifier}(u+"...",r+3);return E("div",{className:${profile.stylesIdentifier}.container,"data-permission-mode":t,children:[b("span",{className:${profile.stylesIdentifier}.icon,style:{fontSize:\`\${e}px\`},children:${profile.spinnerFramesIdentifier}[s]}),b("span",{className:${profile.stylesIdentifier}.text,children:${content}})]})}`;
 }
 
-function claudeUiRuntime(token: string): string {
+function patchStructuralSpinnerComponent(source: string, profile: ClaudePatchProfile): string {
+  const childElement = requiredStructuralIdentifier(profile.childElementIdentifier, 'дочерний JSX-элемент');
+  const status = requiredStructuralIdentifier(profile.statusLocalIdentifier, 'статус spinner');
+  const animated = requiredStructuralIdentifier(profile.animatedLocalIdentifier, 'анимированный текст spinner');
+  if (source.includes('__kpClaudeAd')) {
+    throw new Error('Структурная цель Claude Code уже содержит идентификатор Kodpauza.');
+  }
+  let patched = replaceExact(
+    source,
+    '){let ',
+    '){let __kpClaudeAd=__kpClaudeUseAd(),',
+    1,
+    'начало spinner-компонента Claude Code'
+  );
+  const textAnchor = `${childElement}("span",{className:${profile.stylesIdentifier}.text,children:${animated}})`;
+  patched = replaceExact(
+    patched,
+    textAnchor,
+    `${childElement}("span",{className:${profile.stylesIdentifier}.text,children:__kpClaudeAd&&${status}!=="compacting"?${childElement}(__kpClaudeAdLink,{ad:__kpClaudeAd}):${animated}})`,
+    1,
+    'текст spinner-компонента Claude Code'
+  );
+  return patched;
+}
+
+function claudeUiRuntime(token: string, profile: ClaudePatchProfile): string {
   const endpoint = `http://127.0.0.1:${CODEX_UI_BRIDGE_PORT}/v1/claude/ad`;
-  const activityRuntime = 'var __kpClaudeActivityRefs=0,__kpClaudeActivityTimer,__kpClaudeActivityViewId="kp-"+Math.random().toString(36).slice(2)+Date.now().toString(36);function __kpClaudeSendActivity(e){fetch(__kpClaudeEndpoint+"/activity?token="+encodeURIComponent(__kpClaudeToken),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({viewId:__kpClaudeActivityViewId,active:e})}).catch(()=>{})}function __kpClaudeStartActivity(){__kpClaudeActivityRefs+=1,__kpClaudeActivityRefs===1&&(__kpClaudeSendActivity(!0),__kpClaudeActivityTimer=setInterval(()=>__kpClaudeSendActivity(!0),1e3))}function __kpClaudeStopActivity(){__kpClaudeActivityRefs=Math.max(0,__kpClaudeActivityRefs-1),__kpClaudeActivityRefs===0&&(__kpClaudeActivityTimer!=null&&clearInterval(__kpClaudeActivityTimer),__kpClaudeActivityTimer=void 0,__kpClaudeSendActivity(!1))}function __kpClaudeUseActivity(){de(()=>{__kpClaudeStartActivity();return()=>__kpClaudeStopActivity()},[])}var __kpClaudeBaseUseAd=__kpClaudeUseAd;__kpClaudeUseAd=function(){__kpClaudeUseActivity();return __kpClaudeBaseUseAd()};';
+  const stateHook = profile.stateHookIdentifier ?? 'ne';
+  const effectHook = profile.effectHookIdentifier ?? 'de';
+  const containerElement = profile.containerElementIdentifier ?? 'E';
+  const childElement = profile.childElementIdentifier ?? 'b';
+  const activityRuntime = `var __kpClaudeActivityRefs=0,__kpClaudeActivityTimer,__kpClaudeActivityViewId="kp-"+Math.random().toString(36).slice(2)+Date.now().toString(36);function __kpClaudeSendActivity(e){fetch(__kpClaudeEndpoint+"/activity?token="+encodeURIComponent(__kpClaudeToken),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({viewId:__kpClaudeActivityViewId,active:e})}).catch(()=>{})}function __kpClaudeStartActivity(){__kpClaudeActivityRefs+=1,__kpClaudeActivityRefs===1&&(__kpClaudeSendActivity(!0),__kpClaudeActivityTimer=setInterval(()=>__kpClaudeSendActivity(!0),1e3))}function __kpClaudeStopActivity(){__kpClaudeActivityRefs=Math.max(0,__kpClaudeActivityRefs-1),__kpClaudeActivityRefs===0&&(__kpClaudeActivityTimer!=null&&clearInterval(__kpClaudeActivityTimer),__kpClaudeActivityTimer=void 0,__kpClaudeSendActivity(!1))}function __kpClaudeUseActivity(){${effectHook}(()=>{__kpClaudeStartActivity();return()=>__kpClaudeStopActivity()},[])}var __kpClaudeBaseUseAd=__kpClaudeUseAd;__kpClaudeUseAd=function(){__kpClaudeUseActivity();return __kpClaudeBaseUseAd()};`;
   const visibilityRuntime = `${activityRuntime}${webviewVisibilityRuntime('__kpClaude', '__kpClaudeEndpoint', '__kpClaudeToken')}`;
-  return `${UI_MARKER_PREFIX}${token}__*/var __kpClaudeEndpoint=${JSON.stringify(endpoint)},__kpClaudeToken=${JSON.stringify(token)};function __kpClaudeUseAd(){let[e,t]=ne(null);return de(()=>{let i=!0,n;function o(){fetch(__kpClaudeEndpoint+"/current?token="+encodeURIComponent(__kpClaudeToken),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(r=>{if(i)t(a=>a?.adId===r?.adId&&a?.text===r?.text&&a?.format===r?.format?a:r&&r.active===!0&&(r.format==="standard"||r.format==="premium")?r:null)}).catch(()=>{i&&t(null)}).finally(()=>{i&&(n=setTimeout(o,750))})}return o(),()=>{i=!1,n!=null&&clearTimeout(n)}},[]),e}${visibilityRuntime}function __kpClaudeOpenAd(e){fetch(__kpClaudeEndpoint+"/click?token="+encodeURIComponent(__kpClaudeToken),{method:"POST",headers:{"content-type":"text/plain"},body:e.adId}).catch(()=>{})}function __kpClaudeAdLink({ad:e}){let[t,i]=ne(null);de(()=>t?__kpClaudeObserveVisibility(t,e):void 0,[t,e.adId]);let n=t=>{t.preventDefault(),t.stopPropagation(),__kpClaudeOpenAd(e)},o=e=>{(e.key==="Enter"||e.key===" ")&&n(e)},a=e.format==="premium";return E("span",{ref:i,role:"link",tabIndex:0,title:a?"Премиальная реклама Kodpauza. Нажмите, чтобы открыть предложение.":"Реклама Kodpauza. Нажмите, чтобы открыть предложение.",onClick:n,onKeyDown:o,style:{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:"6px",maxWidth:"100%",border:a?"1px solid rgba(245,158,11,.55)":void 0,borderRadius:a?"6px":void 0,padding:a?"2px 6px":void 0,background:a?"linear-gradient(90deg,rgba(245,158,11,.12),rgba(16,185,129,.08))":void 0,boxShadow:a?"0 0 0 1px rgba(245,158,11,.08)":void 0},children:[b("span",{style:{color:a?"#f59e0b":"#10b981",fontWeight:600},children:"Реклама"}),b("span",{style:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"},children:e.text})]})}${UI_MARKER_END}`;
+  return `${UI_MARKER_PREFIX}${token}__*/var __kpClaudeEndpoint=${JSON.stringify(endpoint)},__kpClaudeToken=${JSON.stringify(token)};function __kpClaudeSafeIcon(e){return typeof e==="string"&&(e.startsWith(__kpClaudeEndpoint+"/icon?")||e.length<=9e4&&/^data:image\\/(?:png|jpeg|webp|svg\\+xml);base64,[A-Za-z0-9+/=]+$/.test(e))?e:null}function __kpClaudeUseAd(){let[e,t]=${stateHook}(null);return ${effectHook}(()=>{let i=!0,n;function o(){fetch(__kpClaudeEndpoint+"/current?token="+encodeURIComponent(__kpClaudeToken),{cache:"no-store"}).then(r=>r.ok?r.json():null).then(r=>{if(i)t(a=>a?.adId===r?.adId&&a?.text===r?.text&&a?.format===r?.format&&a?.iconUrl===r?.iconUrl&&a?.domain===r?.domain&&a?.advertiserName===r?.advertiserName?a:r&&r.active===!0&&(r.format==="standard"||r.format==="premium")?r:null)}).catch(()=>{i&&t(null)}).finally(()=>{i&&(n=setTimeout(o,750))})}return o(),()=>{i=!1,n!=null&&clearTimeout(n)}},[]),e}${visibilityRuntime}function __kpClaudeOpenAd(e){fetch(__kpClaudeEndpoint+"/click?token="+encodeURIComponent(__kpClaudeToken),{method:"POST",headers:{"content-type":"text/plain"},body:e.adId}).catch(()=>{})}function __kpClaudeAdLink({ad:e}){let[t,i]=${stateHook}(null);${effectHook}(()=>t?__kpClaudeObserveVisibility(t,e):void 0,[t,e.adId]);let n=t=>{t.preventDefault(),t.stopPropagation(),__kpClaudeOpenAd(e)},o=e=>{(e.key==="Enter"||e.key===" ")&&n(e)},a=e.format==="premium",s=__kpClaudeSafeIcon(e.iconUrl),l=typeof e.advertiserName==="string"&&e.advertiserName.trim()?e.advertiserName.trim().slice(0,1).toUpperCase():"K",c=typeof e.domain==="string"&&/^[A-Za-z0-9.-]{1,253}$/.test(e.domain)?e.domain:"",d="Спонсорское предложение"+(c?" · "+c:"")+". Нажмите, чтобы открыть.";return ${containerElement}("span",{"data-kodpauza-ad":"",ref:i,role:"link",tabIndex:0,title:d,onClick:n,onKeyDown:o,style:{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:"6px",width:"100%",maxWidth:"100%",minWidth:0,borderLeft:a?"2px solid rgba(245,158,11,.72)":void 0,paddingLeft:a?"5px":void 0},children:[${containerElement}("span",{style:{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center",width:"14px",height:"14px",minWidth:"14px",borderRadius:"3px",overflow:"hidden",fontSize:"9px",fontWeight:700,lineHeight:"14px",color:a?"#f59e0b":"#10b981",background:a?"rgba(245,158,11,.12)":"rgba(16,185,129,.12)"},children:[s?${childElement}("img",{src:s,alt:"",width:14,height:14,style:{display:"block",width:"14px",height:"14px",objectFit:"contain"},onError:e=>{e.currentTarget.style.display="none";let t=e.currentTarget.nextElementSibling;t&&(t.style.display="inline-flex")}}):null,${childElement}("span",{style:{display:s?"none":"inline-flex",alignItems:"center",justifyContent:"center",width:"14px",height:"14px"},children:l})]}),${childElement}("span",{style:{overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",textDecoration:"underline",textDecorationColor:a?"rgba(245,158,11,.5)":"rgba(16,185,129,.45)",textUnderlineOffset:"2px"},children:e.text})]})}${UI_MARKER_END}`;
 }
 
 function validateProfile(profile: ClaudePatchProfile): void {
-  if (!Object.values(profile).every((identifier) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(identifier))) {
+  const identifiers = [
+    profile.cspFinalIdentifier,
+    profile.cspFirstIdentifier ?? 'p',
+    profile.cspSecondIdentifier ?? 'f',
+    profile.cspThirdIdentifier ?? 'm',
+    profile.cspNonceIdentifier ?? 'u',
+    profile.componentIdentifier,
+    profile.verbsIdentifier,
+    profile.randomIdentifier,
+    profile.schedulerIdentifier,
+    profile.animateIdentifier,
+    profile.stylesIdentifier,
+    profile.spinnerFramesIdentifier,
+    ...(profile.structuralSpinnerAnchor
+      ? [
+          profile.stateHookIdentifier,
+          profile.effectHookIdentifier,
+          profile.containerElementIdentifier,
+          profile.childElementIdentifier,
+          profile.statusLocalIdentifier,
+          profile.animatedLocalIdentifier
+        ]
+      : [])
+  ];
+  if (
+    !identifiers.every((identifier) =>
+      typeof identifier === 'string' && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(identifier)
+    ) ||
+    (profile.structuralSpinnerAnchor !== undefined && (
+      profile.structuralSpinnerAnchor.length === 0 ||
+      profile.structuralSpinnerAnchor.length > 100_000 ||
+      !profile.structuralSpinnerAnchor.startsWith(`function ${profile.componentIdentifier}(`)
+    ))
+  ) {
     throw new Error('Некорректный профиль UI-патча Claude Code.');
   }
+}
+
+function requiredStructuralIdentifier(value: string | undefined, label: string): string {
+  if (!value || !/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value)) {
+    throw new Error(`Структурный профиль Claude Code не содержит ${label}.`);
+  }
+  return value;
 }
 
 function validateToken(token: string): void {

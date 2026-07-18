@@ -21,6 +21,17 @@ function fixtureWebview() {
   return `var pre=1;function oQe({size:e=16,permissionMode:t,status:i,spinnerVerbsConfig:n}){let o=co(()=>M8t(n),[n]),r=co(()=>Math.max(...o.map((p)=>p.length)),[o]),[s,a]=ne(0),[l,c]=ne(()=>Bj(o));de(()=>{let p=setInterval(()=>{a((f)=>(f+1)%iQe.length)},120);return()=>clearInterval(p)},[]),Vme(()=>{c(Bj(o))},(p)=>{let f=[2000,3000,5000];return p<f.length?f[p]:5000});let u=l;if(i==="compacting")u="Compacting";let h=A8t(u+"...",r+3);return E("div",{className:Fj.container,"data-permission-mode":t,children:[b("span",{className:Fj.icon,style:{fontSize:\`\${e}px\`},children:iQe[s]}),b("span",{className:Fj.text,children:h})]})}var post=1;`;
 }
 
+function renamedFixtureWebview() {
+  return `var pre=1;function Zz({size:q=16,permissionMode:w,status:x,spinnerVerbsConfig:y}){let A=mx(()=>vr(y),[y]),B=mx(()=>Math.max(...A.map((z)=>z.length)),[A]),[C,D]=st(0),[F,G]=st(()=>rr(A));ef(()=>{let tm=setInterval(()=>{D((p)=>(p+1)%FR.length)},120);return()=>clearInterval(tm)},[]),sch(()=>{G(rr(A))},(at)=>{let ds=[2000,3000,5000];return at<ds.length?ds[at]:5000});let cur=F;if(x==="compacting")cur="Compacting";let anim=ani(cur+"...",B+3);return CE("div",{className:ST.container,"data-permission-mode":w,children:[CH("span",{className:ST.icon,style:{fontSize:\`\${q}px\`},children:FR[C]}),CH("span",{className:ST.text,children:anim})]})}var post=1;`;
+}
+
+const renamedHostSource = hostSource
+  .replace('${p}', '${aa}')
+  .replace('${f}', '${bb}')
+  .replace('${m}', '${cc}')
+  .replace('${u}', '${dd}')
+  .replace('${v}', '${ee}');
+
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
@@ -32,7 +43,7 @@ async function fixture(context, options = {}) {
   const home = path.join(root, 'kodpauza');
   const fixtureHostSource = options.hostSource ?? hostSource;
   const fixtureProfile = options.profile ?? profile;
-  const webviewSource = fixtureWebview();
+  const webviewSource = options.webviewSource ?? fixtureWebview();
   await fs.mkdir(path.join(extensionPath, 'webview'), { recursive: true });
   await fs.writeFile(path.join(extensionPath, 'extension.js'), fixtureHostSource);
   await fs.writeFile(path.join(extensionPath, 'webview', 'index.js'), webviewSource);
@@ -66,7 +77,18 @@ test('Claude UI-патч устанавливается, не трогает Com
   assert.match(patchedWebview, /\/activity\?token=/);
   assert.match(patchedWebview, /__kpClaudeUseActivity/);
   assert.match(patchedWebview, /e\.format==="premium"/);
-  assert.doesNotMatch(patchedWebview, /children:"Премиум"/);
+  assert.match(patchedWebview, /"data-kodpauza-ad":""/);
+  assert.match(patchedWebview, /Спонсорское предложение/);
+  assert.match(patchedWebview, /__kpClaudeSafeIcon/);
+  assert.match(patchedWebview, /width:"14px"/);
+  assert.match(patchedWebview, /width:"100%",maxWidth:"100%"/);
+  assert.match(patchedWebview, /borderLeft:a\?"2px solid/);
+  assert.match(patchedWebview, /e\.advertiserName/);
+  assert.match(patchedWebview, /e\.domain/);
+  assert.doesNotMatch(patchedWebview, /children:"Реклама"/);
+  assert.doesNotMatch(patchedWebview, /Премиальная реклама Kodpauza/);
+  assert.doesNotMatch(patchedWebview, /linear-gradient/);
+  assert.doesNotMatch(patchedWebview, /https\?:\/\//);
   assert.doesNotThrow(() => new vm.Script(patchedWebview));
 
   const repeated = await installer.ensureInstalled();
@@ -135,7 +157,7 @@ test('Claude UI-патч автоматически обновляет стар�
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 5);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 6);
 });
 
 test('Claude UI-патч принимает новую версию при неизменной структуре цели', async (context) => {
@@ -148,6 +170,80 @@ test('Claude UI-патч принимает новую версию при не�
   assert.equal(installed.installed, true);
   assert.equal(installed.compatibilityMode, 'structural');
   assert.match(await fs.readFile(webviewPath, 'utf8'), /__KODPAUZA_CLAUDE_UI_START__/);
+});
+
+test('Claude UI-патч выводит high-confidence профиль из переименованной неизвестной сборки', async (context) => {
+  const value = await fixture(context, {
+    hostSource: renamedHostSource,
+    webviewSource: renamedFixtureWebview()
+  });
+  const installer = new ClaudePatchInstaller(value.extensionPath, 'future-renamed-version', value.home);
+
+  const installed = await installer.install();
+  assert.equal(installed.installed, true);
+  assert.equal(installed.compatibilityMode, 'structural');
+  const patchedHost = await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8');
+  const patchedWebview = await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8');
+  assert.match(patchedHost, /\$\{ee\}; connect-src http:\/\/127\.0\.0\.1:37491;/);
+  assert.match(patchedWebview, /let __kpClaudeAd=__kpClaudeUseAd\(\),A=mx/);
+  assert.match(patchedWebview, /__kpClaudeAd&&x!=="compacting"/);
+  assert.match(patchedWebview, /let\[e,t\]=st\(null\)/);
+  assert.match(patchedWebview, /function __kpClaudeUseActivity\(\)\{ef\(/);
+  assert.doesNotThrow(() => new vm.Script(patchedWebview));
+
+  const restored = await installer.restore();
+  assert.equal(restored.changed, true);
+  assert.equal(await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'), renamedHostSource);
+  assert.equal(
+    await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'),
+    renamedFixtureWebview()
+  );
+});
+
+test('Claude UI-патч fail-closed отклоняет неоднозначный структурный spinner', async (context) => {
+  const duplicated = renamedFixtureWebview().replace(
+    'var post=1;',
+    `${renamedFixtureWebview().replace('var pre=1;', '').replace('var post=1;', '')}var post=1;`
+  );
+  const value = await fixture(context, {
+    hostSource: renamedHostSource,
+    webviewSource: duplicated
+  });
+  const installer = new ClaudePatchInstaller(value.extensionPath, 'future-ambiguous-version', value.home);
+
+  const status = await installer.inspect();
+  assert.equal(status.compatible, false);
+  assert.equal(status.compatibilityMode, 'unsupported');
+  await assert.rejects(() => installer.install(), /не поддерживается|безопасно отключена/);
+  assert.equal(await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'), renamedHostSource);
+  assert.equal(await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'), duplicated);
+});
+
+test('Claude UI-патч fail-closed требует все независимые структурные якоря', async (context) => {
+  const mutations = [
+    (source) => source.replace('},120)', '},121)'),
+    (source) => source.replace('[2000,3000,5000]', '[2000,3000,4000]'),
+    (source) => source.replace('"data-permission-mode":w', '"data-mode":w'),
+    (source) => source.replace('cur+"...",B+3', 'cur+"..",B+2')
+  ];
+
+  for (const [index, mutate] of mutations.entries()) {
+    const changed = mutate(renamedFixtureWebview());
+    const value = await fixture(context, {
+      hostSource: renamedHostSource,
+      webviewSource: changed
+    });
+    const installer = new ClaudePatchInstaller(
+      value.extensionPath,
+      `future-missing-anchor-${index}`,
+      value.home
+    );
+    const status = await installer.inspect();
+    assert.equal(status.compatible, false, `mutation ${index} must fail closed`);
+    assert.equal(status.compatibilityMode, 'unsupported');
+    assert.equal(await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'), renamedHostSource);
+    assert.equal(await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'), changed);
+  }
 });
 
 test('Claude UI-патч fail-closed отклоняет измененный spinner', async (context) => {
@@ -166,13 +262,27 @@ test('Claude UI-патч fail-closed отклоняет измененный spi
 });
 
 test('Claude UI-патч fail-closed отклоняет неизвестный или неоднозначный CSP-якорь', async (context) => {
-  const unknown = await fixture(context, { hostSource: hostSource.replace('${v}', '${x}') });
+  const unsupportedHost = hostSource.replace(
+    '; ${v};">',
+    '; worker-src ${w}; ${x};">'
+  );
+  const unknown = await fixture(context, { hostSource: unsupportedHost });
   const installer = new ClaudePatchInstaller(unknown.extensionPath, 'future-version', unknown.home);
 
   const status = await installer.inspect();
   assert.equal(status.compatible, false);
   assert.equal(status.compatibilityMode, 'unsupported');
   await assert.rejects(() => installer.install(), /не поддерживается|безопасно отключена/);
+
+  const ambiguous = await fixture(context, { hostSource: `${renamedHostSource}${renamedHostSource}` });
+  const ambiguousInstaller = new ClaudePatchInstaller(
+    ambiguous.extensionPath,
+    'future-ambiguous-csp',
+    ambiguous.home
+  );
+  const ambiguousStatus = await ambiguousInstaller.inspect();
+  assert.equal(ambiguousStatus.compatible, false);
+  assert.equal(ambiguousStatus.compatibilityMode, 'unsupported');
 
   assert.throws(
     () => patchClaudeHostSource(`${hostSource212}${hostSource212}`, CLAUDE_2_1_212_PROFILE),
