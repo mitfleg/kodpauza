@@ -5,6 +5,15 @@ import { impressionCostKopecks } from '@kodpauza/shared';
 import { classifyUnsupportedIntegrationVersion } from '../services/integrationVersionPolicy.js';
 import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
+import { lockCampaignMutation, sameCampaignRevision } from '../services/campaignMutation.js';
+
+const reviewedCampaignSchema = z
+  .object({ reviewedUpdatedAt: z.string().datetime({ offset: true }).transform((value) => new Date(value)) })
+  .strict();
+
+const rejectedCampaignSchema = reviewedCampaignSchema.extend({
+  reason: z.string().trim().min(3).max(500),
+});
 
 export function registerAdminRoutes(app: FastifyInstance) {
   app.get('/v1/admin/funnel', { preHandler: requireRole('admin') }, async () => {
@@ -54,7 +63,9 @@ export function registerAdminRoutes(app: FastifyInstance) {
         id: 'integration_enabled',
         label: 'Подключение Codex или Claude',
         value: unique(
-          installs.filter((install) => install.integrationsEnabled).map((install) => install.userId),
+          installs
+            .filter((install) => install.integrationsEnabled)
+            .map((install) => install.userId),
         ),
       },
       {
@@ -116,7 +127,11 @@ export function registerAdminRoutes(app: FastifyInstance) {
   app.get('/v1/admin/campaigns', { preHandler: requireRole('admin') }, async () => ({
     campaigns: await prisma.campaign.findMany({
       orderBy: { createdAt: 'desc' },
-      include: { advertiser: { include: { user: { select: { email: true } } } } },
+      include: {
+        advertiser: { include: { user: { select: { email: true } } } },
+        surfaces: { where: { enabled: true }, orderBy: { createdAt: 'asc' } },
+        creatives: { where: { enabled: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+      },
     }),
   }));
 
@@ -195,11 +210,18 @@ export function registerAdminRoutes(app: FastifyInstance) {
             completedAt: body.data.status === 'completed' ? new Date() : null,
           },
         });
-        await writeAuditLog(tx, request.authUser!.id, 'privacy.request.status', 'privacy-request', id, {
-          previousStatus: existing.status,
-          nextStatus: updated.status,
-          type: existing.type,
-        });
+        await writeAuditLog(
+          tx,
+          request.authUser!.id,
+          'privacy.request.status',
+          'privacy-request',
+          id,
+          {
+            previousStatus: existing.status,
+            nextStatus: updated.status,
+            type: existing.type,
+          },
+        );
         return updated;
       });
       return { request: privacyRequest };
@@ -308,33 +330,53 @@ export function registerAdminRoutes(app: FastifyInstance) {
     { preHandler: requireRole('admin') },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const existing = await prisma.campaign.findUnique({ where: { id } });
-      if (!existing) return reply.code(404).send({ error: 'Кампания не найдена.' });
-      if (existing.status === 'active') return { campaign: existing };
-      if (existing.status !== 'pending') {
-        return reply.code(409).send({ error: 'Одобрить можно только кампанию на модерации.' });
+      const body = reviewedCampaignSchema.safeParse(request.body);
+      if (!body.success) {
+        return reply.code(400).send({ error: 'Обновите список кампаний перед модерацией.' });
       }
-      const advertiser = await prisma.advertiserProfile.findUnique({
-        where: { id: existing.advertiserId },
-      });
-      if (
-        !advertiser ||
-        advertiser.balanceKopecks < impressionCostKopecks(existing.billableCpmKopecks)
-      ) {
-        return reply
-          .code(409)
-          .send({ error: 'У рекламодателя недостаточно средств для первого показа.' });
-      }
-
-      const campaign = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
+        await lockCampaignMutation(tx, id);
+        const existing = await tx.campaign.findUnique({ where: { id } });
+        if (!existing) return { kind: 'not_found' as const };
+        if (existing.status === 'active') return { kind: 'approved' as const, campaign: existing };
+        if (!sameCampaignRevision(existing.updatedAt, body.data.reviewedUpdatedAt)) {
+          return { kind: 'conflict' as const };
+        }
+        if (existing.status !== 'pending') return { kind: 'invalid_status' as const };
+        const advertiser = await tx.advertiserProfile.findUnique({
+          where: { id: existing.advertiserId },
+        });
+        if (
+          !advertiser ||
+          advertiser.balanceKopecks < impressionCostKopecks(existing.billableCpmKopecks)
+        ) {
+          return { kind: 'insufficient_balance' as const };
+        }
         const updated = await tx.campaign.update({ where: { id }, data: { status: 'active' } });
         await writeAuditLog(tx, request.authUser!.id, 'campaign.approve', 'campaign', id, {
           previousStatus: existing.status,
           nextStatus: updated.status,
+          reviewedUpdatedAt: body.data.reviewedUpdatedAt.toISOString(),
         });
-        return updated;
+        return { kind: 'approved' as const, campaign: updated };
       });
-      return { campaign };
+      if (result.kind === 'not_found') {
+        return reply.code(404).send({ error: 'Кампания не найдена.' });
+      }
+      if (result.kind === 'conflict') {
+        return reply
+          .code(409)
+          .send({ error: 'Кампания изменилась. Обновите данные перед модерацией.' });
+      }
+      if (result.kind === 'invalid_status') {
+        return reply.code(409).send({ error: 'Одобрить можно только кампанию на модерации.' });
+      }
+      if (result.kind === 'insufficient_balance') {
+        return reply
+          .code(409)
+          .send({ error: 'У рекламодателя недостаточно средств для первого показа.' });
+      }
+      return { campaign: result.campaign };
     },
   );
 
@@ -368,24 +410,39 @@ export function registerAdminRoutes(app: FastifyInstance) {
     { preHandler: requireRole('admin') },
     async (request, reply) => {
       const { id } = request.params as { id: string };
-      const body = z.object({ reason: z.string().trim().min(3).max(500) }).safeParse(request.body);
+      const body = rejectedCampaignSchema.safeParse(request.body);
       if (!body.success) return reply.code(400).send({ error: 'Укажите причину отклонения.' });
-      const existing = await prisma.campaign.findUnique({ where: { id } });
-      if (!existing) return reply.code(404).send({ error: 'Кампания не найдена.' });
-      if (!['pending', 'active'].includes(existing.status)) {
-        return reply.code(409).send({ error: 'Эту кампанию нельзя отклонить в текущем статусе.' });
-      }
-
-      const campaign = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx) => {
+        await lockCampaignMutation(tx, id);
+        const existing = await tx.campaign.findUnique({ where: { id } });
+        if (!existing) return { kind: 'not_found' as const };
+        if (!sameCampaignRevision(existing.updatedAt, body.data.reviewedUpdatedAt)) {
+          return { kind: 'conflict' as const };
+        }
+        if (!['pending', 'active'].includes(existing.status)) {
+          return { kind: 'invalid_status' as const };
+        }
         const updated = await tx.campaign.update({ where: { id }, data: { status: 'rejected' } });
         await writeAuditLog(tx, request.authUser!.id, 'campaign.reject', 'campaign', id, {
           previousStatus: existing.status,
           nextStatus: updated.status,
           reason: body.data.reason,
+          reviewedUpdatedAt: body.data.reviewedUpdatedAt.toISOString(),
         });
-        return updated;
+        return { kind: 'rejected' as const, campaign: updated };
       });
-      return { campaign };
+      if (result.kind === 'not_found') {
+        return reply.code(404).send({ error: 'Кампания не найдена.' });
+      }
+      if (result.kind === 'conflict') {
+        return reply
+          .code(409)
+          .send({ error: 'Кампания изменилась. Обновите данные перед модерацией.' });
+      }
+      if (result.kind === 'invalid_status') {
+        return reply.code(409).send({ error: 'Эту кампанию нельзя отклонить в текущем статусе.' });
+      }
+      return { campaign: result.campaign };
     },
   );
 }

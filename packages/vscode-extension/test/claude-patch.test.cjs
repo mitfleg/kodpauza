@@ -78,7 +78,7 @@ test('Claude UI-патч устанавливается, не трогает Com
   assert.match(patchedWebview, /__kpClaudeUseActivity/);
   assert.match(patchedWebview, /e\.format==="premium"/);
   assert.match(patchedWebview, /"data-kodpauza-ad":""/);
-  assert.match(patchedWebview, /Спонсорское предложение/);
+  assert.doesNotMatch(patchedWebview, /Спонсорское предложение/);
   assert.match(patchedWebview, /__kpClaudeSafeIcon/);
   assert.match(patchedWebview, /width:"14px"/);
   assert.match(patchedWebview, /width:"100%",maxWidth:"100%"/);
@@ -99,6 +99,25 @@ test('Claude UI-патч устанавливается, не трогает Com
   assert.equal(restored.changed, true);
   assert.equal(await fs.readFile(path.join(value.extensionPath, 'extension.js'), 'utf8'), hostSource);
   assert.equal(await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'), value.webviewSource);
+});
+
+test('UI-патч Claude принимает только безопасные inline-иконки', () => {
+  const token = 'e'.repeat(64);
+  const patched = patchClaudeWebviewSource(fixtureWebview(), token, profile);
+  const runtime = patched.slice(patched.indexOf('/*__KODPAUZA_CLAUDE_UI_START__'), patched.indexOf('function oQe'));
+  const safeSvg = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16"/></svg>'
+  )}`;
+  const remoteIcon = 'https://tracker.example/icon.png';
+  const unsafeSvg = `data:image/svg+xml,${encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://tracker.example/pixel"/></svg>'
+  )}`;
+  const result = vm.runInNewContext(
+    `${runtime};[__kpClaudeSafeIcon(${JSON.stringify(safeSvg)}),__kpClaudeSafeIcon(${JSON.stringify(remoteIcon)}),__kpClaudeSafeIcon(${JSON.stringify(unsafeSvg)})]`
+  );
+  assert.equal(result[0], safeSvg);
+  assert.equal(result[1], null);
+  assert.equal(result[2], null);
 });
 
 test('профиль Claude Code 2.1.212 патчит новый CSP-якорь и полностью откатывается', async (context) => {

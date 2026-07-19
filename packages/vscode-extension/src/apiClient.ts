@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import * as vscode from 'vscode';
 import { Balance, KodpauzaAd, KodpauzaEvent, KodpauzaEventType, Surface } from './types';
 import { normalizeApiBaseUrl, normalizeExternalUrl } from './urls';
+import type { RuntimePolicyEnvelope } from './runtimePolicy';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_API_BASE_URL = 'https://api.kodpauza.ru';
@@ -37,7 +38,31 @@ export interface ExtensionInstallHeartbeatRequest {
   integrationsEnabled: boolean;
   codexDetected: boolean;
   claudeDetected: boolean;
+  heartbeatSchemaVersion?: number;
+  editorName?: string;
+  codexVersion?: string;
+  claudeVersion?: string;
+  codexPatchStatus?: ExtensionPatchStatus;
+  claudePatchStatus?: ExtensionPatchStatus;
+  codexPatchErrorCategory?: ExtensionPatchErrorCategory;
+  claudePatchErrorCategory?: ExtensionPatchErrorCategory;
 }
+
+export type ExtensionPatchStatus =
+  | 'installed_exact'
+  | 'installed_structural'
+  | 'not_installed'
+  | 'unsupported'
+  | 'error'
+  | 'unknown';
+
+export type ExtensionPatchErrorCategory =
+  | 'compatibility'
+  | 'filesystem'
+  | 'permission'
+  | 'verification'
+  | 'runtime'
+  | 'unknown';
 
 export class KodpauzaApiError extends Error {
   constructor(
@@ -162,10 +187,14 @@ export class KodpauzaApiClient {
     });
   }
 
-  async currentAd(surface: Surface, signal?: AbortSignal): Promise<KodpauzaAd | undefined> {
+  async currentAd(
+    surface: Surface,
+    signal?: AbortSignal,
+    toolVersion = 'unknown',
+  ): Promise<KodpauzaAd | undefined> {
     try {
       const response = await this.request<unknown>(
-        `/v1/ads/next?surface=${encodeURIComponent(surface)}`,
+        `/v1/ads/next?surface=${encodeURIComponent(surface)}&toolVersion=${encodeURIComponent(toolVersion.slice(0, 80))}`,
         {
           method: 'GET',
           signal,
@@ -183,6 +212,15 @@ export class KodpauzaApiClient {
       this.lastErrorValue = errorMessage(error);
       return undefined;
     }
+  }
+
+  async runtimePolicy(): Promise<RuntimePolicyEnvelope> {
+    return this.request<RuntimePolicyEnvelope>(
+      '/v1/runtime-policy',
+      { method: 'GET' },
+      false,
+      false,
+    );
   }
 
   async sendImpression(event: KodpauzaEvent): Promise<void> {
@@ -429,6 +467,7 @@ function parseAd(value: unknown, expectedSurface: Surface): KodpauzaAd {
   const erid = value.erid;
   const trackable = value.trackable;
   const format = value.format;
+  const expiresAt = value.expiresAt;
   if (
     typeof value.adId !== 'string' ||
     !value.adId ||
@@ -448,7 +487,9 @@ function parseAd(value: unknown, expectedSurface: Surface): KodpauzaAd {
     value.surface !== expectedSurface ||
     (erid !== null && typeof erid !== 'string') ||
     typeof trackable !== 'boolean' ||
-    (format !== 'standard' && format !== 'premium')
+    (format !== 'standard' && format !== 'premium') ||
+    (expiresAt !== undefined &&
+      (typeof expiresAt !== 'string' || !Number.isFinite(Date.parse(expiresAt))))
   ) {
     throw new KodpauzaApiError('API Kodpauza вернул некорректное объявление.');
   }
@@ -464,6 +505,7 @@ function parseAd(value: unknown, expectedSurface: Surface): KodpauzaAd {
     surface: expectedSurface,
     trackable,
     format,
+    expiresAt,
   };
 }
 

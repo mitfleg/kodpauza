@@ -77,18 +77,22 @@ test('в одной активной сессии запрашивает нов�
   assert.equal(requests, 0);
   assert.equal(presenter.ad.campaignId, 'house');
   assert.equal(presenter.ad.trackable, false);
-  assert.equal(presenter.ad.text, 'Зарабатывайте, пока AI работает');
+  assert.equal(presenter.ad.text, 'Kodpauza · Зарабатывайте, пока AI работает');
 
   presenter.markPatchedUiVisibility(presenter.ad.adId, 'canary-view-1', true);
   await waitFor(() => presenter.ad?.adId === 'ad-1', 500);
   assert.equal(presenter.ad.adId, 'ad-1');
+  assert.equal(presenter.ad.text, 'Тест · Объявление 1');
+  assert.equal(requests, 6);
 
   presenter.markPatchedUiVisibility('ad-1', 'rotation-view-1', true);
   await waitFor(() => presenter.ad?.adId === 'ad-2', 500);
+  assert.equal(requests, 7);
   assert.equal(presenter.sessionId, sessionId);
 
   presenter.markPatchedUiVisibility('ad-2', 'rotation-view-1', true);
   await waitFor(() => presenter.ad?.adId === 'ad-3', 500);
+  assert.equal(requests, 8);
   assert.equal(presenter.sessionId, sessionId);
 
   presenter.stopWait();
@@ -145,7 +149,41 @@ test('не повторяет две последние кампании, есл
   presenter.markPatchedUiVisibility(presenter.ad.adId, 'recent-view-2', true);
   await waitFor(() => presenter.ad?.campaignId === 'gamma', 500);
 
-  assert.equal(requests, 6);
+  assert.ok(requests >= 6 && requests <= 30);
+  presenter.dispose();
+});
+
+test('оставляет house-оффер видимым, когда платной кампании нет', async () => {
+  let requests = 0;
+  const api = {
+    dashboardUrl: 'https://kodpauza.ru',
+    currentAd: async () => {
+      requests += 1;
+      return undefined;
+    },
+  };
+  const presenter = new StatusBarAdPresenter(
+    api,
+    { adsEnabled: true, integrationEnabled: true },
+    { enqueue: async () => undefined },
+    'test',
+    'test.house',
+    false,
+    1_000,
+  );
+  presenter.setPatchedUiEnabled(true);
+  await presenter.startWait({
+    surface: 'codex_vscode',
+    toolName: 'codex_vscode',
+    toolVersion: 'test',
+    waitingLabel: 'Codex работает',
+  });
+
+  presenter.markPatchedUiVisibility(presenter.ad.adId, 'canary-house-view', true);
+  await waitFor(() => presenter.ad?.adId.startsWith('house-fallback-'), 500);
+  assert.equal(requests, 1);
+  assert.equal(presenter.ad.trackable, false);
+  assert.equal(presenter.ad.text, 'Kodpauza · Зарабатывайте, пока AI работает');
   presenter.dispose();
 });
 

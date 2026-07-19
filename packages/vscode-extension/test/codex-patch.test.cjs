@@ -125,7 +125,7 @@ test('патч заменяет активные ожидания, сохран�
   assert.match(patchedWebview, /e\.format==="premium"/);
   assert.doesNotMatch(patchedWebview, /children:"Реклама"/);
   assert.doesNotMatch(patchedWebview, /linear-gradient/);
-  assert.match(patchedWebview, /Спонсорское предложение/);
+  assert.doesNotMatch(patchedWebview, /Спонсорское предложение/);
   assert.match(patchedWebview, /width:"14px",height:"14px"/);
   assert.match(patchedWebview, /data:image\\\/\(\?:png\|jpeg\|webp\)/);
   assert.match(patchedWebview, /data:image\/svg\+xml,/);

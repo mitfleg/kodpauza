@@ -7,6 +7,7 @@ import {
   CircleDollarSign,
   Eye,
   FilePlus2,
+  Download,
   Gauge,
   RefreshCw,
   WalletCards,
@@ -35,6 +36,7 @@ export function AdvertiserPanel() {
   const [stats, setStats] = useState<AdvertiserStats | null>(null);
   const [notice, setNotice] = useState<Notice>({ text: '', tone: 'info' });
   const [isLoading, setIsLoading] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -51,6 +53,23 @@ export function AdvertiserPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function exportCsv() {
+    setIsExporting(true);
+    try {
+      const csv = await api<string>('/v1/advertiser/stats.csv');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = 'kodpauza-campaigns.csv';
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setNotice({ text: (error as ApiError).message, tone: 'error' });
+    } finally {
+      setIsExporting(false);
+    }
+  }
 
   const campaigns = stats?.campaigns ?? [];
   const totals = useMemo(
@@ -118,6 +137,9 @@ export function AdvertiserPanel() {
           <Link href="/advertiser/campaigns" className="focus-ring inline-flex h-9 items-center gap-2 rounded-md border border-white/15 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10">
             Все кампании <ArrowRight aria-hidden className="h-4 w-4" />
           </Link>
+          <button type="button" onClick={() => void exportCsv()} disabled={isExporting} className="focus-ring inline-flex h-9 items-center gap-2 rounded-md border border-white/15 px-3 text-xs font-semibold text-slate-200 hover:bg-white/10 disabled:opacity-50">
+            <Download aria-hidden className="h-4 w-4" /> {isExporting ? 'Экспорт...' : 'CSV'}
+          </button>
           <span className="ml-auto text-xs text-slate-400">Использовано {budgetUsed.toFixed(0)}% общего бюджета</span>
         </div>
       </section>
@@ -161,6 +183,21 @@ export function AdvertiserPanel() {
                     <span>CTR {campaignCtr.toFixed(1)}%</span>
                     <span>{spentPercent.toFixed(0)}% бюджета</span>
                   </div>
+                  {campaign.creatives && campaign.creatives.length > 1 ? (
+                    <div className="mt-3 grid gap-1 border-t border-line pt-2">
+                      {campaign.creatives.map((creative) => {
+                        const creativeCtr = creative.impressionsServed
+                          ? (creative.clicks / creative.impressionsServed) * 100
+                          : 0;
+                        return (
+                          <div key={creative.id} className="flex items-center justify-between gap-3 text-[11px] text-slate-500">
+                            <span className="truncate">{creative.label}</span>
+                            <span className="shrink-0">{integer(creative.impressionsServed)} показов · CTR {creativeCtr.toFixed(1)}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : null}
                 </article>
               );
             })}

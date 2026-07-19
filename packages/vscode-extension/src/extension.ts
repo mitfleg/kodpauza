@@ -1,6 +1,10 @@
 import * as vscode from 'vscode';
-import { adDisplayText } from './adCopy';
-import { KodpauzaApiClient } from './apiClient';
+import { adPresentationText } from './adCopy';
+import {
+  KodpauzaApiClient,
+  type ExtensionPatchErrorCategory,
+  type ExtensionPatchStatus,
+} from './apiClient';
 import { CodexHookBridge, IntegrationTool } from './codexBridge';
 import { CodexHookInstaller, defaultKodpauzaHome } from './codexHookInstaller';
 import { ClaudeHookInstaller } from './claudeHookInstaller';
@@ -20,6 +24,12 @@ import { TelemetryOutbox } from './telemetryOutbox';
 import { normalizeExternalUrl } from './urls';
 import { shouldAutomaticallyConnectIntegrations } from './integrationAutoConnect';
 import { findBundledCodexCli } from './codexCli';
+import {
+  isLocalRuntimePolicyUrl,
+  RuntimePolicyManager,
+  type RuntimePolicySurface,
+} from './runtimePolicy';
+import { runtimeReloadDecision } from './runtimeWatchdog';
 
 type CommandHandler = (...args: unknown[]) => void | Promise<void>;
 type IntegrationDetection = CodexDetection;
@@ -38,6 +48,7 @@ type IntegrationRuntime = {
   patchToken?: string;
   compatible?: boolean;
   compatibilityMode?: 'exact' | 'structural' | 'unsupported';
+  patchErrorCategory?: ExtensionPatchErrorCategory;
 };
 
 type IntegrationConnectionMode = 'manual' | 'login' | 'startup';
@@ -52,6 +63,9 @@ const KODPAUZA_FALLBACK_ICON = `data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" rx="4" fill="#10b981"/><path d="M4.25 4.5 2 8l2.25 3.5M11.75 4.5 14 8l-2.25 3.5M9.5 3.5l-3 9" fill="none" stroke="white" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 )}`;
 const RUNTIME_WATCHDOG_INTERVAL_MS = 30_000;
+const RUNTIME_WATCHDOG_MISSING_UI_THRESHOLD = 2;
+const RUNTIME_POLICY_REFRESH_INTERVAL_MS = 60_000;
+const RUNTIME_POLICY_CACHE_KEY = 'kodpauza.runtimePolicy.lastKnownGood.v1';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const state = new KodpauzaState(context);
@@ -67,6 +81,21 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       onSessionInvalid: () => state.clearAuthSession(),
     },
   );
+  const runtimePolicy = new RuntimePolicyManager(
+    () => api.runtimePolicy(),
+    {
+      get: () => context.globalState.get<unknown>(RUNTIME_POLICY_CACHE_KEY),
+      set: async (value) => {
+        await context.globalState.update(RUNTIME_POLICY_CACHE_KEY, value);
+      },
+    },
+    { allowUnsignedLocalDevelopment: isLocalRuntimePolicyUrl(api.apiBaseUrl) },
+  );
+  if (!(await runtimePolicy.loadCached())) {
+    await runtimePolicy.refresh();
+  } else {
+    void runtimePolicy.refresh();
+  }
   if ((await state.accessToken()) && !(await state.refreshToken())) {
     try {
       await api.ensurePersistentSession();
@@ -124,6 +153,31 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     },
   };
 
+  const runtimeSurface = (tool: IntegrationTool): RuntimePolicySurface =>
+    tool === 'claude' ? 'claude_code_vscode' : 'codex_vscode';
+  const canPatchRuntime = (runtime: IntegrationRuntime): boolean =>
+    runtimePolicy.canPatch({ tool: runtime.tool, version: runtime.detection.version });
+  const canServeRuntime = (runtime: IntegrationRuntime, campaignId?: string): boolean =>
+    runtimePolicy.canServe({
+      tool: runtime.tool,
+      version: runtime.detection.version,
+      surface: runtimeSurface(runtime.tool),
+      campaignId,
+    });
+  const applyPolicyToPresenters = (): void => {
+    for (const runtime of Object.values(integrations)) {
+      runtime.presenter.setRuntimePolicyGuard(({ surface, toolVersion, campaignId }) =>
+        runtimePolicy.canServe({
+          tool: runtime.tool,
+          version: toolVersion,
+          surface,
+          campaignId,
+        }),
+      );
+    }
+  };
+  applyPolicyToPresenters();
+
   const refreshIntegrationDetections = (): void => {
     const detections: Record<IntegrationTool, IntegrationDetection> = {
       codex: detectCodexExtension(),
@@ -145,6 +199,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       runtime.patchToken = undefined;
       runtime.compatible = undefined;
       runtime.compatibilityMode = undefined;
+      runtime.patchErrorCategory = undefined;
       runtime.presenter.setPatchedUiEnabled(false);
     }
   };
@@ -156,14 +211,18 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       continue;
     }
     try {
-      const ensured = state.integrationEnabled ? await runtime.patch.ensureInstalled() : undefined;
+      const ensured = state.integrationEnabled && canPatchRuntime(runtime)
+        ? await runtime.patch.ensureInstalled()
+        : undefined;
       const status = ensured ?? (await runtime.patch.inspect());
       runtime.compatible = status.compatible;
       runtime.compatibilityMode = status.compatibilityMode;
       runtime.patchToken = status.token;
+      runtime.patchErrorCategory = undefined;
       runtime.presenter.setPatchedUiEnabled(status.installed);
       autoReloadRequired ||= ensured?.changed ?? false;
     } catch (error) {
+      runtime.patchErrorCategory = patchErrorCategory(error);
       runtime.presenter.setPatchedUiEnabled(false);
       void vscode.window.showWarningMessage(
         `Kodpauza обнаружила неполный UI-патч ${runtime.name}: ${userErrorMessage(error)} Запустите команду «Kodpauza: Восстановить интеграции».`,
@@ -174,11 +233,25 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const bridge = new CodexHookBridge(
     defaultKodpauzaHome(),
     workspaceRoots,
-    (event, tool) => integrations[tool].lifecycle.handle(event),
+    async (event, tool) => {
+      const runtime = integrations[tool];
+      if (canServeRuntime(runtime)) {
+        await runtime.lifecycle.handle(event);
+      } else {
+        runtime.lifecycle.stopAll();
+      }
+    },
     {
       uiPort: CODEX_UI_BRIDGE_PORT,
       uiEnabled: () => vscode.window.state.focused,
-      onUiActivity: (tool, active) => integrations[tool].lifecycle.handleUiActivity(active),
+      onUiActivity: async (tool, active) => {
+        const runtime = integrations[tool];
+        if (canServeRuntime(runtime)) {
+          await runtime.lifecycle.handleUiActivity(active);
+        } else {
+          runtime.lifecycle.stopAll();
+        }
+      },
       uiAdapters: {
         codex: createUiAdapter(integrations.codex),
         claude: createUiAdapter(integrations.claude),
@@ -254,6 +327,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         integrationsEnabled: state.integrationEnabled,
         codexDetected: integrations.codex.detection.detected,
         claudeDetected: integrations.claude.detection.detected,
+        heartbeatSchemaVersion: 2,
+        editorName: vscode.env.appName.slice(0, 80),
+        codexVersion: integrations.codex.detection.version?.slice(0, 40),
+        claudeVersion: integrations.claude.detection.version?.slice(0, 40),
+        codexPatchStatus: extensionPatchStatus(integrations.codex),
+        claudePatchStatus: extensionPatchStatus(integrations.claude),
+        codexPatchErrorCategory: integrations.codex.patchErrorCategory,
+        claudePatchErrorCategory: integrations.claude.patchErrorCategory,
       });
     } catch {
       // Heartbeats are best-effort and never interrupt the editor.
@@ -266,7 +347,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       .catch(() => undefined)
       .then(async () => {
         refreshIntegrationDetections();
-        if (!state.adsEnabled || !state.integrationEnabled) {
+        if (!state.adsEnabled || !state.integrationEnabled || !runtimePolicy.policy?.enabled) {
           for (const runtime of Object.values(integrations)) {
             runtime.lifecycle.stopAll();
           }
@@ -277,7 +358,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         const failures: string[] = [];
         await Promise.all(
           Object.values(integrations)
-            .filter((runtime) => runtime.detection.detected)
+            .filter((runtime) => runtime.detection.detected && canServeRuntime(runtime))
             .map(async (runtime) => {
               try {
                 const hooks = await runtime.hooks.inspect();
@@ -291,7 +372,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         );
         if (
           vscode.window.state.focused &&
-          Object.values(integrations).some((runtime) => runtime.detection.detected)
+          Object.values(integrations).some(
+            (runtime) => runtime.detection.detected && canServeRuntime(runtime),
+          )
         ) {
           await bridge.start();
         } else {
@@ -308,6 +391,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   let runtimeWatchdog: Promise<void> | undefined;
   let runtimeReloadScheduled = false;
+  let runtimePatchReloadPending = false;
+  let runtimeUiReloadPending = false;
+  const missingUiHeartbeats: Record<IntegrationTool, number> = { codex: 0, claude: 0 };
   const ensureRuntimeHealthy = (): Promise<void> => {
     if (runtimeWatchdog) {
       return runtimeWatchdog;
@@ -322,19 +408,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
 
       refreshIntegrationDetections();
+      let activeTurnMissingUi = false;
+      let anyTurnActive = false;
+      for (const runtime of Object.values(integrations)) {
+        const active =
+          runtime.detection.detected && canServeRuntime(runtime) && runtime.presenter.isRunning;
+        anyTurnActive ||= active;
+        if (!active || runtime.presenter.isVisible) {
+          missingUiHeartbeats[runtime.tool] = 0;
+          continue;
+        }
+        missingUiHeartbeats[runtime.tool] += 1;
+        if (
+          missingUiHeartbeats[runtime.tool] >= RUNTIME_WATCHDOG_MISSING_UI_THRESHOLD
+        ) {
+          activeTurnMissingUi = true;
+        }
+      }
+      if (anyTurnActive) {
+        // A recovered heartbeat cancels a cache-only reload. A changed bundle
+        // remains pending independently and is still reloaded after the turn.
+        runtimeUiReloadPending = activeTurnMissingUi;
+      }
       let changed = false;
       await Promise.all(
         Object.values(integrations)
-          .filter((runtime) => runtime.detection.detected && runtime.patch)
+          .filter(
+            (runtime) => runtime.detection.detected && runtime.patch && canPatchRuntime(runtime),
+          )
           .map(async (runtime) => {
             try {
               const status = await runtime.patch!.ensureInstalled();
               runtime.compatible = status.compatible;
               runtime.compatibilityMode = status.compatibilityMode;
               runtime.patchToken = status.token;
+              runtime.patchErrorCategory = undefined;
               runtime.presenter.setPatchedUiEnabled(status.installed);
               changed ||= status.changed;
-            } catch {
+            } catch (error) {
+              runtime.patchErrorCategory = patchErrorCategory(error);
               runtime.presenter.setPatchedUiEnabled(false);
               return;
             }
@@ -349,7 +461,16 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           }),
       );
       await reconcileIntegration();
-      if (changed && !runtimeReloadScheduled) {
+      runtimePatchReloadPending ||= changed;
+      const decision = runtimeReloadDecision({
+        patchChanged: runtimePatchReloadPending,
+        activeTurnMissingUi,
+        anyTurnActive,
+        reloadPending: runtimeUiReloadPending,
+      });
+      if (decision.reloadNow && !runtimeReloadScheduled) {
+        runtimePatchReloadPending = false;
+        runtimeUiReloadPending = false;
         runtimeReloadScheduled = true;
         scheduleReload('Kodpauza автоматически восстановила интеграцию. Перезапускаю окно...');
       }
@@ -433,10 +554,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         failures.push(`${runtime.name}: структура расширения не распознана.`);
         continue;
       }
+      if (!canPatchRuntime(runtime)) {
+        failures.push(`${runtime.name}: подключение временно остановлено политикой безопасности.`);
+        continue;
+      }
       try {
         const result = await runtime.patch.ensureInstalled();
         runtime.compatible = result.compatible;
         runtime.compatibilityMode = result.compatibilityMode;
+        runtime.patchErrorCategory = undefined;
         if (!result.compatible) {
           failures.push(
             `${runtime.name} ${runtime.detection.version ?? ''}: версия пока не поддерживается.`,
@@ -449,6 +575,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         connected.push(runtime.name);
         changed ||= result.changed;
       } catch (error) {
+        runtime.patchErrorCategory = patchErrorCategory(error);
         failures.push(`${runtime.name}: ${userErrorMessage(error)}`);
       }
     }
@@ -725,7 +852,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   await reconcileIntegration();
   await reportDetectedVersions();
   await reportInstallHeartbeat();
-  const heartbeatTimer = setInterval(() => void reportInstallHeartbeat(), 6 * 60 * 60 * 1000);
+  const heartbeatTimer = setInterval(() => void reportInstallHeartbeat(), 15 * 60 * 1000);
   heartbeatTimer.unref();
   context.subscriptions.push({ dispose: () => clearInterval(heartbeatTimer) });
   const runtimeWatchdogTimer = setInterval(
@@ -734,6 +861,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   runtimeWatchdogTimer.unref();
   context.subscriptions.push({ dispose: () => clearInterval(runtimeWatchdogTimer) });
+  const runtimePolicyTimer = setInterval(() => {
+    void runtimePolicy
+      .refresh()
+      .then(async () => {
+        applyPolicyToPresenters();
+        for (const runtime of Object.values(integrations)) {
+          if (!canServeRuntime(runtime)) runtime.lifecycle.stopAll();
+        }
+        await reconcileIntegration();
+      })
+      .catch((error) => {
+        console.error('Kodpauza runtime policy reconciliation failed:', userErrorMessage(error));
+      });
+  }, RUNTIME_POLICY_REFRESH_INTERVAL_MS);
+  runtimePolicyTimer.unref();
+  context.subscriptions.push({ dispose: () => clearInterval(runtimePolicyTimer) });
   if (autoReloadRequired) {
     scheduleReload('Kodpauza восстановила интеграции после обновления. Перезапускаю окно...');
   }
@@ -791,7 +934,7 @@ function createUiAdapter(runtime: IntegrationRuntime): {
       return {
         active: true,
         adId: ad.adId,
-        text: `${ad.advertiserName} — ${adDisplayText(ad.text)}`,
+        text: adPresentationText(ad.advertiserName, ad.text),
         format: ad.format,
         advertiserName: ad.advertiserName,
         erid: ad.erid ?? '',
@@ -822,6 +965,30 @@ function safeAdDomain(value: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function extensionPatchStatus(runtime: IntegrationRuntime): ExtensionPatchStatus | undefined {
+  if (!runtime.detection.detected) return undefined;
+  if (runtime.patchErrorCategory) return 'error';
+  if (runtime.compatible === false || runtime.compatibilityMode === 'unsupported') {
+    return 'unsupported';
+  }
+  if (!runtime.patchToken) {
+    return runtime.compatible === true ? 'not_installed' : 'unknown';
+  }
+  return runtime.compatibilityMode === 'structural'
+    ? 'installed_structural'
+    : 'installed_exact';
+}
+
+function patchErrorCategory(error: unknown): ExtensionPatchErrorCategory {
+  const message = userErrorMessage(error).toLowerCase();
+  if (/unsupported|не поддерж|совместим|version|верси/.test(message)) return 'compatibility';
+  if (/permission|eacces|eperm|доступ|прав/.test(message)) return 'permission';
+  if (/hash|checksum|verify|провер|сигнатур|структур/.test(message)) return 'verification';
+  if (/enoent|filesystem|файл|каталог|directory|path/.test(message)) return 'filesystem';
+  if (/runtime|bridge|socket|port|процесс/.test(message)) return 'runtime';
+  return 'unknown';
 }
 
 async function removeRuntimeIntegrations(

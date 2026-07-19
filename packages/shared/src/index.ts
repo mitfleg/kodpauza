@@ -11,6 +11,7 @@ export const surfaces = ['claude_code_vscode', 'codex_vscode'] as const;
 export const roles = ['developer', 'advertiser', 'admin'] as const;
 export const campaignStatuses = ['draft', 'pending', 'active', 'paused', 'rejected'] as const;
 export const campaignFormats = ['standard', 'premium'] as const;
+export const campaignDeliveryModes = ['asap', 'even'] as const;
 
 export const advertiserTopUpLimits = {
   minimumKopecks: 100,
@@ -27,14 +28,27 @@ export const adPolicy = {
   premiumMarkupBps: 5_000,
 } as const;
 
+/**
+ * CPM is expressed in kopecks per one thousand impressions.  A single
+ * impression can therefore be worth a fraction of a kopeck.  We keep that
+ * fraction as an integer remainder instead of rounding every impression and
+ * silently losing money.
+ */
+export const impressionAccounting = {
+  chargeRemainderDenominator: 1_000,
+  rewardRemainderDenominator: 10_000_000,
+} as const;
+
 export type Surface = (typeof surfaces)[number];
 export type Role = (typeof roles)[number];
 export type CampaignStatus = (typeof campaignStatuses)[number];
 export type CampaignFormat = (typeof campaignFormats)[number];
+export type CampaignDeliveryMode = (typeof campaignDeliveryModes)[number];
 
 export const surfaceSchema = z.enum(surfaces);
 export const roleSchema = z.enum(roles);
 export const campaignFormatSchema = z.enum(campaignFormats);
+export const campaignDeliveryModeSchema = z.enum(campaignDeliveryModes);
 
 const moneyKopecksSchema = z.number().int().min(1).max(2_000_000_000);
 const cpmKopecksSchema = z.number().int().min(2_000).max(1_300_000_000);
@@ -43,6 +57,31 @@ const httpsUrlSchema = z
   .url()
   .max(2048)
   .refine((value) => new URL(value).protocol === 'https:', 'Ссылка должна использовать HTTPS.');
+
+const campaignCreativeTextSchema = z
+  .string()
+  .trim()
+  .min(8)
+  .max(120)
+  .refine(
+    (value) => value.replace(/^(?:Реклама|Advertisement)\s*:\s*/i, '').trim().length > 0,
+    'Добавьте текст объявления, а не только служебную подпись.',
+  );
+
+export const campaignCreativeInputSchema = z
+  .object({
+    label: z.string().trim().min(1).max(40),
+    text: campaignCreativeTextSchema,
+    url: httpsUrlSchema,
+  })
+  .strict();
+
+export const campaignSurfaceInputSchema = z
+  .object({
+    surface: surfaceSchema,
+    cpmKopecks: cpmKopecksSchema,
+  })
+  .strict();
 
 export const registerSchema = z
   .object({
@@ -72,6 +111,7 @@ export const loginSchema = z
 export const nextAdQuerySchema = z
   .object({
     surface: surfaceSchema.default('codex_vscode'),
+    toolVersion: z.string().trim().min(1).max(80).default('unknown'),
   })
   .strict();
 
@@ -130,7 +170,7 @@ export function eventSignaturePayload(
 export const createCampaignSchema = z
   .object({
     name: z.string().trim().min(2).max(120),
-    text: z.string().trim().min(8).max(120),
+    text: campaignCreativeTextSchema,
     url: httpsUrlSchema,
     erid: z.preprocess(
       (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
@@ -140,6 +180,13 @@ export const createCampaignSchema = z
     budgetKopecks: moneyKopecksSchema.min(100),
     impressionsLimit: z.number().int().min(1).max(10_000_000).nullable().optional(),
     format: campaignFormatSchema.default('standard'),
+    creatives: z.array(campaignCreativeInputSchema).min(1).max(3).optional(),
+    surfaces: z.array(campaignSurfaceInputSchema).min(1).max(surfaces.length).optional(),
+    deliveryMode: campaignDeliveryModeSchema.default('asap'),
+    dailyBudgetKopecks: moneyKopecksSchema.nullable().optional(),
+    frequencyCapPerDay: z.number().int().min(1).max(100).nullable().optional(),
+    startsAt: z.coerce.date().nullable().optional(),
+    endsAt: z.coerce.date().nullable().optional(),
   })
   .strict();
 
@@ -177,12 +224,88 @@ export function rewardForImpression(
   cpmKopecks: number,
   format: CampaignFormat = 'standard',
 ): number {
-  const costKopecks = impressionCostKopecks(billableCpmKopecks(cpmKopecks, format));
-  return Math.floor((costKopecks * adPolicy.developerShareBps) / 10_000);
+  return accrueDeveloperReward(billableCpmKopecks(cpmKopecks, format), 0).amountKopecks;
 }
 
 export function impressionCostKopecks(cpmKopecks: number): number {
-  return Math.floor(cpmKopecks / 1000);
+  return accrueImpressionCharge(cpmKopecks, 0).amountKopecks;
+}
+
+export type MoneyAccrual = {
+  amountKopecks: number;
+  remainderUnits: number;
+};
+
+/**
+ * Returns the exact integer charge for the next impression and the remainder
+ * that must be persisted on the campaign.  Passing the returned remainder to
+ * the next call guarantees that N impressions charge exactly
+ * floor(N * CPM / 1000) kopecks, even when CPM is not divisible by 1000.
+ */
+export function accrueImpressionCharge(
+  billableCpmKopecks: number,
+  remainderMilliKopecks: number,
+): MoneyAccrual {
+  assertAccountingInput(
+    billableCpmKopecks,
+    remainderMilliKopecks,
+    impressionAccounting.chargeRemainderDenominator,
+    'CPM',
+  );
+  return divideAccrual(
+    BigInt(billableCpmKopecks) + BigInt(remainderMilliKopecks),
+    impressionAccounting.chargeRemainderDenominator,
+  );
+}
+
+/**
+ * Returns the exact developer reward for the next impression and the
+ * remainder that must be persisted on the developer profile.  The reward is
+ * calculated from billable CPM before rounding, so a 30 RUB CPM with a 50%
+ * share alternates 1/2 kopecks and totals 15 RUB after 1000 impressions.
+ */
+export function accrueDeveloperReward(
+  billableCpmKopecks: number,
+  remainderUnits: number,
+  developerShareBps: number = adPolicy.developerShareBps,
+): MoneyAccrual {
+  assertAccountingInput(
+    billableCpmKopecks,
+    remainderUnits,
+    impressionAccounting.rewardRemainderDenominator,
+    'CPM',
+  );
+  if (!Number.isSafeInteger(developerShareBps) || developerShareBps < 0 || developerShareBps > 10_000) {
+    throw new RangeError('Доля разработчика должна быть целым числом от 0 до 10000 bps.');
+  }
+  return divideAccrual(
+    BigInt(billableCpmKopecks) * BigInt(developerShareBps) + BigInt(remainderUnits),
+    impressionAccounting.rewardRemainderDenominator,
+  );
+}
+
+function assertAccountingInput(
+  amount: number,
+  remainder: number,
+  denominator: number,
+  label: string,
+) {
+  if (!Number.isSafeInteger(amount) || amount < 0) {
+    throw new RangeError(`${label} должен быть неотрицательным безопасным целым числом.`);
+  }
+  if (!Number.isSafeInteger(remainder) || remainder < 0 || remainder >= denominator) {
+    throw new RangeError(`Остаток должен быть целым числом от 0 до ${denominator - 1}.`);
+  }
+}
+
+function divideAccrual(numerator: bigint, denominator: number): MoneyAccrual {
+  const divisor = BigInt(denominator);
+  const amountKopecks = Number(numerator / divisor);
+  const remainderUnits = Number(numerator % divisor);
+  if (!Number.isSafeInteger(amountKopecks)) {
+    throw new RangeError('Начисление превышает допустимый предел.');
+  }
+  return { amountKopecks, remainderUnits };
 }
 
 export const appName = 'kodpauza';

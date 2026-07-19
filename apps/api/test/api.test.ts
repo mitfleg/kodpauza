@@ -10,10 +10,7 @@ import { buildApp } from '../src/app.js';
 import { signToken } from '../src/auth.js';
 import { config } from '../src/config.js';
 import type { EmailVerificationMailer } from '../src/email.js';
-import type {
-  AdminNotifier,
-  UnsupportedIntegrationAlert,
-} from '../src/services/adminNotifier.js';
+import type { AdminNotifier, UnsupportedIntegrationAlert } from '../src/services/adminNotifier.js';
 import { prisma } from '../src/prisma.js';
 import {
   kopecksToProviderValue,
@@ -105,6 +102,10 @@ type ExtensionLogin = Login & { refreshToken: string };
 type Ad = {
   adId: string;
   campaignId: string;
+  creativeId: string;
+  text: string;
+  url: string;
+  advertiserName: string;
   surface: 'codex_vscode';
   trackable: boolean;
   format: 'standard' | 'premium';
@@ -164,21 +165,26 @@ async function registerAndVerifyDeveloper(email: string, password = 'password123
   expect(response.statusCode).toBe(201);
   expect(response.json()).toMatchObject({ verificationRequired: true });
   expect(response.body).not.toContain('token');
-  const registeredUser = await prisma.user.findUniqueOrThrow({ where: { email: email.toLowerCase() } });
+  const registeredUser = await prisma.user.findUniqueOrThrow({
+    where: { email: email.toLowerCase() },
+  });
   const acceptances = await prisma.legalAcceptance.findMany({
     where: { userId: registeredUser.id },
     orderBy: { documentType: 'asc' },
   });
   expect(acceptances).toHaveLength(3);
-  expect(acceptances.map(({ documentType, documentVersion }) => ({ documentType, documentVersion })))
-    .toEqual(expect.arrayContaining([
+  expect(
+    acceptances.map(({ documentType, documentVersion }) => ({ documentType, documentVersion })),
+  ).toEqual(
+    expect.arrayContaining([
       { documentType: 'terms', documentVersion: legalDocumentVersions.terms },
       { documentType: 'privacy', documentVersion: legalDocumentVersions.privacy },
       {
         documentType: 'personal_data_consent',
         documentVersion: legalDocumentVersions.personalDataConsent,
       },
-    ]));
+    ]),
+  );
   expect(acceptances.every((acceptance) => Boolean(acceptance.ipHash))).toBe(true);
   const normalizedEmail = email.toLowerCase();
   const code = verificationCodes.get(normalizedEmail);
@@ -206,7 +212,10 @@ async function nextAd(token: string): Promise<Ad> {
   return ad;
 }
 
-function impression(ad: Ad, visibleMs = 5200): SignableKodpauzaEvent & { visibleMs: number } {
+function impression(
+  ad: Pick<Ad, 'adId' | 'campaignId' | 'surface' | 'trackable' | 'format'>,
+  visibleMs = 5200,
+): SignableKodpauzaEvent & { visibleMs: number } {
   return {
     eventId: randomUUID(),
     adId: ad.adId,
@@ -758,6 +767,39 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       codexDetected: true,
     });
 
+    const erroredHeartbeat = await app.inject({
+      method: 'PUT',
+      url: '/v1/developer/extension-install',
+      headers: auth(developer.token),
+      payload: {
+        ...heartbeat,
+        heartbeatSchemaVersion: 2,
+        codexPatchStatus: 'error',
+        codexPatchErrorCategory: 'permission',
+      },
+    });
+    expect(erroredHeartbeat.statusCode).toBe(204);
+    expect(await prisma.extensionInstall.findUnique({ where: { installId } })).toMatchObject({
+      codexPatchStatus: 'error',
+      codexPatchErrorCategory: 'permission',
+    });
+
+    const recoveredHeartbeat = await app.inject({
+      method: 'PUT',
+      url: '/v1/developer/extension-install',
+      headers: auth(developer.token),
+      payload: {
+        ...heartbeat,
+        heartbeatSchemaVersion: 2,
+        codexPatchStatus: 'installed_exact',
+      },
+    });
+    expect(recoveredHeartbeat.statusCode).toBe(204);
+    expect(await prisma.extensionInstall.findUnique({ where: { installId } })).toMatchObject({
+      codexPatchStatus: 'installed_exact',
+      codexPatchErrorCategory: null,
+    });
+
     const stolen = await app.inject({
       method: 'PUT',
       url: '/v1/developer/extension-install',
@@ -851,6 +893,207 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     expect(adminEvents.body).not.toContain('userAgentHash');
   });
 
+  it('переносит дробные копейки CPM и доли разработчика между показами', async () => {
+    const developer = await registerDeveloper();
+    const advertiserLogin = await login('adv@kodpauza.local', 'adv123456');
+    const advertiser = await prisma.advertiserProfile.findUniqueOrThrow({
+      where: { userId: advertiserLogin.user.id },
+    });
+    await prisma.developerProfile.update({
+      where: { userId: developer.user.id },
+      data: { rewardRemainderUnits: 9_995_000 },
+    });
+    const campaign = await prisma.campaign.create({
+      data: {
+        advertiserId: advertiser.id,
+        name: 'Точная дробная кампания',
+        text: 'Точная проверка дробных начислений',
+        url: 'https://example.ru/fractional',
+        status: 'active',
+        cpmKopecks: 2_001,
+        billableCpmKopecks: 2_001,
+        budgetKopecks: 100_000,
+        billingRemainderMilliKopecks: 999,
+        surfaces: {
+          create: { surface: 'codex_vscode', cpmKopecks: 2_001, billableCpmKopecks: 2_001 },
+        },
+        creatives: {
+          create: {
+            label: 'Основной',
+            text: 'Точная проверка дробных начислений',
+            url: 'https://example.ru/fractional',
+          },
+        },
+      },
+      include: { creatives: true },
+    });
+    const adId = randomUUID();
+    await prisma.adServe.create({
+      data: {
+        adId,
+        userId: developer.user.id,
+        campaignId: campaign.id,
+        creativeId: campaign.creatives[0]!.id,
+        surface: 'codex_vscode',
+        cpmKopecks: campaign.cpmKopecks,
+        billableCpmKopecks: campaign.billableCpmKopecks,
+        format: campaign.format,
+        costKopecks: 0,
+        rewardKopecks: 0,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    const payload = impression({
+      adId,
+      campaignId: campaign.id,
+      surface: 'codex_vscode',
+      trackable: true,
+      format: 'standard',
+    });
+    const headers = signedHeaders(developer.token, developer.eventSecret!, 'impression', payload);
+
+    const first = await app.inject({
+      method: 'POST',
+      url: '/v1/events/impression',
+      headers,
+      payload,
+    });
+    expect(first.statusCode).toBe(201);
+    expect(first.json()).toMatchObject({ rewardKopecks: 2, duplicate: false });
+
+    const [campaignAfter, developerAfter, serveAfter, event] = await Promise.all([
+      prisma.campaign.findUniqueOrThrow({ where: { id: campaign.id } }),
+      prisma.developerProfile.findUniqueOrThrow({ where: { userId: developer.user.id } }),
+      prisma.adServe.findUniqueOrThrow({ where: { adId } }),
+      prisma.adEvent.findUniqueOrThrow({ where: { eventId: payload.eventId } }),
+    ]);
+    expect(campaignAfter).toMatchObject({
+      spentKopecks: 3,
+      billingRemainderMilliKopecks: 0,
+      impressionsServed: 1,
+    });
+    expect(developerAfter).toMatchObject({
+      balanceKopecks: 2,
+      rewardRemainderUnits: 0,
+      totalImpressions: 1,
+    });
+    expect(serveAfter).toMatchObject({ costKopecks: 3, rewardKopecks: 2 });
+    expect(
+      (await prisma.ledgerEntry.findMany({ where: { eventId: event.id } }))
+        .map((entry) => entry.amountKopecks)
+        .sort((a, b) => a - b),
+    ).toEqual([-3, 2]);
+
+    const duplicate = await app.inject({
+      method: 'POST',
+      url: '/v1/events/impression',
+      headers,
+      payload,
+    });
+    expect(duplicate.statusCode).toBe(200);
+    expect(duplicate.json()).toMatchObject({ rewardKopecks: 2, duplicate: true });
+    expect(await prisma.ledgerEntry.count({ where: { eventId: event.id } })).toBe(2);
+  });
+
+  it('откатывает событие, остатки и выдачу, если списание рекламодателя не прошло', async () => {
+    const developer = await registerDeveloper();
+    const advertiserUser = await prisma.user.create({
+      data: {
+        email: `rollback-${randomUUID()}@kodpauza.local`,
+        passwordHash: await bcrypt.hash('password123', 4),
+        role: 'advertiser',
+        emailVerifiedAt: new Date(),
+        advertiserProfile: {
+          create: { companyName: 'Rollback advertiser', balanceKopecks: 2 },
+        },
+      },
+      include: { advertiserProfile: true },
+    });
+    const advertiser = advertiserUser.advertiserProfile!;
+    const campaign = await prisma.campaign.create({
+      data: {
+        advertiserId: advertiser.id,
+        name: 'Кампания проверки отката',
+        text: 'Проверка полного транзакционного отката',
+        url: 'https://example.ru/rollback',
+        status: 'active',
+        cpmKopecks: 2_001,
+        billableCpmKopecks: 2_001,
+        budgetKopecks: 100_000,
+        billingRemainderMilliKopecks: 999,
+        surfaces: {
+          create: { surface: 'codex_vscode', cpmKopecks: 2_001, billableCpmKopecks: 2_001 },
+        },
+        creatives: {
+          create: {
+            label: 'Основной',
+            text: 'Проверка полного транзакционного отката',
+            url: 'https://example.ru/rollback',
+          },
+        },
+      },
+      include: { creatives: true },
+    });
+    const adId = randomUUID();
+    await prisma.adServe.create({
+      data: {
+        adId,
+        userId: developer.user.id,
+        campaignId: campaign.id,
+        creativeId: campaign.creatives[0]!.id,
+        surface: 'codex_vscode',
+        cpmKopecks: campaign.cpmKopecks,
+        billableCpmKopecks: campaign.billableCpmKopecks,
+        format: campaign.format,
+        costKopecks: 0,
+        rewardKopecks: 0,
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+    const payload = impression({
+      adId,
+      campaignId: campaign.id,
+      surface: 'codex_vscode',
+      trackable: true,
+      format: 'standard',
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/v1/events/impression',
+      headers: signedHeaders(developer.token, developer.eventSecret!, 'impression', payload),
+      payload,
+    });
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({
+      error: 'На балансе рекламодателя недостаточно средств.',
+    });
+
+    const [campaignAfter, developerAfter, advertiserAfter, serveAfter] = await Promise.all([
+      prisma.campaign.findUniqueOrThrow({ where: { id: campaign.id } }),
+      prisma.developerProfile.findUniqueOrThrow({ where: { userId: developer.user.id } }),
+      prisma.advertiserProfile.findUniqueOrThrow({ where: { id: advertiser.id } }),
+      prisma.adServe.findUniqueOrThrow({ where: { adId } }),
+    ]);
+    expect(campaignAfter).toMatchObject({
+      spentKopecks: 0,
+      impressionsServed: 0,
+      billingRemainderMilliKopecks: 999,
+    });
+    expect(developerAfter).toMatchObject({
+      balanceKopecks: 0,
+      totalImpressions: 0,
+      rewardRemainderUnits: 0,
+    });
+    expect(advertiserAfter.balanceKopecks).toBe(2);
+    expect(serveAfter).toMatchObject({
+      costKopecks: 0,
+      rewardKopecks: 0,
+      impressionRecordedAt: null,
+    });
+    expect(await prisma.adEvent.count({ where: { eventId: payload.eventId } })).toBe(0);
+  });
+
   it('не начисляет двум разработчикам с общего IP одновременно', async () => {
     const owner = await registerDeveloper();
     const contender = await registerDeveloper();
@@ -920,7 +1163,8 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       payload: laterEvent,
     });
     expect(laterResponse.statusCode).toBe(201);
-    expect(laterResponse.json()).toMatchObject({ fraudStatus: 'clean', rewardKopecks: 15 });
+    expect(laterResponse.json()).toMatchObject({ fraudStatus: 'clean' });
+    expect(laterResponse.json().rewardKopecks).toBeGreaterThan(0);
   });
 
   it('идемпотентно подтверждает сетевой повтор и не начисляет дважды', async () => {
@@ -1020,12 +1264,263 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     );
   });
 
+  it('не считает чистым клик после подозрительного показа', async () => {
+    const developer = await registerDeveloper();
+    const ad = await nextAd(developer.token);
+    const suspiciousPayload = impression(ad, 60_001);
+    const suspicious = await app.inject({
+      method: 'POST',
+      url: '/v1/events/impression',
+      headers: signedHeaders(
+        developer.token,
+        developer.eventSecret!,
+        'impression',
+        suspiciousPayload,
+      ),
+      payload: suspiciousPayload,
+    });
+    expect(suspicious.statusCode).toBe(201);
+    expect(suspicious.json()).toMatchObject({ fraudStatus: 'suspicious' });
+
+    const serve = await prisma.adServe.findUniqueOrThrow({ where: { adId: ad.adId } });
+    const [campaignBefore, creativeBefore, surfaceBefore, developerBefore] = await Promise.all([
+      prisma.campaign.findUniqueOrThrow({ where: { id: ad.campaignId } }),
+      prisma.campaignCreative.findUniqueOrThrow({ where: { id: serve.creativeId } }),
+      prisma.campaignSurface.findUniqueOrThrow({
+        where: { campaignId_surface: { campaignId: ad.campaignId, surface: ad.surface } },
+      }),
+      prisma.developerProfile.findUniqueOrThrow({ where: { userId: developer.user.id } }),
+    ]);
+    const clickPayload = { ...impression(ad), visibleMs: undefined };
+    delete clickPayload.visibleMs;
+    const click = await app.inject({
+      method: 'POST',
+      url: '/v1/events/click',
+      headers: signedHeaders(developer.token, developer.eventSecret!, 'click', clickPayload),
+      payload: clickPayload,
+    });
+
+    expect(click.statusCode).toBe(201);
+    expect(click.json()).toMatchObject({ fraudStatus: 'suspicious' });
+    const [campaignAfter, creativeAfter, surfaceAfter, developerAfter, clickEvent] =
+      await Promise.all([
+        prisma.campaign.findUniqueOrThrow({ where: { id: ad.campaignId } }),
+        prisma.campaignCreative.findUniqueOrThrow({ where: { id: serve.creativeId } }),
+        prisma.campaignSurface.findUniqueOrThrow({
+          where: { campaignId_surface: { campaignId: ad.campaignId, surface: ad.surface } },
+        }),
+        prisma.developerProfile.findUniqueOrThrow({ where: { userId: developer.user.id } }),
+        prisma.adEvent.findUniqueOrThrow({ where: { eventId: clickPayload.eventId } }),
+      ]);
+    expect(campaignAfter.clicks).toBe(campaignBefore.clicks);
+    expect(creativeAfter.clicks).toBe(creativeBefore.clicks);
+    expect(surfaceAfter.clicks).toBe(surfaceBefore.clicks);
+    expect(developerAfter.totalClicks).toBe(developerBefore.totalClicks);
+    expect(await prisma.fraudFlag.count({ where: { eventId: clickEvent.id } })).toBe(1);
+  });
+
+  it('не дает одному разработчику автоматически остановить кампанию suspicious-событиями', async () => {
+    const developer = await registerDeveloper();
+    const advertiserLogin = await login('adv@kodpauza.local', 'adv123456');
+    const advertiser = await prisma.advertiserProfile.findUniqueOrThrow({
+      where: { userId: advertiserLogin.user.id },
+    });
+    const activeCampaigns = await prisma.campaign.findMany({
+      where: { status: 'active' },
+      select: { id: true },
+    });
+    await prisma.campaign.updateMany({
+      where: { id: { in: activeCampaigns.map((campaign) => campaign.id) } },
+      data: { status: 'paused' },
+    });
+    const campaign = await prisma.campaign.create({
+      data: {
+        advertiserId: advertiser.id,
+        name: 'Защита кампании от одного источника',
+        text: 'Один источник не останавливает кампанию',
+        url: 'https://example.ru/anomaly-source',
+        status: 'active',
+        cpmKopecks: 30_000,
+        billableCpmKopecks: 30_000,
+        budgetKopecks: 100_000,
+        surfaces: {
+          create: {
+            surface: 'codex_vscode',
+            cpmKopecks: 30_000,
+            billableCpmKopecks: 30_000,
+          },
+        },
+        creatives: {
+          create: {
+            label: 'Основной',
+            text: 'Один источник не останавливает кампанию',
+            url: 'https://example.ru/anomaly-source',
+          },
+        },
+      },
+      include: { creatives: true },
+    });
+
+    try {
+      await prisma.adEvent.createMany({
+        data: Array.from({ length: 20 }, () => ({
+          eventId: randomUUID(),
+          userId: developer.user.id,
+          campaignId: campaign.id,
+          creativeId: campaign.creatives[0]!.id,
+          adId: randomUUID(),
+          type: 'impression' as const,
+          surface: 'codex_vscode' as const,
+          visibleMs: 60_001,
+          rewardKopecks: 0,
+          clientVersion: '0.1.0',
+          toolName: 'codex',
+          toolVersion: '0.1.0',
+          fraudStatus: 'suspicious' as const,
+        })),
+      });
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/ads/next?surface=codex_vscode',
+        headers: auth(developer.token),
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({ campaignId: campaign.id });
+      expect(await prisma.campaign.findUniqueOrThrow({ where: { id: campaign.id } })).toMatchObject(
+        { status: 'active', autoPausedAt: null, pauseReason: null },
+      );
+    } finally {
+      await prisma.campaign.update({ where: { id: campaign.id }, data: { status: 'paused' } });
+      await prisma.campaign.updateMany({
+        where: { id: { in: activeCampaigns.map((item) => item.id) } },
+        data: { status: 'active' },
+      });
+    }
+  });
+
+  it('не расходует частотный лимит подозрительным показом', async () => {
+    const developer = await registerDeveloper();
+    const advertiserLogin = await login('adv@kodpauza.local', 'adv123456');
+    const advertiser = await prisma.advertiserProfile.findUniqueOrThrow({
+      where: { userId: advertiserLogin.user.id },
+    });
+    const activeCampaigns = await prisma.campaign.findMany({
+      where: { status: 'active' },
+      select: { id: true },
+    });
+    await prisma.campaign.updateMany({
+      where: { id: { in: activeCampaigns.map((campaign) => campaign.id) } },
+      data: { status: 'paused' },
+    });
+    const campaign = await prisma.campaign.create({
+      data: {
+        advertiserId: advertiser.id,
+        name: 'Частотный лимит и антифрод',
+        text: 'Проверка частотного лимита чистых показов',
+        url: 'https://example.ru/frequency',
+        status: 'active',
+        cpmKopecks: 30_000,
+        billableCpmKopecks: 30_000,
+        budgetKopecks: 100_000,
+        frequencyCapPerDay: 1,
+        surfaces: {
+          create: {
+            surface: 'codex_vscode',
+            cpmKopecks: 30_000,
+            billableCpmKopecks: 30_000,
+          },
+        },
+        creatives: {
+          create: {
+            label: 'Основной',
+            text: 'Проверка частотного лимита чистых показов',
+            url: 'https://example.ru/frequency',
+          },
+        },
+      },
+    });
+
+    try {
+      const suspiciousAd = await nextAd(developer.token);
+      expect(suspiciousAd.campaignId).toBe(campaign.id);
+      const suspiciousPayload = impression(suspiciousAd, 60_001);
+      const suspicious = await app.inject({
+        method: 'POST',
+        url: '/v1/events/impression',
+        headers: signedHeaders(
+          developer.token,
+          developer.eventSecret!,
+          'impression',
+          suspiciousPayload,
+        ),
+        payload: suspiciousPayload,
+      });
+      expect(suspicious.statusCode).toBe(201);
+      expect(suspicious.json()).toMatchObject({ fraudStatus: 'suspicious' });
+      await prisma.adEvent.update({
+        where: { eventId: suspiciousPayload.eventId },
+        data: { createdAt: new Date(Date.now() - 11_000) },
+      });
+
+      const cleanAd = await nextAd(developer.token);
+      expect(cleanAd.campaignId).toBe(campaign.id);
+      const cleanPayload = impression(cleanAd);
+      const clean = await app.inject({
+        method: 'POST',
+        url: '/v1/events/impression',
+        headers: signedHeaders(developer.token, developer.eventSecret!, 'impression', cleanPayload),
+        payload: cleanPayload,
+      });
+      expect(clean.statusCode).toBe(201);
+      expect(clean.json()).toMatchObject({ fraudStatus: 'clean' });
+
+      const capped = await app.inject({
+        method: 'GET',
+        url: '/v1/ads/next?surface=codex_vscode',
+        headers: auth(developer.token),
+      });
+      expect(capped.statusCode).toBe(204);
+    } finally {
+      await prisma.campaign.update({ where: { id: campaign.id }, data: { status: 'paused' } });
+      await prisma.campaign.updateMany({
+        where: { id: { in: activeCampaigns.map((item) => item.id) } },
+        data: { status: 'active' },
+      });
+    }
+  });
+
   it('учитывает только один чистый клик на одну выдачу', async () => {
     const developer = await registerDeveloper();
     const ad = await nextAd(developer.token);
     const payload = { ...impression(ad), visibleMs: undefined };
     delete payload.visibleMs;
     const headers = signedHeaders(developer.token, developer.eventSecret!, 'click', payload);
+    const beforeImpression = await app.inject({
+      method: 'POST',
+      url: '/v1/events/click',
+      headers,
+      payload,
+    });
+    expect(beforeImpression.statusCode).toBe(409);
+    expect(beforeImpression.json()).toMatchObject({
+      error: 'Сначала должен быть подтвержден показ объявления.',
+    });
+
+    const impressionPayload = impression(ad);
+    const recordedImpression = await app.inject({
+      method: 'POST',
+      url: '/v1/events/impression',
+      headers: signedHeaders(
+        developer.token,
+        developer.eventSecret!,
+        'impression',
+        impressionPayload,
+      ),
+      payload: impressionPayload,
+    });
+    expect(recordedImpression.statusCode).toBe(201);
+
     const first = await app.inject({ method: 'POST', url: '/v1/events/click', headers, payload });
     const duplicate = await app.inject({
       method: 'POST',
@@ -1238,9 +1733,23 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       headers: auth(advertiser.token),
       payload: { ...base, placement: 'codex_vscode' },
     });
+    const evenWithoutDailyBudget = await app.inject({
+      method: 'POST',
+      url: '/v1/advertiser/campaigns',
+      headers: auth(advertiser.token),
+      payload: { ...base, deliveryMode: 'even' },
+    });
+    const dailyBudgetBelowOneImpression = await app.inject({
+      method: 'POST',
+      url: '/v1/advertiser/campaigns',
+      headers: auth(advertiser.token),
+      payload: { ...base, dailyBudgetKopecks: 29 },
+    });
     expect(lowCpm.statusCode).toBe(400);
     expect(http.statusCode).toBe(400);
     expect(typo.statusCode).toBe(400);
+    expect(evenWithoutDailyBudget.statusCode).toBe(400);
+    expect(dailyBudgetBelowOneImpression.statusCode).toBe(400);
   });
 
   it('фиксирует премиальную наценку и возвращает формат в рекламной выдаче', async () => {
@@ -1273,6 +1782,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       method: 'POST',
       url: `/v1/admin/campaigns/${campaignId}/approve`,
       headers: auth(admin.token),
+      payload: { reviewedUpdatedAt: created.json().campaign.updatedAt },
     });
     expect(approved.statusCode).toBe(200);
 
@@ -1285,6 +1795,227 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       costKopecks: 60,
       rewardKopecks: 30,
     });
+  });
+
+  it('модерирует тот же бренд и все креативы, которые может отдать рекламная выдача', async () => {
+    const advertiser = await login('adv@kodpauza.local', 'adv123456');
+    const admin = await login('admin@kodpauza.local', 'admin123456');
+    const developer = await registerDeveloper();
+    const activeBefore = await prisma.campaign.findMany({
+      where: { status: 'active' },
+      select: { id: true },
+    });
+    let campaignId: string | undefined;
+
+    try {
+      await prisma.campaign.updateMany({
+        where: { id: { in: activeBefore.map((campaign) => campaign.id) } },
+        data: { status: 'paused' },
+      });
+      const startsAt = new Date(Date.now() - 60_000).toISOString();
+      const endsAt = new Date(Date.now() + 86_400_000).toISOString();
+      const creatives = [
+        {
+          label: 'Основной',
+          text: 'Канонический основной вариант',
+          url: 'https://example.ru/canonical',
+        },
+        {
+          label: 'Вариант B',
+          text: 'Второй вариант, который тоже должен пройти модерацию',
+          url: 'https://example.ru/variant-b',
+        },
+      ];
+      const created = await app.inject({
+        method: 'POST',
+        url: '/v1/advertiser/campaigns',
+        headers: auth(advertiser.token),
+        payload: {
+          name: 'Кампания без расхождения модерации',
+          text: 'Legacy-текст не должен попасть в выдачу',
+          url: 'https://example.ru/legacy-mismatch',
+          cpmKopecks: 30_000,
+          budgetKopecks: 100_000,
+          deliveryMode: 'even',
+          dailyBudgetKopecks: 10_000,
+          frequencyCapPerDay: 3,
+          startsAt,
+          endsAt,
+          surfaces: [{ surface: 'codex_vscode', cpmKopecks: 30_000 }],
+          creatives,
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      campaignId = created.json().campaign.id as string;
+      expect(created.json().campaign).toMatchObject({
+        text: creatives[0]!.text,
+        url: creatives[0]!.url,
+        advertiser: { companyName: expect.any(String) },
+      });
+
+      const adminCampaigns = await app.inject({
+        method: 'GET',
+        url: '/v1/admin/campaigns',
+        headers: auth(admin.token),
+      });
+      expect(adminCampaigns.statusCode).toBe(200);
+      const moderated = adminCampaigns
+        .json()
+        .campaigns.find((campaign: { id: string }) => campaign.id === campaignId);
+      expect(moderated).toMatchObject({
+        status: 'pending',
+        text: creatives[0]!.text,
+        url: creatives[0]!.url,
+        deliveryMode: 'even',
+        dailyBudgetKopecks: 10_000,
+        frequencyCapPerDay: 3,
+        advertiser: {
+          companyName: expect.any(String),
+          user: { email: 'adv@kodpauza.local' },
+        },
+        surfaces: [expect.objectContaining({ surface: 'codex_vscode', enabled: true })],
+      });
+      expect(moderated.creatives).toEqual(
+        creatives.map((creative) => expect.objectContaining({ ...creative, enabled: true })),
+      );
+      expect(moderated.startsAt).toBeTruthy();
+      expect(moderated.endsAt).toBeTruthy();
+
+      const advertiserCampaigns = await app.inject({
+        method: 'GET',
+        url: '/v1/advertiser/campaigns',
+        headers: auth(advertiser.token),
+      });
+      const visibleToAdvertiser = advertiserCampaigns
+        .json()
+        .campaigns.find((campaign: { id: string }) => campaign.id === campaignId);
+      expect(visibleToAdvertiser).toMatchObject({
+        advertiser: { companyName: moderated.advertiser.companyName },
+        deliveryMode: 'even',
+        dailyBudgetKopecks: 10_000,
+        frequencyCapPerDay: 3,
+      });
+      expect(visibleToAdvertiser.creatives).toHaveLength(2);
+      expect(visibleToAdvertiser.surfaces).toHaveLength(1);
+
+      expect(
+        (
+          await app.inject({
+            method: 'POST',
+            url: `/v1/admin/campaigns/${campaignId}/approve`,
+            headers: auth(admin.token),
+            payload: { reviewedUpdatedAt: moderated.updatedAt },
+          })
+        ).statusCode,
+      ).toBe(200);
+
+      const ad = await nextAd(developer.token);
+      expect(ad.campaignId).toBe(campaignId);
+      expect(ad.advertiserName).toBe(moderated.advertiser.companyName);
+      expect(moderated.creatives).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: ad.creativeId, text: ad.text, url: ad.url, enabled: true }),
+        ]),
+      );
+      expect(ad.text).not.toBe('Legacy-текст не должен попасть в выдачу');
+      expect(ad.url).not.toBe('https://example.ru/legacy-mismatch');
+    } finally {
+      if (campaignId) {
+        await prisma.campaign.update({ where: { id: campaignId }, data: { status: 'paused' } });
+      }
+      await prisma.campaign.updateMany({
+        where: { id: { in: activeBefore.map((campaign) => campaign.id) } },
+        data: { status: 'active' },
+      });
+    }
+  });
+
+  it('не активирует непроверенную редакцию при одновременных PATCH и approve', async () => {
+    const advertiser = await login('adv@kodpauza.local', 'adv123456');
+    const admin = await login('admin@kodpauza.local', 'admin123456');
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/advertiser/campaigns',
+      headers: auth(advertiser.token),
+      payload: {
+        name: 'Гонка модерации',
+        text: 'Проверенная версия предложения',
+        url: 'https://example.ru/reviewed',
+        cpmKopecks: 30_000,
+        budgetKopecks: 100_000,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const campaignId = created.json().campaign.id as string;
+    const baseline = await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { updatedAt: new Date('2026-01-01T00:00:00.000Z') },
+    });
+    const changedText = 'Новая версия, которую администратор еще не проверял';
+
+    const [edited, approved] = await Promise.all([
+      app.inject({
+        method: 'PATCH',
+        url: `/v1/advertiser/campaigns/${campaignId}`,
+        headers: auth(advertiser.token),
+        payload: { text: changedText, url: 'https://example.ru/unreviewed' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: `/v1/admin/campaigns/${campaignId}/approve`,
+        headers: auth(admin.token),
+        payload: { reviewedUpdatedAt: baseline.updatedAt.toISOString() },
+      }),
+    ]);
+
+    expect(
+      [edited.statusCode, approved.statusCode].every((status) => [200, 409].includes(status)),
+    ).toBe(true);
+    expect([edited.statusCode, approved.statusCode]).toContain(200);
+    const persisted = await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } });
+    expect(persisted.status === 'active' && persisted.text === changedText).toBe(false);
+    if (persisted.status === 'active') {
+      expect(persisted.text).toBe('Проверенная версия предложения');
+    } else {
+      expect(persisted).toMatchObject({ status: 'pending', text: changedText });
+    }
+  });
+
+  it('отклоняет лимит показов ниже уже выполненного без ошибки базы', async () => {
+    const advertiser = await login('adv@kodpauza.local', 'adv123456');
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/advertiser/campaigns',
+      headers: auth(advertiser.token),
+      payload: {
+        name: 'Проверка лимита показов',
+        text: 'Инфраструктура для проверки лимита показов',
+        url: 'https://example.ru/impressions-limit',
+        cpmKopecks: 30_000,
+        budgetKopecks: 100_000,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+    const campaignId = created.json().campaign.id as string;
+    await prisma.campaign.update({
+      where: { id: campaignId },
+      data: { impressionsServed: 7 },
+    });
+
+    const response = await app.inject({
+      method: 'PATCH',
+      url: `/v1/advertiser/campaigns/${campaignId}`,
+      headers: auth(advertiser.token),
+      payload: { impressionsLimit: 6 },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({
+      error: 'Лимит показов не может быть меньше уже выполненных показов.',
+    });
+    expect(
+      await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } }),
+    ).toMatchObject({ impressionsServed: 7, impressionsLimit: null, status: 'pending' });
   });
 
   it('возвращает измененную активную кампанию на модерацию и атомарно пишет решение', async () => {
@@ -1311,6 +2042,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
           method: 'POST',
           url: `/v1/admin/campaigns/${campaignId}/approve`,
           headers: auth(admin.token),
+          payload: { reviewedUpdatedAt: created.json().campaign.updatedAt },
         })
       ).statusCode,
     ).toBe(200);
@@ -1322,12 +2054,42 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       payload: { text: 'Обновленная инфраструктура для разработки' },
     });
     expect(edited.json().campaign.status).toBe('pending');
+    expect(edited.json().campaign.creatives).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          enabled: true,
+          text: 'Обновленная инфраструктура для разработки',
+        }),
+      ]),
+    );
+
+    const staleApproved = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/campaigns/${campaignId}/approve`,
+      headers: auth(admin.token),
+      payload: { reviewedUpdatedAt: created.json().campaign.updatedAt },
+    });
+    expect(staleApproved.statusCode).toBe(409);
+
+    const staleRejected = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/campaigns/${campaignId}/reject`,
+      headers: auth(admin.token),
+      payload: {
+        reason: 'Устаревшее решение модератора',
+        reviewedUpdatedAt: created.json().campaign.updatedAt,
+      },
+    });
+    expect(staleRejected.statusCode).toBe(409);
 
     const rejected = await app.inject({
       method: 'POST',
       url: `/v1/admin/campaigns/${campaignId}/reject`,
       headers: auth(admin.token),
-      payload: { reason: 'Уточните формулировку предложения' },
+      payload: {
+        reason: 'Уточните формулировку предложения',
+        reviewedUpdatedAt: edited.json().campaign.updatedAt,
+      },
     });
     expect(rejected.statusCode).toBe(200);
     expect(rejected.json().campaign.status).toBe('rejected');

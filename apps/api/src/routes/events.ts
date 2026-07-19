@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import crypto from 'node:crypto';
 import { z } from 'zod';
 import {
+  accrueDeveloperReward,
+  accrueImpressionCharge,
   clickEventSchema,
   eventSignaturePayload,
   impressionEventSchema,
@@ -14,6 +16,7 @@ import { config } from '../config.js';
 import { getClientIp, hashNullable } from '../http.js';
 import { prisma } from '../prisma.js';
 import { assessClick, assessImpression, type FraudDecision } from '../services/fraud.js';
+import { deliveryEligibility, moscowDeliveryDay } from '../services/campaignDelivery.js';
 
 type ImpressionEvent = z.infer<typeof impressionEventSchema>;
 type ClickEvent = z.infer<typeof clickEventSchema>;
@@ -97,9 +100,25 @@ async function recordImpression(input: {
 }) {
   return prisma.$transaction(async (tx) => {
     await lockUser(tx, input.userId);
+    const serveReference = await tx.adServe.findUnique({
+      where: { adId: input.event.adId },
+      select: { campaignId: true, userId: true },
+    });
+    if (!serveReference) throw new EventDomainError(404, 'Выдача рекламы не найдена.');
+    if (serveReference.userId !== input.userId) {
+      throw new EventDomainError(403, 'Событие не соответствует выданной рекламе.');
+    }
+    await lockCampaign(tx, serveReference.campaignId);
     const serve = await tx.adServe.findUnique({
       where: { adId: input.event.adId },
-      include: { campaign: { include: { advertiser: { select: { id: true, userId: true } } } } },
+      include: {
+        campaign: {
+          include: {
+            advertiser: { select: { id: true, userId: true } },
+            surfaces: true,
+          },
+        },
+      },
     });
     validateServe(serve, input.event, input.userId, 'impression');
 
@@ -107,16 +126,18 @@ async function recordImpression(input: {
     if (campaign.status !== 'active') {
       throw new EventDomainError(409, 'Кампания больше не доступна для показа.');
     }
-    if (campaign.cpmKopecks !== serve.cpmKopecks) {
-      throw new EventDomainError(409, 'Условия кампании изменились. Запросите новую рекламу.');
-    }
+    const placement = campaign.surfaces.find(
+      (candidate) => candidate.surface === serve.surface && candidate.enabled,
+    );
     if (
-      campaign.billableCpmKopecks !== serve.billableCpmKopecks ||
+      !placement ||
+      placement.cpmKopecks !== serve.cpmKopecks ||
+      placement.billableCpmKopecks !== serve.billableCpmKopecks ||
       campaign.format !== serve.format
     ) {
       throw new EventDomainError(
         409,
-        'Формат или стоимость кампании изменились. Запросите новую рекламу.',
+        'Поверхность, формат или стоимость кампании изменились. Запросите новое объявление.',
       );
     }
 
@@ -131,18 +152,36 @@ async function recordImpression(input: {
       throw new EventDomainError(422, 'Показ слишком короткий.', fraud.reasons);
     }
 
+    const developer = await tx.developerProfile.findUnique({
+      where: { userId: input.userId },
+      select: { rewardRemainderUnits: true },
+    });
+    if (!developer) throw new EventDomainError(403, 'Профиль разработчика не найден.');
+
+    const charge = accrueImpressionCharge(
+      placement.billableCpmKopecks,
+      campaign.billingRemainderMilliKopecks,
+    );
+    const reward = accrueDeveloperReward(
+      placement.billableCpmKopecks,
+      developer.rewardRemainderUnits,
+    );
+    const clean = fraud.status === 'clean';
+    const costKopecks = clean ? charge.amountKopecks : 0;
+    const rewardKopecks = clean ? reward.amountKopecks : 0;
+
     const marked = await tx.adServe.updateMany({
       where: { id: serve.id, impressionRecordedAt: null },
-      data: { impressionRecordedAt: new Date() },
+      data: { impressionRecordedAt: new Date(), costKopecks, rewardKopecks },
     });
     if (marked.count === 0) throw new EventDomainError(409, 'Показ для этой выдачи уже записан.');
 
-    const rewardKopecks = fraud.status === 'clean' ? serve.rewardKopecks : 0;
     const created = await tx.adEvent.create({
       data: {
         eventId: input.event.eventId,
         userId: input.userId,
         campaignId: campaign.id,
+        creativeId: serve.creativeId,
         adServeId: serve.id,
         adId: input.event.adId,
         type: 'impression',
@@ -171,18 +210,54 @@ async function recordImpression(input: {
       return created;
     }
 
+    const { start: deliveryDay } = moscowDeliveryDay(input.observedAt);
+    const [deliveryRow, frequencyToday] = await Promise.all([
+      tx.campaignDeliveryDay.findUnique({
+        where: { campaignId_day: { campaignId: campaign.id, day: deliveryDay } },
+      }),
+      campaign.frequencyCapPerDay === null
+        ? Promise.resolve(0)
+        : tx.adEvent.count({
+            where: {
+              campaignId: campaign.id,
+              userId: input.userId,
+              type: 'impression',
+              fraudStatus: 'clean',
+              createdAt: { gte: deliveryDay },
+              id: { not: created.id },
+            },
+          }),
+    ]);
+    if (campaign.frequencyCapPerDay !== null && frequencyToday >= campaign.frequencyCapPerDay) {
+      throw new EventDomainError(409, 'Дневной лимит этой кампании для пользователя исчерпан.');
+    }
+    const delivery = deliveryEligibility({
+      now: input.observedAt,
+      startsAt: campaign.startsAt,
+      endsAt: campaign.endsAt,
+      mode: campaign.deliveryMode,
+      nextCostKopecks: costKopecks,
+      remainingBudgetKopecks: campaign.budgetKopecks - campaign.spentKopecks,
+      dailyBudgetKopecks: campaign.dailyBudgetKopecks,
+      spentTodayKopecks: deliveryRow?.spentKopecks ?? 0,
+    });
+    if (!delivery.eligible) {
+      throw new EventDomainError(409, 'Лимит, расписание или темп кампании изменились. Запросите новое объявление.');
+    }
+
     const campaignUpdated = await tx.campaign.updateMany({
       where: {
         id: campaign.id,
         status: 'active',
-        spentKopecks: { lte: campaign.budgetKopecks - serve.costKopecks },
+        spentKopecks: { lte: campaign.budgetKopecks - costKopecks },
         ...(campaign.impressionsLimit === null
           ? {}
           : { impressionsServed: { lt: campaign.impressionsLimit } }),
       },
       data: {
-        spentKopecks: { increment: serve.costKopecks },
+        spentKopecks: { increment: costKopecks },
         impressionsServed: { increment: 1 },
+        billingRemainderMilliKopecks: charge.remainderUnits,
       },
     });
     if (campaignUpdated.count === 0) {
@@ -190,18 +265,46 @@ async function recordImpression(input: {
     }
 
     const advertiserUpdated = await tx.advertiserProfile.updateMany({
-      where: { id: campaign.advertiser.id, balanceKopecks: { gte: serve.costKopecks } },
-      data: { balanceKopecks: { decrement: serve.costKopecks } },
+      where: { id: campaign.advertiser.id, balanceKopecks: { gte: costKopecks } },
+      data: { balanceKopecks: { decrement: costKopecks } },
     });
     if (advertiserUpdated.count === 0) {
       throw new EventDomainError(409, 'На балансе рекламодателя недостаточно средств.');
     }
 
+    await Promise.all([
+      tx.campaignSurface.update({
+        where: { id: placement.id },
+        data: {
+          spentKopecks: { increment: costKopecks },
+          impressionsServed: { increment: 1 },
+        },
+      }),
+      tx.campaignCreative.update({
+        where: { id: serve.creativeId },
+        data: { impressionsServed: { increment: 1 } },
+      }),
+      tx.campaignDeliveryDay.upsert({
+        where: { campaignId_day: { campaignId: campaign.id, day: deliveryDay } },
+        create: {
+          campaignId: campaign.id,
+          day: deliveryDay,
+          spentKopecks: costKopecks,
+          impressionsServed: 1,
+        },
+        update: {
+          spentKopecks: { increment: costKopecks },
+          impressionsServed: { increment: 1 },
+        },
+      }),
+    ]);
+
     await tx.developerProfile.update({
       where: { userId: input.userId },
       data: {
-        balanceKopecks: { increment: serve.rewardKopecks },
+        balanceKopecks: { increment: rewardKopecks },
         totalImpressions: { increment: 1 },
+        rewardRemainderUnits: reward.remainderUnits,
       },
     });
     await tx.ledgerEntry.createMany({
@@ -210,14 +313,14 @@ async function recordImpression(input: {
           userId: campaign.advertiser.userId,
           eventId: created.id,
           type: 'advertiser_charge',
-          amountKopecks: -serve.costKopecks,
+          amountKopecks: -costKopecks,
           description: `Списание за показ ${created.eventId}`,
         },
         {
           userId: input.userId,
           eventId: created.id,
           type: 'impression_reward',
-          amountKopecks: serve.rewardKopecks,
+          amountKopecks: rewardKopecks,
           description: `Начисление за показ ${created.eventId}`,
         },
       ],
@@ -238,7 +341,21 @@ async function recordClick(input: {
     const serve = await tx.adServe.findUnique({ where: { adId: input.event.adId } });
     validateServe(serve, input.event, input.userId, 'click');
 
-    const fraud = await assessClick(tx, input.userId);
+    const impressionEvent = await tx.adEvent.findFirst({
+      where: { adServeId: serve.id, type: 'impression' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      select: { fraudStatus: true },
+    });
+    if (!impressionEvent) {
+      throw new EventDomainError(409, 'Сначала должен быть подтвержден показ объявления.');
+    }
+    const clickFraud = await assessClick(tx, input.userId);
+    const fraud: FraudDecision = impressionEvent.fraudStatus === 'clean'
+      ? clickFraud
+      : {
+          status: 'suspicious',
+          reasons: [...new Set(['suspicious_impression', ...clickFraud.reasons])],
+        };
     const marked = await tx.adServe.updateMany({
       where: { id: serve.id, clickRecordedAt: null },
       data: { clickRecordedAt: new Date() },
@@ -250,6 +367,7 @@ async function recordClick(input: {
         eventId: input.event.eventId,
         userId: input.userId,
         campaignId: serve.campaignId,
+        creativeId: serve.creativeId,
         adServeId: serve.id,
         adId: input.event.adId,
         type: 'click',
@@ -270,6 +388,16 @@ async function recordClick(input: {
         where: { id: serve.campaignId },
         data: { clicks: { increment: 1 } },
       });
+      await Promise.all([
+        tx.campaignCreative.update({
+          where: { id: serve.creativeId },
+          data: { clicks: { increment: 1 } },
+        }),
+        tx.campaignSurface.update({
+          where: { campaignId_surface: { campaignId: serve.campaignId, surface: serve.surface } },
+          data: { clicks: { increment: 1 } },
+        }),
+      ]);
       await tx.developerProfile.update({
         where: { userId: input.userId },
         data: { totalClicks: { increment: 1 } },
@@ -287,6 +415,7 @@ function validateServe<
     id: string;
     userId: string;
     campaignId: string;
+    creativeId: string;
     surface: string;
     expiresAt: Date;
     impressionRecordedAt: Date | null;
@@ -315,10 +444,17 @@ function validateServe<
   if (type === 'click' && serve.clickRecordedAt) {
     throw new EventDomainError(409, 'Клик для этой выдачи уже записан.');
   }
+  if (type === 'click' && !serve.impressionRecordedAt) {
+    throw new EventDomainError(409, 'Сначала должен быть подтвержден показ объявления.');
+  }
 }
 
 async function lockUser(tx: Prisma.TransactionClient, userId: string) {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+}
+
+async function lockCampaign(tx: Prisma.TransactionClient, campaignId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'campaign:' + campaignId}))`;
 }
 
 async function createFraudFlag(

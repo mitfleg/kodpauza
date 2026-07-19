@@ -45,6 +45,11 @@ enum CampaignStatus {
   rejected
 }
 
+enum CampaignDeliveryMode {
+  asap
+  even
+}
+
 enum AdEventType {
   impression
   click
@@ -177,20 +182,21 @@ model ExtensionSession {
 }
 
 model DeveloperProfile {
-  id               String            @id @default(cuid())
-  userId           String            @unique
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  installId        String            @unique
-  eventSecret      String            @unique
-  balanceKopecks   Int               @default(0)
-  reservedKopecks  Int               @default(0)
-  paidKopecks      Int               @default(0)
-  totalImpressions Int               @default(0)
-  totalClicks      Int               @default(0)
-  payoutStatus     PayoutStatus      @default(mock)
-  payouts          DeveloperPayout[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                   String            @id @default(cuid())
+  userId               String            @unique
+  user                 User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installId            String            @unique
+  eventSecret          String            @unique
+  balanceKopecks       Int               @default(0)
+  reservedKopecks      Int               @default(0)
+  paidKopecks          Int               @default(0)
+  totalImpressions     Int               @default(0)
+  totalClicks          Int               @default(0)
+  rewardRemainderUnits Int               @default(0)
+  payoutStatus         PayoutStatus      @default(mock)
+  payouts              DeveloperPayout[]
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 }
 
 model DeveloperPayout {
@@ -262,38 +268,101 @@ model AdvertiserPayment {
 }
 
 model Campaign {
-  id                 String            @id @default(cuid())
-  advertiserId       String
-  advertiser         AdvertiserProfile @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
-  name               String
-  text               String
-  url                String
-  erid               String?
-  status             CampaignStatus    @default(draft)
-  cpmKopecks         Int
-  billableCpmKopecks Int
-  format             CampaignFormat    @default(standard)
-  budgetKopecks      Int
-  spentKopecks       Int               @default(0)
-  impressionsLimit   Int?
-  impressionsServed  Int               @default(0)
-  clicks             Int               @default(0)
-  events             AdEvent[]
-  adServes           AdServe[]
-  createdAt          DateTime          @default(now())
-  updatedAt          DateTime          @updatedAt
+  id                           String                @id @default(cuid())
+  advertiserId                 String
+  advertiser                   AdvertiserProfile     @relation(fields: [advertiserId], references: [id], onDelete: Cascade)
+  name                         String
+  text                         String
+  url                          String
+  erid                         String?
+  status                       CampaignStatus        @default(draft)
+  cpmKopecks                   Int
+  billableCpmKopecks           Int
+  format                       CampaignFormat        @default(standard)
+  budgetKopecks                Int
+  spentKopecks                 Int                   @default(0)
+  impressionsLimit             Int?
+  impressionsServed            Int                   @default(0)
+  clicks                       Int                   @default(0)
+  billingRemainderMilliKopecks Int                   @default(0)
+  deliveryMode                 CampaignDeliveryMode  @default(asap)
+  dailyBudgetKopecks           Int?
+  frequencyCapPerDay           Int?
+  startsAt                     DateTime?
+  endsAt                       DateTime?
+  autoPausedAt                 DateTime?
+  pauseReason                  String?
+  surfaces                     CampaignSurface[]
+  creatives                    CampaignCreative[]
+  deliveryDays                 CampaignDeliveryDay[]
+  events                       AdEvent[]
+  adServes                     AdServe[]
+  createdAt                    DateTime              @default(now())
+  updatedAt                    DateTime              @updatedAt
 
   @@index([status, billableCpmKopecks])
   @@index([advertiserId, createdAt])
 }
 
+model CampaignSurface {
+  id                 String   @id @default(cuid())
+  campaignId         String
+  campaign           Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  surface            Surface
+  enabled            Boolean  @default(true)
+  cpmKopecks         Int
+  billableCpmKopecks Int
+  spentKopecks       Int      @default(0)
+  impressionsServed  Int      @default(0)
+  clicks             Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([campaignId, surface])
+  @@index([surface, enabled, billableCpmKopecks])
+}
+
+model CampaignCreative {
+  id                String    @id @default(cuid())
+  campaignId        String
+  campaign          Campaign  @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  label             String
+  text              String
+  url               String
+  enabled           Boolean   @default(true)
+  impressionsServed Int       @default(0)
+  clicks            Int       @default(0)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  adServes          AdServe[]
+  events            AdEvent[]
+
+  @@index([campaignId, enabled, createdAt])
+}
+
+model CampaignDeliveryDay {
+  id                String   @id @default(cuid())
+  campaignId        String
+  campaign          Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  day               DateTime
+  spentKopecks      Int      @default(0)
+  impressionsServed Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([campaignId, day])
+  @@index([day])
+}
+
 model AdServe {
-  id                   String         @id @default(cuid())
-  adId                 String         @unique
+  id                   String           @id @default(cuid())
+  adId                 String           @unique
   userId               String
-  user                 User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  user                 User             @relation(fields: [userId], references: [id], onDelete: Restrict)
   campaignId           String
-  campaign             Campaign       @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  campaign             Campaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  creativeId           String
+  creative             CampaignCreative @relation(fields: [creativeId], references: [id], onDelete: Restrict)
   surface              Surface
   cpmKopecks           Int
   billableCpmKopecks   Int
@@ -303,39 +372,43 @@ model AdServe {
   expiresAt            DateTime
   impressionRecordedAt DateTime?
   clickRecordedAt      DateTime?
-  createdAt            DateTime       @default(now())
+  createdAt            DateTime         @default(now())
   events               AdEvent[]
 
   @@index([userId, createdAt])
   @@index([campaignId, expiresAt])
+  @@index([creativeId, expiresAt])
 }
 
 model AdEvent {
-  id            String        @id @default(cuid())
-  eventId       String        @unique
+  id            String           @id @default(cuid())
+  eventId       String           @unique
   userId        String
-  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   campaignId    String
-  campaign      Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign      Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creativeId    String
+  creative      CampaignCreative @relation(fields: [creativeId], references: [id], onDelete: Restrict)
   adServeId     String?
-  adServe       AdServe?      @relation(fields: [adServeId], references: [id], onDelete: Restrict)
+  adServe       AdServe?         @relation(fields: [adServeId], references: [id], onDelete: Restrict)
   adId          String
   type          AdEventType
   surface       Surface
   visibleMs     Int?
-  rewardKopecks Int           @default(0)
+  rewardKopecks Int              @default(0)
   ipHash        String?
   userAgentHash String?
   clientVersion String
   toolName      String
   toolVersion   String
-  fraudStatus   FraudStatus   @default(clean)
-  createdAt     DateTime      @default(now())
+  fraudStatus   FraudStatus      @default(clean)
+  createdAt     DateTime         @default(now())
   fraudFlags    FraudFlag[]
   ledgerEntries LedgerEntry[]
 
   @@index([userId, type, createdAt])
   @@index([campaignId, type, createdAt])
+  @@index([creativeId, type, createdAt])
   @@index([adServeId, type])
 }
 
@@ -372,18 +445,26 @@ model LedgerEntry {
 }
 
 model ExtensionInstall {
-  id               String   @id @default(cuid())
-  userId           String
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  installId        String   @unique
-  vscodeVersion    String?
-  extensionVersion String?
-  os               String?
-  integrationsEnabled Boolean @default(false)
-  codexDetected       Boolean @default(false)
-  claudeDetected      Boolean @default(false)
-  lastSeenAt       DateTime @default(now())
-  createdAt        DateTime @default(now())
+  id                       String   @id @default(cuid())
+  userId                   String
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installId                String   @unique
+  vscodeVersion            String?
+  extensionVersion         String?
+  os                       String?
+  integrationsEnabled      Boolean  @default(false)
+  codexDetected            Boolean  @default(false)
+  claudeDetected           Boolean  @default(false)
+  heartbeatSchemaVersion   Int      @default(1)
+  editorName               String?
+  codexVersion             String?
+  claudeVersion            String?
+  codexPatchStatus         String?
+  claudePatchStatus        String?
+  codexPatchErrorCategory  String?
+  claudePatchErrorCategory String?
+  lastSeenAt               DateTime @default(now())
+  createdAt                DateTime @default(now())
 
   @@index([userId])
   @@index([lastSeenAt])

@@ -5,7 +5,25 @@ import { prisma } from '../prisma.js';
 import type { AdminNotifier } from '../services/adminNotifier.js';
 import { classifyUnsupportedIntegrationVersion } from '../services/integrationVersionPolicy.js';
 
-const extensionInstallSchema = z.object({
+export const patchStatusSchema = z.enum([
+  'installed_exact',
+  'installed_structural',
+  'not_installed',
+  'unsupported',
+  'error',
+  'unknown',
+]);
+
+export const patchErrorCategorySchema = z.enum([
+  'compatibility',
+  'filesystem',
+  'permission',
+  'verification',
+  'runtime',
+  'unknown',
+]);
+
+export const extensionInstallSchema = z.object({
   installId: z.string().uuid(),
   vscodeVersion: z.string().trim().min(1).max(40),
   extensionVersion: z.string().trim().min(1).max(40),
@@ -13,7 +31,15 @@ const extensionInstallSchema = z.object({
   integrationsEnabled: z.boolean(),
   codexDetected: z.boolean(),
   claudeDetected: z.boolean(),
-});
+  heartbeatSchemaVersion: z.number().int().min(1).max(10).optional(),
+  editorName: z.string().trim().min(1).max(80).optional(),
+  codexVersion: z.string().trim().min(1).max(40).optional(),
+  claudeVersion: z.string().trim().min(1).max(40).optional(),
+  codexPatchStatus: patchStatusSchema.optional(),
+  claudePatchStatus: patchStatusSchema.optional(),
+  codexPatchErrorCategory: patchErrorCategorySchema.nullable().optional(),
+  claudePatchErrorCategory: patchErrorCategorySchema.nullable().optional(),
+}).strict();
 
 const ALERT_RETRY_DELAY_MS = 10 * 60 * 1000;
 
@@ -68,6 +94,54 @@ export function registerDeveloperRoutes(app: FastifyInstance, adminNotifier: Adm
           integrationsEnabled: parsed.data.integrationsEnabled,
           codexDetected: parsed.data.codexDetected,
           claudeDetected: parsed.data.claudeDetected,
+          ...(parsed.data.heartbeatSchemaVersion !== undefined
+            ? { heartbeatSchemaVersion: parsed.data.heartbeatSchemaVersion }
+            : {}),
+          ...(parsed.data.editorName !== undefined ? { editorName: parsed.data.editorName } : {}),
+          ...(!parsed.data.codexDetected
+            ? {
+                codexVersion: null,
+                codexPatchStatus: null,
+                codexPatchErrorCategory: null,
+              }
+            : parsed.data.codexVersion !== undefined
+            ? { codexVersion: parsed.data.codexVersion }
+            : {}),
+          ...(!parsed.data.claudeDetected
+            ? {
+                claudeVersion: null,
+                claudePatchStatus: null,
+                claudePatchErrorCategory: null,
+              }
+            : parsed.data.claudeVersion !== undefined
+            ? { claudeVersion: parsed.data.claudeVersion }
+            : {}),
+          ...(parsed.data.codexDetected && parsed.data.codexPatchStatus !== undefined
+            ? { codexPatchStatus: parsed.data.codexPatchStatus }
+            : {}),
+          ...(parsed.data.claudeDetected && parsed.data.claudePatchStatus !== undefined
+            ? { claudePatchStatus: parsed.data.claudePatchStatus }
+            : {}),
+          ...(parsed.data.codexDetected && parsed.data.codexPatchStatus !== undefined
+            ? {
+                codexPatchErrorCategory:
+                  parsed.data.codexPatchStatus === 'error'
+                    ? (parsed.data.codexPatchErrorCategory ?? 'unknown')
+                    : null,
+              }
+            : parsed.data.codexDetected && parsed.data.codexPatchErrorCategory !== undefined
+              ? { codexPatchErrorCategory: parsed.data.codexPatchErrorCategory }
+              : {}),
+          ...(parsed.data.claudeDetected && parsed.data.claudePatchStatus !== undefined
+            ? {
+                claudePatchErrorCategory:
+                  parsed.data.claudePatchStatus === 'error'
+                    ? (parsed.data.claudePatchErrorCategory ?? 'unknown')
+                    : null,
+              }
+            : parsed.data.claudeDetected && parsed.data.claudePatchErrorCategory !== undefined
+              ? { claudePatchErrorCategory: parsed.data.claudePatchErrorCategory }
+              : {}),
           lastSeenAt: now,
         },
       });

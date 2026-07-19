@@ -63,7 +63,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
     setIsLoading(true);
     try {
       if (section === 'overview') {
-        const [users, campaigns, payouts, fraud, integrationVersions, finance, funnel] = await Promise.all([
+        const [users, campaigns, payouts, fraud, integrationVersions, finance, funnel, fleet] = await Promise.all([
           api<AdminData['users']>('/v1/admin/users'),
           api<AdminData['campaigns']>('/v1/admin/campaigns'),
           api<AdminData['payouts']>('/v1/admin/payouts?page=1&pageSize=50'),
@@ -71,8 +71,9 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
           api<AdminData['integrationVersions']>('/v1/admin/integration-versions'),
           api<AdminData['finance']>('/v1/admin/finance'),
           api<AdminData['funnel']>('/v1/admin/funnel'),
+          api<AdminData['fleet']>('/v1/admin/extension-fleet'),
         ]);
-        setData({ users, campaigns, payouts, fraud, integrationVersions, finance, funnel });
+        setData({ users, campaigns, payouts, fraud, integrationVersions, finance, funnel, fleet });
       } else if (section === 'campaigns') {
         setData({ campaigns: await api<AdminData['campaigns']>('/v1/admin/campaigns') });
       } else if (section === 'users') {
@@ -108,7 +109,16 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
     }
     setBusyId(id);
     try {
-      await api(`/v1/admin/campaigns/${id}/${kind}`, { method: 'POST' });
+      const reviewedUpdatedAt = campaigns.find((campaign) => campaign.id === id)?.updatedAt;
+      if (kind === 'approve' && !reviewedUpdatedAt) {
+        throw new Error('Обновите список кампаний перед модерацией.');
+      }
+      await api(`/v1/admin/campaigns/${id}/${kind}`, {
+        method: 'POST',
+        ...(kind === 'approve'
+          ? { body: JSON.stringify({ reviewedUpdatedAt }) }
+          : {}),
+      });
       await load();
       setNotice({
         text:
@@ -126,11 +136,15 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const reason = String(form.get('reason') ?? '');
+    const reviewedUpdatedAt = campaigns.find((campaign) => campaign.id === rejectId)?.updatedAt;
     setBusyId(rejectId);
     try {
+      if (!reviewedUpdatedAt) {
+        throw new Error('Обновите список кампаний перед модерацией.');
+      }
       await api(`/v1/admin/campaigns/${rejectId}/reject`, {
         method: 'POST',
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({ reason, reviewedUpdatedAt }),
       });
       setRejectId('');
       await load();
@@ -321,6 +335,17 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
               <LoadingBlock label="Загружаем воронку" />
             ) : (
               <AdminFunnel stages={data.funnel?.stages ?? []} />
+            )}
+          </WorkSurface>
+
+          <WorkSurface
+            title="Установки расширения"
+            description="Состояние последних heartbeat без email, install ID и других персональных идентификаторов."
+          >
+            {isLoading ? (
+              <LoadingBlock label="Загружаем установки" />
+            ) : (
+              <FleetSummary fleet={data.fleet} />
             )}
           </WorkSurface>
 
@@ -640,6 +665,167 @@ function AdminOverviewMetric({
       <p className="mt-1 line-clamp-2 text-xs text-slate-400">{detail}</p>
     </div>
   );
+}
+
+function FleetSummary({ fleet }: { fleet: AdminData['fleet'] }) {
+  if (!fleet?.counts.total) {
+    return <p className="text-sm text-slate-500">Heartbeat от расширений пока не поступал.</p>;
+  }
+  const cards = [
+    { label: 'Активные', value: fleet.counts.active, tone: 'text-emerald-700 bg-emerald-50' },
+    { label: 'Требуют внимания', value: fleet.counts.degraded, tone: 'text-amber-800 bg-amber-50' },
+    { label: 'Неактивны более суток', value: fleet.counts.stale, tone: 'text-slate-600 bg-slate-100' },
+  ];
+  return (
+    <div className="grid gap-4">
+      <div className="grid gap-3 sm:grid-cols-3">
+        {cards.map((card) => (
+          <div key={card.label} className={`rounded-md p-4 ${card.tone}`}>
+            <strong className="block text-2xl">{integer(card.value)}</strong>
+            <span className="mt-1 block text-xs font-medium">{card.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-4 lg:grid-cols-3">
+        <FleetBreakdown title="Версии Kodpauza" rows={fleet.versions} />
+        <FleetBreakdown title="Редакторы" rows={fleet.editors} />
+        <FleetBreakdown
+          title="AI-инструменты"
+          rows={[
+            { name: 'Codex', count: fleet.tools.codex },
+            { name: 'Claude Code', count: fleet.tools.claude },
+          ]}
+        />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <FleetCounter label="Нет heartbeat более часа" value={fleet.missingHeartbeat.overOneHour} />
+        <FleetCounter label="Нет heartbeat более суток" value={fleet.missingHeartbeat.overOneDay} />
+        <FleetCounter label="Нет heartbeat более недели" value={fleet.missingHeartbeat.overSevenDays} />
+      </div>
+      {Object.keys(fleet.patchStatuses).length ? (
+        <FleetBreakdown
+          title="Состояние UI-патчей"
+          rows={Object.entries(fleet.patchStatuses).map(([name, count]) => ({
+            name: patchStatusLabel(name),
+            count,
+          }))}
+        />
+      ) : null}
+      <div className="overflow-x-auto rounded-md border border-line">
+        <table className="min-w-[860px] w-full text-left text-xs">
+          <thead className="bg-slate-50 text-slate-500">
+            <tr>
+              <th className="px-3 py-2 font-medium">Состояние</th>
+              <th className="px-3 py-2 font-medium">Kodpauza</th>
+              <th className="px-3 py-2 font-medium">Редактор</th>
+              <th className="px-3 py-2 font-medium">Инструменты</th>
+              <th className="px-3 py-2 font-medium">UI-патч</th>
+              <th className="px-3 py-2 font-medium">Последний heartbeat</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line bg-white">
+            {fleet.installs.slice(0, 8).map((install, index) => (
+              <tr key={`${install.lastSeenAt}-${index}`}>
+                <td className="px-3 py-2">
+                  <span className={`font-semibold ${install.health === 'active' ? 'text-emerald-700' : install.health === 'degraded' ? 'text-amber-700' : 'text-slate-500'}`}>
+                    {install.health === 'active' ? 'Активна' : install.health === 'degraded' ? 'Нужна проверка' : 'Неактивна'}
+                  </span>
+                </td>
+                <td className="px-3 py-2 text-ink">{install.extensionVersion || 'не передана'}</td>
+                <td className="px-3 py-2 text-slate-600">
+                  {install.editor
+                    ? `${install.editor}${install.editorVersion ? ` ${install.editorVersion}` : ''}`
+                    : install.editorVersion || 'не передан'}
+                </td>
+                <td className="px-3 py-2 text-slate-600">{toolVersions(install)}</td>
+                <td className="px-3 py-2 text-slate-600">{installPatchSummary(install)}</td>
+                <td className="px-3 py-2 text-slate-600" title={new Date(install.lastSeenAt).toLocaleString('ru-RU')}>{heartbeatAge(install.lastSeenAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {!fleet.limitations.patchStatusAvailable ? (
+        <p className="text-xs leading-5 text-slate-500">{fleet.limitations.note}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function heartbeatAge(value: string) {
+  const minutes = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 60_000));
+  if (minutes < 60) return `${minutes} мин. назад`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} ч. назад`;
+  return `${Math.round(hours / 24)} дн. назад`;
+}
+
+function FleetBreakdown({ title, rows }: { title: string; rows: Array<{ name: string; count: number }> }) {
+  return (
+    <div className="rounded-md border border-line bg-slate-50 p-4">
+      <h3 className="text-sm font-semibold text-ink">{title}</h3>
+      <div className="mt-3 grid gap-2">
+        {rows.slice(0, 5).map((row) => (
+          <div key={row.name} className="flex items-center justify-between gap-3 text-xs">
+            <span className="truncate text-slate-600">{row.name}</span>
+            <strong className="text-ink">{integer(row.count)}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FleetCounter({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-line bg-white px-4 py-3 text-xs">
+      <span className="text-slate-600">{label}</span>
+      <strong className={value ? 'text-amber-700' : 'text-emerald-700'}>{integer(value)}</strong>
+    </div>
+  );
+}
+
+function toolVersions(install: NonNullable<AdminData['fleet']>['installs'][number]) {
+  const values = [
+    install.codex ? `Codex${install.codex.version ? ` ${install.codex.version}` : ''}` : null,
+    install.claude ? `Claude${install.claude.version ? ` ${install.claude.version}` : ''}` : null,
+  ].filter(Boolean);
+  return values.length ? values.join(' · ') : 'не найдены';
+}
+
+function installPatchSummary(install: NonNullable<AdminData['fleet']>['installs'][number]) {
+  const values = [install.codex?.patchStatus, install.claude?.patchStatus]
+    .filter((value): value is string => Boolean(value))
+    .map(patchStatusLabel);
+  const errors = [install.codex?.errorCategory, install.claude?.errorCategory]
+    .filter((value): value is string => Boolean(value))
+    .map(patchErrorLabel);
+  if (!values.length) return 'нет данных';
+  return `${values.join(' · ')}${errors.length ? ` (${errors.join(', ')})` : ''}`;
+}
+
+function patchStatusLabel(status: string) {
+  const labels: Record<string, string> = {
+    installed_exact: 'Установлен точно',
+    installed_structural: 'Установлен структурно',
+    not_installed: 'Не установлен',
+    unsupported: 'Версия не поддержана',
+    error: 'Ошибка',
+    unknown: 'Неизвестно',
+  };
+  return labels[status] ?? status;
+}
+
+function patchErrorLabel(category: string) {
+  const labels: Record<string, string> = {
+    compatibility: 'совместимость',
+    filesystem: 'файловая система',
+    permission: 'права доступа',
+    verification: 'проверка патча',
+    runtime: 'выполнение',
+    unknown: 'неизвестная категория',
+  };
+  return labels[category] ?? category;
 }
 
 function AdminFunnel({

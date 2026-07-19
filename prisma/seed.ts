@@ -77,7 +77,7 @@ async function main() {
     update: {
       advertiserId: advertiserProfile.id,
       status: 'active',
-      text: 'Реклама: облако для разработчиков - тестовый показ',
+      text: 'Тестовое облако — быстрый запуск окружения',
       url: 'https://example.ru',
       cpmKopecks: 30000,
       billableCpmKopecks: 30000,
@@ -88,13 +88,26 @@ async function main() {
       id: 'camp_codex_active',
       advertiserId: advertiserProfile.id,
       name: 'Тестовая кампания',
-      text: 'Реклама: облако для разработчиков - тестовый показ',
+      text: 'Тестовое облако — быстрый запуск окружения',
       url: 'https://example.ru',
       status: 'active',
       cpmKopecks: 30000,
       billableCpmKopecks: 30000,
       format: 'standard',
       budgetKopecks: 1000000,
+      surfaces: {
+        create: [
+          { surface: 'codex_vscode', cpmKopecks: 30000, billableCpmKopecks: 30000 },
+          { surface: 'claude_code_vscode', cpmKopecks: 30000, billableCpmKopecks: 30000 },
+        ],
+      },
+      creatives: {
+        create: {
+          label: 'Основной',
+          text: 'Тестовое облако — быстрый запуск окружения',
+          url: 'https://example.ru',
+        },
+      },
     },
   });
 

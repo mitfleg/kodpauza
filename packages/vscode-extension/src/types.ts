@@ -11,6 +11,7 @@ export interface KodpauzaAd {
   surface: Surface;
   trackable: boolean;
   format: CampaignFormat;
+  expiresAt?: string;
 }
 
 export interface KodpauzaEvent {

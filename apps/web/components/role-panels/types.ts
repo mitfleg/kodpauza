@@ -76,8 +76,32 @@ export type Campaign = {
   impressionsLimit?: number | null;
   impressionsServed: number;
   clicks: number;
+  deliveryMode?: 'asap' | 'even';
+  dailyBudgetKopecks?: number | null;
+  frequencyCapPerDay?: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  creatives?: Array<{
+    id: string;
+    label: string;
+    text: string;
+    url: string;
+    impressionsServed: number;
+    clicks: number;
+    enabled: boolean;
+  }>;
+  surfaces?: Array<{
+    surface: 'vscode_status_bar' | 'codex_vscode' | 'claude_code_vscode';
+    cpmKopecks: number;
+    billableCpmKopecks: number;
+    impressionsServed: number;
+    clicks: number;
+    enabled: boolean;
+  }>;
   createdAt?: string;
+  updatedAt: string;
   advertiser?: {
+    companyName?: string;
     balanceKopecks?: number;
     user?: {
       email: string;
@@ -121,9 +145,53 @@ export type AdminUser = {
 };
 
 export type AdvertiserStats = {
+  companyName?: string | null;
   campaigns: Campaign[];
   balanceKopecks: number;
   totals: { impressions: number; clicks: number; spentKopecks: number };
+};
+
+export type CampaignForecast = {
+  estimatedImpressions: number;
+  estimatedDays: number | null;
+  recentDailyNetworkImpressions: number;
+  activeCampaigns: number;
+  billableCpmKopecks: number;
+  basis: { sampleDays: number; recentImpressions: number; surfaces: string[]; label: string };
+  disclaimer: string;
+};
+
+export type ExtensionFleet = {
+  generatedAt: string;
+  counts: { total: number; active: number; degraded: number; stale: number };
+  versions: Array<{ name: string; count: number }>;
+  editors: Array<{ name: string; count: number }>;
+  tools: { codex: number; claude: number };
+  missingHeartbeat: { overOneHour: number; overOneDay: number; overSevenDays: number };
+  patchStatuses: Record<string, number>;
+  installs: Array<{
+    health: 'active' | 'degraded' | 'stale';
+    extensionVersion?: string | null;
+    editor?: string | null;
+    editorVersion?: string | null;
+    tools: string[];
+    codex?: {
+      version?: string | null;
+      patchStatus?: string | null;
+      errorCategory?: string | null;
+    } | null;
+    claude?: {
+      version?: string | null;
+      patchStatus?: string | null;
+      errorCategory?: string | null;
+    } | null;
+    lastSeenAt: string;
+  }>;
+  limitations: {
+    patchStatusAvailable: boolean;
+    patchErrorAvailable: boolean;
+    note: string;
+  };
 };
 
 export type AdvertiserPaymentStatus = 'pending' | 'succeeded' | 'canceled' | 'failed';
@@ -214,6 +282,7 @@ export type AdminData = {
   fraud?: { fraudFlags: FraudFlag[] };
   audit?: { auditLog: AdminAuditLog[] };
   integrationVersions?: { reports: IntegrationVersionReport[] };
+  fleet?: ExtensionFleet;
   privacyRequests?: { requests: AdminPrivacyRequest[] };
   payments?: { payments: AdminPayment[] };
   payouts?: AdminDeveloperPayoutsResponse;

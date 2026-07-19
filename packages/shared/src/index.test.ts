@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  accrueDeveloperReward,
+  accrueImpressionCharge,
   billableCpmKopecks,
   createCampaignSchema,
   impressionCostKopecks,
@@ -17,6 +19,71 @@ describe('shared helpers', () => {
     expect(rewardForImpression(30000)).toBe(15);
     expect(billableCpmKopecks(30000, 'premium')).toBe(45000);
     expect(rewardForImpression(30000, 'premium')).toBe(22);
+  });
+
+  it('без потерь распределяет минимальный CPM на тысячу показов', () => {
+    let chargeRemainder = 0;
+    let rewardRemainder = 0;
+    let charged = 0;
+    let rewarded = 0;
+
+    for (let impression = 0; impression < 1_000; impression += 1) {
+      const charge = accrueImpressionCharge(2_000, chargeRemainder);
+      const reward = accrueDeveloperReward(2_000, rewardRemainder);
+      charged += charge.amountKopecks;
+      rewarded += reward.amountKopecks;
+      chargeRemainder = charge.remainderUnits;
+      rewardRemainder = reward.remainderUnits;
+    }
+
+    expect({ charged, rewarded, platform: charged - rewarded }).toEqual({
+      charged: 2_000,
+      rewarded: 1_000,
+      platform: 1_000,
+    });
+    expect({ chargeRemainder, rewardRemainder }).toEqual({
+      chargeRemainder: 0,
+      rewardRemainder: 0,
+    });
+  });
+
+  it('чередует дробные копейки премиального CPM и сохраняет долю 50/50', () => {
+    let chargeRemainder = 0;
+    let rewardRemainder = 0;
+    const rewards: number[] = [];
+    let charged = 0;
+
+    for (let impression = 0; impression < 1_000; impression += 1) {
+      const charge = accrueImpressionCharge(3_000, chargeRemainder);
+      const reward = accrueDeveloperReward(3_000, rewardRemainder);
+      charged += charge.amountKopecks;
+      rewards.push(reward.amountKopecks);
+      chargeRemainder = charge.remainderUnits;
+      rewardRemainder = reward.remainderUnits;
+    }
+
+    expect(charged).toBe(3_000);
+    expect(rewards.reduce((total, reward) => total + reward, 0)).toBe(1_500);
+    expect(new Set(rewards)).toEqual(new Set([1, 2]));
+  });
+
+  it('переносит остатки для CPM и долей, не кратных одной копейке', () => {
+    let chargeRemainder = 0;
+    let rewardRemainder = 0;
+    let charged = 0;
+    let rewarded = 0;
+
+    for (let impression = 0; impression < 2_000; impression += 1) {
+      const charge = accrueImpressionCharge(2_001, chargeRemainder);
+      const reward = accrueDeveloperReward(2_001, rewardRemainder, 3_333);
+      charged += charge.amountKopecks;
+      rewarded += reward.amountKopecks;
+      chargeRemainder = charge.remainderUnits;
+      rewardRemainder = reward.remainderUnits;
+    }
+
+    expect(charged).toBe(Math.floor((2_000 * 2_001) / 1_000));
+    expect(rewarded).toBe(Math.floor((2_000 * 2_001 * 3_333) / 10_000_000));
   });
 
   it('проверяет место показа', () => {
@@ -38,6 +105,13 @@ describe('shared helpers', () => {
     expect(createCampaignSchema.safeParse({ ...base, erid: '123' }).success).toBe(false);
     expect(createCampaignSchema.safeParse({ ...base, cpmKopecks: 1999 }).success).toBe(false);
     expect(createCampaignSchema.safeParse({ ...base, url: 'file:///tmp/ad' }).success).toBe(false);
+    expect(createCampaignSchema.safeParse({ ...base, text: 'Реклама:' }).success).toBe(false);
+    expect(
+      createCampaignSchema.safeParse({
+        ...base,
+        creatives: [{ label: 'A', text: 'Advertisement:', url: 'https://example.ru' }],
+      }).success,
+    ).toBe(false);
   });
 
   it('отклоняет неизвестные поля вместо молчаливого значения по умолчанию', () => {
@@ -45,7 +119,13 @@ describe('shared helpers', () => {
   });
 
   it('использует рабочее место показа Codex для запроса объявления', () => {
-    expect(nextAdQuerySchema.parse({}).surface).toBe('codex_vscode');
+    expect(nextAdQuerySchema.parse({})).toEqual({
+      surface: 'codex_vscode',
+      toolVersion: 'unknown',
+    });
+    expect(
+      nextAdQuerySchema.parse({ surface: 'codex_vscode', toolVersion: '26.707.91948' }),
+    ).toEqual({ surface: 'codex_vscode', toolVersion: '26.707.91948' });
   });
 
   it('не сбрасывает премиальный формат при частичном изменении кампании', () => {

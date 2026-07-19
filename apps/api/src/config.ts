@@ -1,3 +1,9 @@
+import crypto from 'node:crypto';
+import {
+  RUNTIME_POLICY_MAX_TTL_MS,
+  RUNTIME_POLICY_PUBLIC_KEY_DER_BASE64,
+} from './runtimePolicyConstants.js';
+
 const localJwtSecret = 'local-dev-secret-change-me';
 const localIpHashSecret = 'local-hash-secret-change-me';
 const localEmailVerificationSecret = 'local-email-verification-secret-change-me';
@@ -48,6 +54,18 @@ export const config = {
   allowInsecureLocalhost: process.env.KODPAUZA_ALLOW_INSECURE_LOCALHOST === 'true',
   allowPublicAdminRegistration: process.env.KODPAUZA_ALLOW_PUBLIC_ADMIN_REGISTRATION === 'true',
   requireEventSignatures: process.env.KODPAUZA_REQUIRE_EVENT_SIGNATURES !== 'false',
+  runtimePolicyVersion: process.env.KODPAUZA_RUNTIME_POLICY_VERSION?.trim() || '1',
+  runtimePolicyTtlMs: numberFromEnv('KODPAUZA_RUNTIME_POLICY_TTL_MS', 15 * 60 * 1000),
+  runtimePolicyEnabled: booleanFromEnv('KODPAUZA_RUNTIME_POLICY_ENABLED', true),
+  runtimePolicyKeyId: process.env.KODPAUZA_RUNTIME_POLICY_KEY_ID?.trim() || 'kodpauza-runtime-2026-01',
+  runtimePolicyPrivateKeyBase64:
+    process.env.KODPAUZA_RUNTIME_POLICY_PRIVATE_KEY_BASE64?.trim() ?? '',
+  runtimePolicyBlockedTools: csvFromEnv(process.env.KODPAUZA_RUNTIME_POLICY_BLOCKED_TOOLS),
+  runtimePolicyBlockedToolVersions: csvFromEnv(
+    process.env.KODPAUZA_RUNTIME_POLICY_BLOCKED_TOOL_VERSIONS,
+  ),
+  runtimePolicyBlockedSurfaces: csvFromEnv(process.env.KODPAUZA_RUNTIME_POLICY_BLOCKED_SURFACES),
+  runtimePolicyBlockedCampaigns: csvFromEnv(process.env.KODPAUZA_RUNTIME_POLICY_BLOCKED_CAMPAIGNS),
   adServeTtlMs: numberFromEnv('KODPAUZA_AD_SERVE_TTL_MS', 10 * 60 * 1000),
   testAdvertiserCreditKopecks:
     nodeEnv === 'test' ? Number(process.env.KODPAUZA_TEST_ADVERTISER_CREDIT_KOPECKS ?? 0) : 0,
@@ -125,6 +143,21 @@ export function validateRuntimeConfig() {
   ) {
     throw new Error('KODPAUZA_TEST_ADVERTISER_CREDIT_KOPECKS must be a non-negative integer.');
   }
+  if (
+    !Number.isInteger(config.runtimePolicyTtlMs) ||
+    config.runtimePolicyTtlMs < 60_000 ||
+    config.runtimePolicyTtlMs > RUNTIME_POLICY_MAX_TTL_MS
+  ) {
+    throw new Error('KODPAUZA_RUNTIME_POLICY_TTL_MS must be between 60000 and 86400000.');
+  }
+  if (!/^[A-Za-z0-9._-]{1,80}$/.test(config.runtimePolicyVersion)) {
+    throw new Error('KODPAUZA_RUNTIME_POLICY_VERSION is invalid.');
+  }
+  if (!/^[A-Za-z0-9._-]{1,80}$/.test(config.runtimePolicyKeyId)) {
+    throw new Error('KODPAUZA_RUNTIME_POLICY_KEY_ID is invalid.');
+  }
+  validateRuntimePolicyBlockLists();
+  if (config.runtimePolicyPrivateKeyBase64) validateRuntimePolicySigningKey();
   if (
     !Number.isInteger(config.developerPayoutMinKopecks) ||
     !Number.isInteger(config.developerPayoutMaxKopecks) ||
@@ -224,6 +257,9 @@ export function validateRuntimeConfig() {
   if (!config.requireEventSignatures) {
     throw new Error('Event signatures cannot be disabled in production.');
   }
+  if (!config.runtimePolicyPrivateKeyBase64) {
+    throw new Error('KODPAUZA_RUNTIME_POLICY_PRIVATE_KEY_BASE64 is required in production.');
+  }
   if (config.allowedOrigins.length === 0) {
     throw new Error('KODPAUZA_ALLOWED_ORIGINS is required in production.');
   }
@@ -247,6 +283,46 @@ export function validateRuntimeConfig() {
     if (url.protocol !== 'https:' && !(config.allowInsecureLocalhost && local)) {
       throw new Error(`Production URL must use HTTPS: ${value}`);
     }
+  }
+}
+
+function validateRuntimePolicyBlockLists(): void {
+  if (!config.runtimePolicyBlockedTools.every((value) => value === 'codex' || value === 'claude')) {
+    throw new Error('KODPAUZA_RUNTIME_POLICY_BLOCKED_TOOLS contains an unknown tool.');
+  }
+  if (
+    !config.runtimePolicyBlockedSurfaces.every(
+      (value) => value === 'codex_vscode' || value === 'claude_code_vscode',
+    )
+  ) {
+    throw new Error('KODPAUZA_RUNTIME_POLICY_BLOCKED_SURFACES contains an unknown surface.');
+  }
+  if (
+    !config.runtimePolicyBlockedToolVersions.every((value) =>
+      /^(codex|claude)@[A-Za-z0-9._+-]{1,80}$/.test(value),
+    )
+  ) {
+    throw new Error('KODPAUZA_RUNTIME_POLICY_BLOCKED_TOOL_VERSIONS is invalid.');
+  }
+  if (
+    !config.runtimePolicyBlockedCampaigns.every((value) => /^[A-Za-z0-9_-]{1,100}$/.test(value))
+  ) {
+    throw new Error('KODPAUZA_RUNTIME_POLICY_BLOCKED_CAMPAIGNS is invalid.');
+  }
+}
+
+function validateRuntimePolicySigningKey(): void {
+  try {
+    const pem = Buffer.from(config.runtimePolicyPrivateKeyBase64, 'base64').toString('utf8');
+    const privateKey = crypto.createPrivateKey(pem);
+    const publicKey = crypto.createPublicKey(privateKey).export({ format: 'der', type: 'spki' });
+    if (publicKey.toString('base64') !== RUNTIME_POLICY_PUBLIC_KEY_DER_BASE64) {
+      throw new Error('key mismatch');
+    }
+  } catch {
+    throw new Error(
+      'KODPAUZA_RUNTIME_POLICY_PRIVATE_KEY_BASE64 is invalid or does not match the extension public key.',
+    );
   }
 }
 
