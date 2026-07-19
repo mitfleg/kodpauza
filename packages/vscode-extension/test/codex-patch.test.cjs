@@ -327,6 +327,41 @@ test('UI-патч Codex принимает только безопасные inl
   assert.equal(result[4], null);
 });
 
+test('служебный canary Codex подтверждает UI без отображения объявления', () => {
+  const token = 'e'.repeat(64);
+  const patched = patchWebviewSource(fixtureWebview(), token);
+  const runtime = patched.slice(0, patched.indexOf('var X=e(r()),Po='));
+  const requests = [];
+  const canary = {
+    active: true,
+    adId: 'house-canary-12345678',
+    campaignId: 'house',
+    text: 'Kodpauza · Зарабатывайте, пока AI работает',
+    advertiserName: 'Kodpauza',
+    format: 'standard',
+    canary: true,
+  };
+  const state = vm.runInNewContext(
+    `${runtime};__kpSetAd(${JSON.stringify(canary)});__kpSnapshot()`,
+    {
+      fetch: (...args) => {
+        requests.push(args);
+        return Promise.resolve({ ok: true });
+      },
+    }
+  );
+
+  assert.equal(state, null);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0][0], /\/visibility\?token=/);
+  assert.deepEqual(JSON.parse(requests[0][1].body), {
+    adId: canary.adId,
+    viewId: requests[0][1].body.match(/"viewId":"([^"]+)"/)[1],
+    visible: true,
+  });
+  assert.match(JSON.parse(requests[0][1].body).viewId, /^kp-canary-/);
+});
+
 test('структурный fallback Codex выводит профиль из переименованных якорей', async (context) => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-patch-'));
   context.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -619,7 +654,7 @@ test('автоматическая проверка обновляет стар�
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 7);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 8);
 });
 
 test('автоматическая проверка переносит патч на новый каталог Codex', async (context) => {

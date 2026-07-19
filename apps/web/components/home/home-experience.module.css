@@ -315,6 +315,7 @@
 }
 
 .codexAdPremium {
+  position: relative;
   width: min(330px, calc(100% - 44px));
   gap: 9px;
   border: 1px solid rgba(215, 158, 54, 0.34);
@@ -324,6 +325,32 @@
   padding: 8px 10px 8px 9px;
   color: #e4d2a1;
   box-shadow: inset 0 0 18px rgba(198, 138, 25, 0.035);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.codexAdPremium::after {
+  position: absolute;
+  z-index: 0;
+  top: -70%;
+  bottom: -70%;
+  left: -42%;
+  width: 30%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 222, 153, 0.13),
+    transparent
+  );
+  content: '';
+  pointer-events: none;
+  transform: skewX(-18deg) translateX(0);
+  animation: premiumAdSheen 4.8s ease-in-out infinite;
+}
+
+.codexAdPremium > * {
+  position: relative;
+  z-index: 1;
 }
 
 .codexAdMark {
@@ -385,6 +412,18 @@
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@keyframes premiumAdSheen {
+  0%,
+  52% {
+    transform: skewX(-18deg) translateX(0);
+  }
+
+  78%,
+  100% {
+    transform: skewX(-18deg) translateX(520%);
+  }
 }
 
 .codexSpace {
@@ -2000,6 +2039,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .codexAdPremium::after {
+    animation: none;
+  }
+
   .storyStep,
   .primaryCta,
   .secondaryCta {

@@ -338,14 +338,13 @@ export class StatusBarAdPresenter implements vscode.Disposable {
         return;
       }
 
-      const nextAd = ad ?? (this.policyAllows(placement, 'house') ? this.houseFallback(placement) : undefined);
-      if (!nextAd) {
+      if (!ad) {
         this.hideItem();
         this.rotationClock.reset();
         this.resumeEmptyAdRetry();
         return;
       }
-      this.currentAd = this.forPresentation(nextAd);
+      this.currentAd = this.forPresentation(ad);
       if (this.patchedUiEnabled) {
         this.item.hide();
       } else if (this.allowStatusBarFallback) {
@@ -460,21 +459,6 @@ export class StatusBarAdPresenter implements vscode.Disposable {
 
   private forPresentation(ad: KodpauzaAd): KodpauzaAd {
     return { ...ad, text: adPresentationText(ad.advertiserName, ad.text) };
-  }
-
-  private houseFallback(placement: AdPlacement): KodpauzaAd {
-    return {
-      adId: `house-fallback-${this.sessionIdValue ?? crypto.randomUUID()}`,
-      campaignId: 'house',
-      text: 'Зарабатывайте, пока AI работает',
-      url: this.api.dashboardUrl,
-      erid: null,
-      advertiserName: 'Kodpauza',
-      durationSec: 1,
-      surface: placement.surface,
-      trackable: false,
-      format: 'standard',
-    };
   }
 
   private resumeEmptyAdRetry(): void {

@@ -153,7 +153,7 @@ test('не повторяет две последние кампании, есл
   presenter.dispose();
 });
 
-test('оставляет house-оффер видимым, когда платной кампании нет', async () => {
+test('скрывает служебный house-оффер, когда платной кампании нет', async () => {
   let requests = 0;
   const api = {
     dashboardUrl: 'https://kodpauza.ru',
@@ -180,10 +180,10 @@ test('оставляет house-оффер видимым, когда платн�
   });
 
   presenter.markPatchedUiVisibility(presenter.ad.adId, 'canary-house-view', true);
-  await waitFor(() => presenter.ad?.adId.startsWith('house-fallback-'), 500);
+  await waitFor(() => presenter.ad === undefined, 500);
   assert.equal(requests, 1);
-  assert.equal(presenter.ad.trackable, false);
-  assert.equal(presenter.ad.text, 'Kodpauza · Зарабатывайте, пока AI работает');
+  assert.equal(presenter.isVisible, false);
+  assert.equal(presenter.isRunning, true);
   presenter.dispose();
 });
 

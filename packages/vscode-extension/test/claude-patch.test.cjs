@@ -102,6 +102,9 @@ test('Claude UI-патч устанавливается, не трогает Com
   assert.match(patchedWebview, /\/visibility\?token=/);
   assert.match(patchedWebview, /\/activity\?token=/);
   assert.match(patchedWebview, /__kpClaudeUseActivity/);
+  assert.match(patchedWebview, /__kpClaudeUseCanary/);
+  assert.match(patchedWebview, /e\?\.canary===!0\?null:e/);
+  assert.match(patchedWebview, /"kp-canary-"\+e\.adId\.slice\(-64\)/);
   assert.match(patchedWebview, /e\.format==="premium"/);
   assert.match(patchedWebview, /"data-kodpauza-ad":""/);
   assert.doesNotMatch(patchedWebview, /Спонсорское предложение/);
@@ -291,7 +294,7 @@ test('Claude UI-патч автоматически обновляет стар�
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 7);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 8);
 });
 
 test('Claude UI-патч принимает новую версию при неизменной структуре цели', async (context) => {
