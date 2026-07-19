@@ -80,8 +80,27 @@ function CodexAdPreview({ format, compact = false }: { format: AdFormat; compact
         <small>13:06</small>
       </div>
       <div className={`${styles.codexAd} ${premium ? styles.codexAdPremium : ''}`}>
-        <strong>Kodpauza</strong>
-        <span>Зарабатывайте, пока AI работает</span>
+        {premium ? (
+          <>
+            <span className={styles.codexAdMark} aria-hidden>
+              K
+            </span>
+            <span className={styles.codexAdPremiumCopy}>
+              <span className={styles.codexAdPremiumMeta}>
+                <strong>Kodpauza</strong>
+                <small>kodpauza.ru</small>
+                <i aria-hidden>↗</i>
+              </span>
+              <span className={styles.codexAdPremiumText}>Зарабатывайте, пока AI работает</span>
+            </span>
+          </>
+        ) : (
+          <span className={styles.codexAdStandard}>
+            <strong>Kodpauza</strong>
+            <i aria-hidden>·</i>
+            <span>Зарабатывайте, пока AI работает</span>
+          </span>
+        )}
       </div>
       <div className={styles.codexSpace} />
       <div className={styles.codexComposer}>
