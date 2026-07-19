@@ -5,8 +5,8 @@ export type UnsupportedVersionAttention = 'new_patch' | 'outdated_tool';
 // packages/vscode-extension. Structurally compatible versions are reported as
 // supported by the extension and never reach this classifier.
 export const latestExactIntegrationVersions: Record<IntegrationTool, string> = {
-  codex: '26.707.91948',
-  claude: '2.1.212',
+  codex: '26.715.31925',
+  claude: '2.1.214',
 };
 
 export function classifyUnsupportedIntegrationVersion(

@@ -9,6 +9,8 @@ const {
   CODEX_26_707_PATCH_PROFILE,
   CODEX_26_707_91948_PATCH_PROFILE,
   CODEX_26_707_SHIMMER_PATCH_PROFILE,
+  CODEX_26_715_31925_PATCH_PROFILE,
+  CODEX_26_715_31925_SHIMMER_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -59,6 +61,30 @@ function latestModernFixtureWebview() {
   return modernFixtureWebview()
     .replace('var $=e(t(),1),Ua=', 'var $=e(t(),1),Wa=')
     .replace('children:Of', 'children:kf');
+}
+
+function codex2715FixtureWebview() {
+  const thinkingLatest = '(0,Q.jsx)(U,{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`})';
+  const exploringLatest = '(0,Q.jsx)(U,{id:`localConversationTurn.exploration.accordion.header.active`,defaultMessage:`Exploring`,description:`Header for the exploration accordion while Codex is listing or reading files`,children:Nr})';
+  const placeholderLatest = '(0,Q.jsx)(U,{..._a.thinking})';
+  return `var X=i(),Z=e(t(),1),Q=n();${[
+    thinkingLatest,
+    thinkingLatest,
+    thinkingLatest,
+    exploringLatest,
+    placeholderLatest,
+    placeholderLatest,
+    placeholderLatest
+  ].join(';')}`;
+}
+
+function codex2715FixtureHost() {
+  return 'prefix;let n=[t,r,...wtt,...Stt];suffix';
+}
+
+function codex2715FixtureShimmer() {
+  const fallback = '(0,f.jsx)(i,{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`})';
+  return `var c=r(),l=e(t(),1),u={};function y(r){return r??${fallback}}`;
 }
 
 function inferredFixtureWebview() {
@@ -335,6 +361,33 @@ test('профиль Codex 26.707.91948 патчит обновленные ид
   );
   assert.match(host, /__KODPAUZA_CSP_START__/);
   assert.doesNotThrow(() => new vm.Script(webview));
+});
+
+test('профиль Codex 26.715.31925 патчит UI без удаленной строки reasoning', () => {
+  const token = 'f'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2715FixtureWebview(),
+    token,
+    CODEX_26_715_31925_PATCH_PROFILE
+  );
+  const host = patchHostSource(codex2715FixtureHost(), CODEX_26_715_31925_PATCH_PROFILE);
+  const shimmer = patchThinkingShimmerSource(
+    codex2715FixtureShimmer(),
+    token,
+    CODEX_26_715_31925_SHIMMER_PATCH_PROFILE
+  );
+
+  assert.match(webview, /__KODPAUZA_UI_START__/);
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 8);
+  assert.doesNotMatch(webview, /reasoningItem\.thinking/);
+  assert.match(
+    webview,
+    /localConversationTurn\.exploration\.accordion\.header\.active[^;]+children:Nr/
+  );
+  assert.match(host, /__KODPAUZA_CSP_START__/);
+  assert.match(shimmer, /__KODPAUZA_UI_START__/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(shimmer));
 });
 
 test('профиль Codex 26.707 патчит и восстанавливает отдельный модуль видимого Thinking', async (context) => {

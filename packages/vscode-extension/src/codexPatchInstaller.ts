@@ -34,6 +34,7 @@ export type CodexPatchProfile = {
   jsxIdentifier: string;
   intlIdentifier: string;
   thinkingCount: number;
+  reasoningCount?: number;
   thinkingDescriptorIdentifier?: string;
   thinkingDescriptorCount?: number;
   exploringChildrenIdentifier: string;
@@ -82,6 +83,26 @@ export const CODEX_26_707_SHIMMER_PATCH_PROFILE: CodexShimmerPatchProfile = {
   intlIdentifier: 'i'
 };
 
+export const CODEX_26_715_31925_PATCH_PROFILE: CodexPatchProfile = {
+  reactAnchor: 'var X=i(),Z=e(t(),1),Q=',
+  reactIdentifier: 'Z',
+  jsxIdentifier: 'Q',
+  intlIdentifier: 'U',
+  thinkingCount: 3,
+  reasoningCount: 0,
+  thinkingDescriptorIdentifier: '_a',
+  thinkingDescriptorCount: 3,
+  exploringChildrenIdentifier: 'Nr',
+  hostAnchor: 'let n=[t,r,...wtt,...Stt];'
+};
+
+export const CODEX_26_715_31925_SHIMMER_PATCH_PROFILE: CodexShimmerPatchProfile = {
+  reactAnchor: 'var c=r(),l=e(t(),1),u=',
+  reactIdentifier: 'l',
+  jsxIdentifier: 'f',
+  intlIdentifier: 'i'
+};
+
 const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
   {
     version: '26.623.141536',
@@ -104,6 +125,14 @@ const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
     patchProfile: CODEX_26_707_91948_PATCH_PROFILE,
     shimmerSha256: '4eebc888d5fed0f4ee4aeba142c6296d32dcb4bbbe136bbb710fdc03a0b00dca',
     shimmerPatchProfile: CODEX_26_707_SHIMMER_PATCH_PROFILE
+  },
+  {
+    version: '26.715.31925',
+    hostSha256: '82c37c10459460bd84f68bc47b77d58dad5a9dda09061e31fc8ecee9d378a827',
+    webviewSha256: 'f63a12ba815cd82719d90eb6a8f570f3598b87bcb3158522187c7a082ba3a465',
+    patchProfile: CODEX_26_715_31925_PATCH_PROFILE,
+    shimmerSha256: 'bc928b184ba150446923e759defc6d04dcb67ca5c2842bad5750224f0e086e4d',
+    shimmerPatchProfile: CODEX_26_715_31925_SHIMMER_PATCH_PROFILE
   }
 ] as const;
 
@@ -704,7 +733,7 @@ export function patchWebviewSource(
     patched,
     reasoningFallback,
     `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${reasoningFallback}})`,
-    1,
+    profile.reasoningCount ?? 1,
     'строка Thinking в блоке рассуждения'
   );
 
@@ -787,6 +816,11 @@ function validatePatchProfile(profile: CodexPatchProfile): void {
     !profile.hostAnchor ||
     !Number.isInteger(profile.thinkingCount) ||
     profile.thinkingCount < 1 ||
+    (profile.reasoningCount !== undefined && (
+      !Number.isInteger(profile.reasoningCount) ||
+      profile.reasoningCount < 0 ||
+      profile.reasoningCount > 1
+    )) ||
     Boolean(profile.thinkingDescriptorIdentifier) !== Boolean(profile.thinkingDescriptorCount) ||
     (profile.thinkingDescriptorCount !== undefined && (
       !Number.isInteger(profile.thinkingDescriptorCount) ||

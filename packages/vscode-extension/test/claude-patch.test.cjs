@@ -8,6 +8,7 @@ const vm = require('node:vm');
 const {
   CLAUDE_2_1_209_PROFILE,
   CLAUDE_2_1_212_PROFILE,
+  CLAUDE_2_1_214_PROFILE,
   ClaudePatchInstaller,
   patchClaudeHostSource,
   patchClaudeWebviewSource
@@ -148,6 +149,20 @@ test('профиль Claude Code 2.1.212 патчит новый CSP-якорь 
     await fs.readFile(path.join(value.extensionPath, 'webview', 'index.js'), 'utf8'),
     value.webviewSource
   );
+});
+
+test('профиль Claude Code 2.1.214 сохраняет проверенную структуру 2.1.212', () => {
+  const token = 'f'.repeat(64);
+  const patchedHost = patchClaudeHostSource(hostSource212, CLAUDE_2_1_214_PROFILE);
+  const patchedWebview = patchClaudeWebviewSource(
+    fixtureWebview(),
+    token,
+    CLAUDE_2_1_214_PROFILE
+  );
+
+  assert.match(patchedHost, /\$\{h\}; connect-src http:\/\/127\.0\.0\.1:37491;/);
+  assert.match(patchedWebview, /__KODPAUZA_CLAUDE_UI_START__/);
+  assert.doesNotThrow(() => new vm.Script(patchedWebview));
 });
 
 test('Claude UI-патч автоматически исправляет частичную установку', async (context) => {

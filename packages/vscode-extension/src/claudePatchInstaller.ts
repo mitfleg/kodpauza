@@ -75,6 +75,10 @@ export const CLAUDE_2_1_212_PROFILE: ClaudePatchProfile = {
   cspFinalIdentifier: 'h'
 };
 
+export const CLAUDE_2_1_214_PROFILE: ClaudePatchProfile = {
+  ...CLAUDE_2_1_212_PROFILE
+};
+
 const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
   {
     version: '2.1.207',
@@ -93,6 +97,12 @@ const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
     hostSha256: '4bf69e72516593859ceb3f520aa510918ea71bc63dec3a2f81816ccda28567d1',
     webviewSha256: 'd02e1ffdb066a69458759262433fc9c972b773e56f99f36c3bf2605749959a76',
     profile: CLAUDE_2_1_212_PROFILE
+  },
+  {
+    version: '2.1.214',
+    hostSha256: '267cbd2f3cea2b5d13a36a70f34c1e0def2c6638e3960c1bdd29e6ec9ce118b3',
+    webviewSha256: '83579b34af4114e1a124cf72c5845205ff49fc52862aec767f1e4bdf920b371e',
+    profile: CLAUDE_2_1_214_PROFILE
   }
 ] as const;
 
