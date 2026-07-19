@@ -9,9 +9,9 @@ import {
 } from '@/lib/structured-data';
 
 export const metadata: Metadata = buildPublicMetadata({
-  title: 'Kodpauza — реклама в Codex и Claude Code',
+  title: 'Kodpauza — доход во время работы Codex и Claude Code',
   description:
-    'Нативная реклама во время ожидания Codex и Claude Code. Разработчики получают 50% стоимости подтвержденных показов, рекламодатели — доступ к технической аудитории.',
+    'Установите Kodpauza для VS Code и получайте 50% стоимости подтвержденных показов, пока Codex или Claude Code готовит ответ.',
   path: '/',
 });
 

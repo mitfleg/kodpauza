@@ -4,7 +4,7 @@
   --home-mint: #58d7bd;
   --home-blue: #5a8cff;
   display: grid;
-  gap: 104px;
+  gap: 80px;
   overflow: clip;
 }
 
@@ -12,18 +12,18 @@
   position: relative;
   isolation: isolate;
   display: grid;
-  min-height: 760px;
+  min-height: 680px;
   grid-template-columns: minmax(0, 0.88fr) minmax(390px, 0.72fr);
   grid-template-rows: 1fr auto;
   align-items: center;
-  gap: 24px 56px;
+  gap: 22px 52px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 28px;
   background:
     radial-gradient(circle at 78% 24%, rgba(63, 125, 167, 0.18), transparent 32%),
     linear-gradient(145deg, #101820 0%, #111d27 58%, #0e171f 100%);
-  padding: clamp(48px, 6vw, 84px) clamp(32px, 6vw, 80px) 30px;
+  padding: clamp(44px, 5vw, 70px) clamp(32px, 5vw, 68px) 28px;
   color: #fff;
   box-shadow: 0 30px 90px rgba(16, 24, 32, 0.15);
 }
@@ -99,9 +99,9 @@
 }
 
 .hero h1 {
-  max-width: 650px;
+  max-width: 620px;
   margin: 22px 0 0;
-  font-size: clamp(2.25rem, 3.6vw, 2.95rem);
+  font-size: clamp(2.15rem, 3.35vw, 2.75rem);
   font-weight: 720;
   letter-spacing: -0.04em;
   line-height: 1.04;
@@ -109,22 +109,22 @@
 }
 
 .heroLead {
-  max-width: 600px;
-  margin: 25px 0 0;
+  max-width: 610px;
+  margin: 22px 0 0;
   color: #b8c3cd;
   font-size: clamp(1rem, 1.2vw, 1.12rem);
   line-height: 1.75;
 }
 
 .heroActions {
-  margin-top: 30px;
+  margin-top: 26px;
 }
 
 .trustRow {
   display: flex;
   flex-wrap: wrap;
   gap: 11px 19px;
-  margin-top: 28px;
+  margin-top: 23px;
   color: #9baab7;
   font-size: 12px;
   font-weight: 620;
@@ -194,7 +194,7 @@
 .codexPreview {
   display: flex;
   width: 100%;
-  height: 590px;
+  height: 520px;
   min-width: 0;
   flex-direction: column;
   overflow: hidden;
@@ -285,7 +285,7 @@
   gap: 9px;
   margin: 8px 22px 0;
   padding: 7px 0;
-  color: #5e5e5e;
+  color: #9aa1a8;
   font-size: 13px;
   line-height: 1.35;
 }
@@ -304,7 +304,7 @@
   border: 1px solid #9a6810;
   border-radius: 8px;
   padding: 7px 10px;
-  color: #68645b;
+  color: #d0b878;
   box-shadow: inset 0 0 18px rgba(154, 104, 16, 0.04);
 }
 
@@ -512,6 +512,95 @@
   padding-top: 24px;
 }
 
+.availability {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.72fr) minmax(0, 1.28fr);
+  align-items: center;
+  gap: 28px;
+  border: 1px solid #dce5e9;
+  border-radius: 18px;
+  background: #fff;
+  padding: 20px 22px;
+  box-shadow: 0 14px 40px rgba(16, 24, 32, 0.055);
+}
+
+.availabilityIntro {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 13px;
+}
+
+.availabilityIcon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  place-items: center;
+  border-radius: 11px;
+  background: #eaf7f4;
+  color: #087f6d;
+}
+
+.availabilityIcon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.availabilityIntro > div,
+.storeLinks a span {
+  display: grid;
+  gap: 3px;
+}
+
+.availabilityIntro strong,
+.storeLinks strong {
+  color: var(--home-ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.availabilityIntro small,
+.storeLinks small {
+  color: #7a8894;
+  font-size: 11px;
+}
+
+.storeLinks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.storeLinks a {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #e1e7eb;
+  border-radius: 11px;
+  background: #f8fafb;
+  padding: 13px 14px;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
+}
+
+.storeLinks a:hover {
+  border-color: #bfcbd3;
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.storeLinks svg {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  color: #75838f;
+}
+
 .heroMetrics > div {
   display: flex;
   align-items: center;
@@ -580,7 +669,7 @@
 
 .intro h2 {
   max-width: 720px;
-  font-size: clamp(2rem, 3.3vw, 2.75rem);
+  font-size: clamp(1.9rem, 2.7vw, 2.3rem);
 }
 
 .intro > p:last-child {
@@ -714,7 +803,7 @@
 }
 
 .storyHeading h2 {
-  font-size: clamp(2rem, 3vw, 2.65rem);
+  font-size: clamp(1.9rem, 2.65vw, 2.3rem);
 }
 
 .storyHeading > p:last-child {
@@ -739,10 +828,10 @@
   overflow: hidden;
   border: 1px solid #dfe6ec;
   border-radius: 24px;
-  background:
-    radial-gradient(circle at 50% 38%, rgba(8, 127, 109, 0.1), transparent 38%),
-    #eef2f5;
-  box-shadow: inset 0 1px 0 #fff, 0 20px 70px rgba(16, 24, 32, 0.08);
+  background: radial-gradient(circle at 50% 38%, rgba(8, 127, 109, 0.1), transparent 38%), #eef2f5;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 20px 70px rgba(16, 24, 32, 0.08);
 }
 
 .storyStage::before {
@@ -776,7 +865,9 @@
   border-left: 1px solid #dce4ea;
   padding: 42px 0 42px 38px;
   opacity: 0.42;
-  transition: opacity 240ms ease, border-color 240ms ease;
+  transition:
+    opacity 240ms ease,
+    border-color 240ms ease;
 }
 
 .storyStepActive {
@@ -1369,7 +1460,9 @@
   padding: 0 17px;
   font-size: 12px;
   font-weight: 750;
-  transition: background 180ms ease, transform 180ms ease;
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
 }
 
 .primaryCta {
@@ -1483,6 +1576,11 @@
     padding-left: 0;
   }
 
+  .availability {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
   .storyTrack {
     display: block;
   }
@@ -1570,8 +1668,13 @@
 
   .trustRow {
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 9px;
     margin-top: 23px;
+  }
+
+  .trustRow span:last-child {
+    grid-column: 1 / -1;
   }
 
   .heroVisual {
@@ -1588,7 +1691,7 @@
   }
 
   .codexPreview {
-    height: 500px;
+    height: 400px;
     border-radius: 14px;
   }
 
@@ -1654,24 +1757,41 @@
   }
 
   .heroMetrics {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0;
     margin-top: 8px;
     padding-top: 8px;
   }
 
   .heroMetrics > div {
-    border-right: 0;
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    padding: 13px 0;
+    padding: 13px 10px;
   }
 
-  .heroMetrics > div:last-child {
+  .heroMetrics > div:nth-child(odd) {
+    padding-left: 0;
+  }
+
+  .heroMetrics > div:nth-child(even) {
+    border-right: 0;
+  }
+
+  .heroMetrics > div:nth-last-child(-n + 2) {
     border-bottom: 0;
   }
 
   .heroMetrics small {
     white-space: normal;
+  }
+
+  .availability {
+    gap: 14px;
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .storeLinks {
+    grid-template-columns: 1fr;
   }
 
   .intro {
@@ -1681,7 +1801,7 @@
 
   .intro h2,
   .storyHeading h2 {
-    font-size: 1.85rem;
+    font-size: 1.75rem;
   }
 
   .intro > p:last-child {
