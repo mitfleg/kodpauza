@@ -46,7 +46,7 @@ export function SiteHeader() {
           </span>
           <span className="leading-none">
             <span className="block text-base font-bold text-ink">kodpauza</span>
-            <span className="mt-1 hidden text-[11px] font-medium text-slate-500 sm:block">
+            <span className="mt-1 hidden text-[11px] font-medium text-slate-500 2xl:block">
               рекламная пауза в VS Code
             </span>
           </span>
@@ -68,7 +68,7 @@ export function SiteHeader() {
                   href={item.href}
                   aria-current={active ? 'page' : undefined}
                   className={clsx(
-                    'focus-ring inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-semibold transition',
+                    'focus-ring inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-md px-2.5 text-sm font-semibold transition xl:px-3',
                     active
                       ? 'bg-slate-100 text-ink'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-ink',
@@ -84,7 +84,7 @@ export function SiteHeader() {
           )}
         </nav>
 
-        <div className="ml-auto hidden shrink-0 items-center gap-2 lg:flex">
+        <div className="ml-2 hidden shrink-0 items-center gap-2 border-l border-line pl-4 lg:flex">
           {isLoading ? (
             <div
               className="h-9 w-40 animate-pulse rounded-md bg-slate-100"

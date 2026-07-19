@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Cookie } from 'lucide-react';
+import { Cookie, X } from 'lucide-react';
 import {
   cookieConsentChangedEvent,
   readCookieConsent,
@@ -26,17 +26,28 @@ export function CookieConsentBanner() {
   }
 
   return (
-    <aside className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-3xl rounded-md border border-line bg-white p-4 shadow-2xl sm:p-5" aria-label="Уведомление о cookie">
-      <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700"><Cookie aria-hidden className="h-5 w-5" /></span>
-        <div className="min-w-0 flex-1">
-          <h2 className="font-semibold text-ink">Cookie на сайте</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">Мы используем обязательные cookie для входа и настроек, а Яндекс Метрику — для статистики посещений и улучшения сайта. Аналитику можно отключить в настройках.</p>
-          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center">
-            <button type="button" onClick={acknowledge} className="focus-ring h-10 rounded-md bg-ink px-4 text-sm font-semibold text-white hover:bg-slate-800">Понятно</button>
-            <Link href="/cookies" className="focus-ring inline-flex h-10 items-center justify-center rounded-md border border-line px-4 text-sm font-semibold text-ink hover:bg-slate-50">Подробнее и настройки</Link>
-          </div>
-        </div>
+    <aside
+      className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-2xl rounded-md border border-line bg-white/95 px-3 py-3 shadow-2xl backdrop-blur sm:px-4"
+      aria-label="Уведомление о cookie"
+    >
+      <div className="flex items-center gap-3">
+        <span className="hidden h-9 w-9 shrink-0 place-items-center rounded-md bg-emerald-50 text-emerald-700 sm:grid">
+          <Cookie aria-hidden className="h-4 w-4" />
+        </span>
+        <p className="min-w-0 flex-1 text-xs leading-5 text-slate-600">
+          Cookie помогают входу и аналитике сайта.{' '}
+          <Link href="/cookies" className="font-semibold text-ink underline underline-offset-2">
+            Настройки
+          </Link>
+        </p>
+        <button
+          type="button"
+          onClick={acknowledge}
+          className="focus-ring inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md bg-ink px-3 text-xs font-semibold text-white hover:bg-slate-800"
+        >
+          <span>Понятно</span>
+          <X aria-hidden className="h-3.5 w-3.5" />
+        </button>
       </div>
     </aside>
   );

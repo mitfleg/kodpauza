@@ -7,20 +7,27 @@ import {
   ArrowRight,
   BadgeRussianRuble,
   BarChart3,
+  Bot,
   Check,
   CheckCircle2,
   Code2,
+  ExternalLink,
   Eye,
   Megaphone,
   MousePointer2,
+  PackageCheck,
   ShieldCheck,
   Sparkles,
-  TimerReset,
 } from 'lucide-react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { HomeActions } from '@/components/home-actions';
+import {
+  EXTENSION_MARKETPLACE_URL,
+  EXTENSION_OPEN_VSX_URL,
+  EXTENSION_VERSION,
+} from '@/lib/extension-release';
 import styles from './home-experience.module.css';
 
 const SignalScene = dynamic(() => import('./signal-scene'), { ssr: false });
@@ -28,27 +35,27 @@ const SignalScene = dynamic(() => import('./signal-scene'), { ssr: false });
 type AdFormat = 'standard' | 'premium';
 
 const metrics = [
-  { icon: Eye, value: '5 секунд', detail: 'до засчитанного показа' },
-  { icon: BadgeRussianRuble, value: '50%', detail: 'доля разработчика' },
-  { icon: ShieldCheck, value: 'Без доступа', detail: 'к коду и запросам' },
-  { icon: TimerReset, value: 'Автоповтор', detail: 'при временном сбое' },
+  { icon: BadgeRussianRuble, value: '50%', detail: 'стоимости показа разработчику' },
+  { icon: Bot, value: '2 инструмента', detail: 'Codex и Claude Code' },
+  { icon: Eye, value: '5 секунд', detail: 'видимости до зачёта' },
+  { icon: ShieldCheck, value: '0 файлов', detail: 'из вашего проекта' },
 ];
 
 const workflow = [
   {
     number: '01',
-    title: 'Рекламодатель создаёт кампанию',
-    text: 'Задаёт текст, ссылку, формат, CPM, бюджет и при необходимости лимит показов.',
+    title: 'Установите расширение',
+    text: 'Kodpauza доступна в Microsoft Marketplace и Open VSX. Установка занимает несколько минут.',
   },
   {
     number: '02',
-    title: 'Объявление проходит модерацию',
-    text: 'Администратор проверяет содержание и запускает кампанию в подключённых интеграциях.',
+    title: 'Работайте с AI как обычно',
+    text: 'Отправляйте задачи в Codex или Claude Code. Kodpauza не читает проекты, промпты и ответы.',
   },
   {
     number: '03',
-    title: 'Результат появляется в кабинетах',
-    text: 'Рекламодатель видит расход и эффективность, разработчик — показы и начисленный доход.',
+    title: 'Получайте начисления',
+    text: 'Короткое объявление появляется только во время ожидания. История показов и доход видны в кабинете.',
   },
 ];
 
@@ -73,8 +80,8 @@ function CodexAdPreview({ format, compact = false }: { format: AdFormat; compact
         <small>13:06</small>
       </div>
       <div className={`${styles.codexAd} ${premium ? styles.codexAdPremium : ''}`}>
-        <strong>Реклама</strong>
-        <span>Платформа для заработка на рекламе</span>
+        <strong>Kodpauza</strong>
+        <span>Зарабатывайте, пока AI работает</span>
       </div>
       <div className={styles.codexSpace} />
       <div className={styles.codexComposer}>
@@ -153,27 +160,27 @@ export function HomeExperience() {
         </div>
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow} data-hero-reveal>
-            <span /> Реклама внутри инструментов разработчика
+            <span /> Расширение для VS Code
           </p>
           <h1 id="hero-title" data-hero-reveal>
-            Монетизация пауз Codex и Claude Code без помех работе
+            Получайте доход, пока Codex и Claude Code готовят ответ
           </h1>
           <p className={styles.heroLead} data-hero-reveal>
-            Kodpauza показывает одну нативную строку, пока Codex или Claude Code готовит ответ.
-            Разработчик получает 50% стоимости каждого засчитанного показа.
+            Kodpauza показывает короткое объявление во время ожидания AI. 50% стоимости
+            подтверждённого показа поступает разработчику.
           </p>
           <div className={styles.heroActions} data-hero-reveal>
             <HomeActions tone="dark" />
           </div>
           <div className={styles.trustRow} data-hero-reveal>
             <span>
-              <CheckCircle2 aria-hidden /> Без доступа к коду
+              <CheckCircle2 aria-hidden /> Бесплатная установка
             </span>
             <span>
-              <CheckCircle2 aria-hidden /> Два формата размещения
+              <CheckCircle2 aria-hidden /> Без доступа к проектам
             </span>
             <span>
-              <CheckCircle2 aria-hidden /> Прозрачные начисления
+              <CheckCircle2 aria-hidden /> Выплаты от 300 ₽
             </span>
           </div>
         </div>
@@ -215,22 +222,50 @@ export function HomeExperience() {
         </div>
       </section>
 
+      <section className={styles.availability} aria-label="Где доступна Kodpauza" data-reveal>
+        <div className={styles.availabilityIntro}>
+          <span className={styles.availabilityIcon}>
+            <PackageCheck aria-hidden />
+          </span>
+          <div>
+            <strong>Версия {EXTENSION_VERSION} уже доступна</strong>
+            <small>Устанавливайте из привычного каталога расширений</small>
+          </div>
+        </div>
+        <div className={styles.storeLinks}>
+          <a href={EXTENSION_MARKETPLACE_URL} target="_blank" rel="noreferrer">
+            <span>
+              <strong>Microsoft Marketplace</strong>
+              <small>для Visual Studio Code</small>
+            </span>
+            <ExternalLink aria-hidden />
+          </a>
+          <a href={EXTENSION_OPEN_VSX_URL} target="_blank" rel="noreferrer">
+            <span>
+              <strong>Open VSX Registry</strong>
+              <small>открытый каталог расширений</small>
+            </span>
+            <ExternalLink aria-hidden />
+          </a>
+        </div>
+      </section>
+
       <section className={styles.intro} data-reveal>
-        <p className={styles.sectionLabel}>Встроено в рабочий процесс</p>
-        <h2>Одна строка в естественной паузе, а не отдельный рекламный экран</h2>
+        <p className={styles.sectionLabel}>Как выглядит показ</p>
+        <h2>Объявление появляется там, где вы уже ждёте ответ</h2>
         <p>
-          Формат повторяет реальное отображение в Codex: текст появляется внутри диалога и не
-          перекрывает код, запрос или элементы управления.
+          Никаких всплывающих окон и отдельных экранов. Одна короткая строка внутри статуса AI
+          исчезает, когда задача завершена.
         </p>
       </section>
 
       <section className={styles.formatsSection} aria-labelledby="formats-title">
         <div className={styles.storyHeading} data-reveal>
           <p className={styles.sectionLabel}>Форматы размещения</p>
-          <h2 id="formats-title">Стандартный и премиальный</h2>
+          <h2 id="formats-title">Спокойный формат без баннерной слепоты</h2>
           <p>
-            Оба варианта показаны интерфейсом, собранным по текущему виду интеграции, без
-            использования скриншотов.
+            Макет ниже повторяет реальное расположение объявления в рабочем интерфейсе. Текст не
+            перекрывает запрос, ответ или элементы управления.
           </p>
         </div>
         <div className={styles.formatGrid}>
@@ -262,7 +297,7 @@ export function HomeExperience() {
       <section className={styles.workflowSection} aria-labelledby="workflow-title">
         <div className={styles.storyHeading} data-reveal>
           <p className={styles.sectionLabel}>Как работает платформа</p>
-          <h2 id="workflow-title">От объявления до понятного результата</h2>
+          <h2 id="workflow-title">Три шага до первого начисления</h2>
         </div>
         <div className={styles.workflowGrid}>
           {workflow.map((item) => (
@@ -331,18 +366,18 @@ export function HomeExperience() {
       <section className={styles.finalCta} data-reveal>
         <div>
           <p className={styles.sectionLabel}>Начать просто</p>
-          <h2>Один аккаунт — и первый шаг уже сделан</h2>
+          <h2>Попробуйте Kodpauza в следующей AI-сессии</h2>
           <p>
-            Разработчик подключает расширение, рекламодатель создаёт кампанию и отслеживает
-            результат.
+            Установите расширение, войдите в аккаунт и продолжайте пользоваться Codex или Claude
+            Code как обычно.
           </p>
         </div>
         <div className={styles.finalActions}>
-          <Link href="/register" className={styles.primaryCta}>
-            Создать аккаунт <ArrowRight aria-hidden />
+          <Link href="/install" className={styles.primaryCta}>
+            Установить бесплатно <ArrowRight aria-hidden />
           </Link>
-          <Link href="/docs" className={styles.secondaryCta}>
-            Посмотреть документацию
+          <Link href="/for-advertisers" className={styles.secondaryCta}>
+            Разместить рекламу
           </Link>
         </div>
         <MousePointer2 aria-hidden className={styles.ctaPointer} />

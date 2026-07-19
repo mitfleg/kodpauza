@@ -17,7 +17,10 @@ export function HomeActions({ tone = 'light' }: HomeActionsProps) {
   if (isLoading) {
     return (
       <div
-        className={clsx('h-11 w-72 animate-pulse rounded-md', dark ? 'bg-white/15' : 'bg-slate-200')}
+        className={clsx(
+          'h-11 w-72 animate-pulse rounded-md',
+          dark ? 'bg-white/15' : 'bg-slate-200',
+        )}
         aria-label="Проверяем сессию"
       />
     );
@@ -30,9 +33,7 @@ export function HomeActions({ tone = 'light' }: HomeActionsProps) {
           href={roleHome[user.role]}
           className={clsx(
             'focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition',
-            dark
-              ? 'bg-white text-ink hover:bg-slate-100'
-              : 'bg-ink text-white hover:bg-slate-800',
+            dark ? 'bg-white text-ink hover:bg-slate-100' : 'bg-ink text-white hover:bg-slate-800',
           )}
         >
           Открыть мой кабинет
@@ -58,17 +59,17 @@ export function HomeActions({ tone = 'light' }: HomeActionsProps) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row">
       <Link
-        href="/register"
+        href="/install"
         className={clsx(
           'focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-md px-5 text-sm font-semibold transition',
           dark ? 'bg-white text-ink hover:bg-slate-100' : 'bg-ink text-white hover:bg-slate-800',
         )}
       >
-        Создать аккаунт
+        Установить бесплатно
         <ArrowRight aria-hidden className="h-4 w-4" />
       </Link>
       <Link
-        href="/login"
+        href="/for-advertisers"
         className={clsx(
           'focus-ring inline-flex h-11 items-center justify-center rounded-md border px-5 text-sm font-semibold transition',
           dark
@@ -76,7 +77,7 @@ export function HomeActions({ tone = 'light' }: HomeActionsProps) {
             : 'border-line bg-white text-ink hover:bg-slate-50',
         )}
       >
-        Войти
+        Запустить рекламу
       </Link>
     </div>
   );
