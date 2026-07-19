@@ -29,6 +29,30 @@ function fixtureHost() {
   return 'prefix;let n=[t,r,...b8e,...v8e];suffix';
 }
 
+function renderInjectedAd(ad) {
+  const patched = patchWebviewSource(fixtureWebview(), 'e'.repeat(64));
+  const start = patched.indexOf('function __kpAdMessage');
+  const end = patched.indexOf('/*__KODPAUZA_UI_END__*/', start);
+  const clicks = [];
+  const element = (type, props) => ({ type, props });
+  const context = {
+    X: {
+      useRef: () => ({ current: null }),
+      useEffect: () => undefined
+    },
+    Y: { jsx: element, jsxs: element },
+    __kpUseActivity: () => undefined,
+    __kpUseAd: () => ad,
+    __kpObserveVisibility: () => undefined,
+    __kpOpenAd: (value) => clicks.push(value)
+  };
+  const node = vm.runInNewContext(
+    `${patched.slice(start, end)};__kpAdMessage({fallback:null})`,
+    context
+  );
+  return { node, clicks };
+}
+
 function modernFixtureWebview() {
   const thinkingModern = '(0,Q.jsx)(Y,{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`})';
   const reasoningModern = '(0,Q.jsx)(Y,{id:`reasoningItem.thinking`,defaultMessage:`Thinking`,description:`Message shown when AI is currently thinking`})';
@@ -152,11 +176,18 @@ test('патч заменяет активные ожидания, сохран�
   assert.doesNotMatch(patchedWebview, /children:"Реклама"/);
   assert.doesNotMatch(patchedWebview, /linear-gradient/);
   assert.doesNotMatch(patchedWebview, /Спонсорское предложение/);
+  assert.doesNotMatch(patchedWebview, /Премиум/);
+  assert.match(patchedWebview, /background:"rgba\(245,158,11,\.10\)"/);
+  assert.match(patchedWebview, /borderLeft:"3px solid rgba\(245,158,11,\.78\)"/);
+  assert.match(patchedWebview, /borderRadius:"7px"/);
+  assert.match(patchedWebview, /width:"21px",height:"21px"/);
+  assert.match(patchedWebview, /children:t\.advertiserName/);
+  assert.match(patchedWebview, /children:"↗"/);
   assert.match(patchedWebview, /width:"14px",height:"14px"/);
   assert.match(patchedWebview, /data:image\\\/\(\?:png\|jpeg\|webp\)/);
   assert.match(patchedWebview, /data:image\/svg\+xml,/);
   assert.match(patchedWebview, /<foreignObject/);
-  assert.match(patchedWebview, /borderBottom:o\?/);
+  assert.match(patchedWebview, /borderBottom:"1px solid rgba\(148,163,184,\.34\)"/);
   assert.equal((patchedWebview.match(/__kpAdMessage/g) ?? []).length, 7);
   assert.doesNotThrow(() => new vm.Script(patchedWebview));
 
@@ -168,6 +199,63 @@ test('патч заменяет активные ожидания, сохран�
   assert.equal(restored.changed, true);
   assert.equal(await fs.readFile(hostPath, 'utf8'), hostSource);
   assert.equal(await fs.readFile(webviewPath, 'utf8'), webviewSource);
+});
+
+test('premium Codex рендерится отдельной компактной бренд-карточкой', () => {
+  const ad = {
+    adId: 'premium-1',
+    format: 'premium',
+    advertiserName: 'Acme',
+    text: 'Acme · Быстрые серверы для разработки',
+    domain: 'acme.dev',
+    iconUrl: null
+  };
+  const { node, clicks } = renderInjectedAd(ad);
+
+  assert.equal(node.props.role, 'link');
+  assert.equal(node.props.tabIndex, 0);
+  assert.equal(node.props.style.background, 'rgba(245,158,11,.10)');
+  assert.equal(node.props.style.borderLeft, '3px solid rgba(245,158,11,.78)');
+  assert.equal(node.props.style.maxWidth, '100%');
+  assert.equal(node.props.style.minWidth, 0);
+  assert.equal(node.props.style.overflow, 'hidden');
+  assert.equal(node.props.children[0].props.style.width, '21px');
+
+  const content = node.props.children[1];
+  const header = content.props.children[0];
+  assert.equal(header.props.children[0].props.children, 'Acme');
+  assert.equal(header.props.children[1].props.children, 'acme.dev');
+  assert.equal(content.props.children[1].props.children, 'Быстрые серверы для разработки');
+  assert.equal(node.props.children[2].props.children, '↗');
+  assert.doesNotMatch(node.props.title, /Реклама|Премиум|Спонсорское предложение/);
+
+  let prevented = false;
+  let stopped = false;
+  node.props.onKeyDown({
+    key: 'Enter',
+    preventDefault: () => { prevented = true; },
+    stopPropagation: () => { stopped = true; }
+  });
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+  assert.deepEqual(clicks, [ad]);
+});
+
+test('standard Codex сохраняет прежний однострочный формат', () => {
+  const { node } = renderInjectedAd({
+    adId: 'standard-1',
+    format: 'standard',
+    advertiserName: 'Acme',
+    text: 'Acme · Быстрые серверы для разработки',
+    domain: 'acme.dev',
+    iconUrl: null
+  });
+
+  assert.equal(node.props.className, 'inline-flex max-w-full min-w-0 items-center gap-1.5');
+  assert.equal(node.props.style.borderBottom, '1px solid rgba(148,163,184,.34)');
+  assert.equal(node.props.style.background, undefined);
+  assert.equal(node.props.children[0].props.style.width, '14px');
+  assert.equal(node.props.children[1].props.children, 'Acme · Быстрые серверы для разработки');
 });
 
 test('патч принимает новую версию Codex при неизменной структуре цели', async (context) => {
@@ -217,7 +305,7 @@ test('патч Codex fail-closed отклоняет измененную цел�
   assert.equal(await fs.readFile(webviewPath, 'utf8'), changed);
 });
 
-test('UI-патч Codex принимает только безопасные inline-иконки', () => {
+test('UI-патч Codex принимает только безопасные inline-иконки и домены', () => {
   const token = 'e'.repeat(64);
   const patched = patchWebviewSource(fixtureWebview(), token);
   const originalAnchor = 'var X=e(r()),Po=';
@@ -230,11 +318,13 @@ test('UI-патч Codex принимает только безопасные inl
     '<svg xmlns="http://www.w3.org/2000/svg"><image href="https://tracker.example/pixel"/></svg>'
   )}`;
   const result = vm.runInNewContext(
-    `${runtime};[__kpSafeIcon(${JSON.stringify(safeSvg)}),__kpSafeIcon(${JSON.stringify(remoteIcon)}),__kpSafeIcon(${JSON.stringify(unsafeSvg)})]`
+    `${runtime};[__kpSafeIcon(${JSON.stringify(safeSvg)}),__kpSafeIcon(${JSON.stringify(remoteIcon)}),__kpSafeIcon(${JSON.stringify(unsafeSvg)}),__kpSafeDomain("acme.dev"),__kpSafeDomain("acme.dev/path")]`
   );
   assert.equal(result[0], safeSvg);
   assert.equal(result[1], null);
   assert.equal(result[2], null);
+  assert.equal(result[3], 'acme.dev');
+  assert.equal(result[4], null);
 });
 
 test('структурный fallback Codex выводит профиль из переименованных якорей', async (context) => {
@@ -529,7 +619,7 @@ test('автоматическая проверка обновляет стар�
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 6);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 7);
 });
 
 test('автоматическая проверка переносит патч на новый каталог Codex', async (context) => {

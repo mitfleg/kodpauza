@@ -37,6 +37,31 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
 }
 
+function renderPatchedAd(ad) {
+  const token = 'd'.repeat(64);
+  const patched = patchClaudeWebviewSource(fixtureWebview(), token, profile);
+  const runtime = patched.slice(
+    patched.indexOf('/*__KODPAUZA_CLAUDE_UI_START__'),
+    patched.indexOf('function oQe')
+  );
+  const requests = [];
+  const context = {
+    fetch: (...args) => {
+      requests.push(args);
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(null) });
+    },
+    ne: (initial) => [initial, () => {}],
+    de: () => {},
+    E: (type, properties) => ({ type, ...properties }),
+    b: (type, properties) => ({ type, ...properties })
+  };
+  vm.runInNewContext(
+    `${runtime};globalThis.__rendered=__kpClaudeAdLink({ad:${JSON.stringify(ad)}})`,
+    context
+  );
+  return { rendered: context.__rendered, requests };
+}
+
 async function fixture(context, options = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'kodpauza-claude-patch-'));
   context.after(() => fs.rm(root, { recursive: true, force: true }));
@@ -81,13 +106,17 @@ test('Claude UI-патч устанавливается, не трогает Com
   assert.match(patchedWebview, /"data-kodpauza-ad":""/);
   assert.doesNotMatch(patchedWebview, /Спонсорское предложение/);
   assert.match(patchedWebview, /__kpClaudeSafeIcon/);
+  assert.match(patchedWebview, /__kpClaudeSafeDomain/);
   assert.match(patchedWebview, /width:"14px"/);
   assert.match(patchedWebview, /width:"100%",maxWidth:"100%"/);
-  assert.match(patchedWebview, /borderLeft:a\?"2px solid/);
+  assert.match(patchedWebview, /"data-kodpauza-format":"premium"/);
+  assert.match(patchedWebview, /gridTemplateColumns:"22px minmax\(0,1fr\) auto"/);
+  assert.match(patchedWebview, /borderLeft:"3px solid rgba\(245,158,11,.78\)"/);
+  assert.match(patchedWebview, /background:"rgba\(245,158,11,.09\)"/);
+  assert.match(patchedWebview, /children:"↗"/);
   assert.match(patchedWebview, /e\.advertiserName/);
   assert.match(patchedWebview, /e\.domain/);
-  assert.doesNotMatch(patchedWebview, /children:"Реклама"/);
-  assert.doesNotMatch(patchedWebview, /Премиальная реклама Kodpauza/);
+  assert.doesNotMatch(patchedWebview, /Реклама|Премиум|Спонсорское предложение/);
   assert.doesNotMatch(patchedWebview, /linear-gradient/);
   assert.doesNotMatch(patchedWebview, /https\?:\/\//);
   assert.doesNotThrow(() => new vm.Script(patchedWebview));
@@ -119,6 +148,77 @@ test('UI-патч Claude принимает только безопасные in
   assert.equal(result[0], safeSvg);
   assert.equal(result[1], null);
   assert.equal(result[2], null);
+});
+
+test('premium Claude отображается отдельной компактной бренд-карточкой', () => {
+  const { rendered, requests } = renderPatchedAd({
+    active: true,
+    adId: 'premium-ad',
+    format: 'premium',
+    advertiserName: 'Acme Cloud',
+    domain: 'acme.example',
+    text: 'Acme Cloud · Серверы для быстрого старта',
+    iconUrl: null
+  });
+
+  assert.equal(rendered['data-kodpauza-ad'], '');
+  assert.equal(rendered['data-kodpauza-format'], 'premium');
+  assert.equal(rendered.role, 'link');
+  assert.equal(rendered.tabIndex, 0);
+  assert.equal(typeof rendered.onClick, 'function');
+  assert.equal(typeof rendered.onKeyDown, 'function');
+  assert.equal(rendered.style.display, 'grid');
+  assert.equal(rendered.style.gridTemplateColumns, '22px minmax(0,1fr) auto');
+  assert.equal(rendered.style.maxWidth, '100%');
+  assert.equal(rendered.style.minWidth, 0);
+  assert.equal(rendered.style.background, 'rgba(245,158,11,.09)');
+  assert.equal(rendered.style.borderLeft, '3px solid rgba(245,158,11,.78)');
+  assert.equal(rendered.style.borderRadius, '7px');
+
+  const [brand, copy, arrow] = rendered.children;
+  assert.equal(brand.style.width, '22px');
+  assert.equal(brand.style.height, '22px');
+  assert.equal(brand.children[1].children, 'A');
+  assert.equal(copy.style.minWidth, 0);
+  assert.equal(copy.children[0].children[0].children, 'Acme Cloud');
+  assert.equal(copy.children[0].children[1].children, 'acme.example');
+  assert.equal(copy.children[1].children, 'Серверы для быстрого старта');
+  assert.equal(arrow.children, '↗');
+  assert.equal(arrow['aria-hidden'], 'true');
+
+  let prevented = false;
+  let stopped = false;
+  rendered.onKeyDown({
+    key: 'Enter',
+    preventDefault: () => { prevented = true; },
+    stopPropagation: () => { stopped = true; }
+  });
+  assert.equal(prevented, true);
+  assert.equal(stopped, true);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0][0], /\/click\?token=/);
+  assert.equal(requests[0][1].body, 'premium-ad');
+});
+
+test('standard Claude сохраняет прежний однострочный формат, а небезопасный domain скрывается', () => {
+  const { rendered } = renderPatchedAd({
+    active: true,
+    adId: 'standard-ad',
+    format: 'standard',
+    advertiserName: 'Acme',
+    domain: 'bad..example',
+    text: 'Обычное объявление',
+    iconUrl: 'https://tracker.example/icon.png'
+  });
+
+  assert.equal(rendered['data-kodpauza-format'], undefined);
+  assert.equal(rendered.style.display, 'inline-flex');
+  assert.equal(rendered.style.gap, '6px');
+  assert.equal(rendered.style.border, undefined);
+  assert.equal(rendered.children[0].style.width, '14px');
+  assert.equal(rendered.children[0].children[1].children, 'A');
+  assert.equal(rendered.children[1].children, 'Обычное объявление');
+  assert.doesNotMatch(rendered.title, /bad\.\.example/);
 });
 
 test('профиль Claude Code 2.1.212 патчит новый CSP-якорь и полностью откатывается', async (context) => {
@@ -191,7 +291,7 @@ test('Claude UI-патч автоматически обновляет стар�
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 6);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 7);
 });
 
 test('Claude UI-патч принимает новую версию при неизменной структуре цели', async (context) => {

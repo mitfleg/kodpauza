@@ -282,7 +282,6 @@
   width: fit-content;
   max-width: calc(100% - 44px);
   align-items: center;
-  gap: 9px;
   margin: 8px 22px 0;
   padding: 7px 0;
   color: #9aa1a8;
@@ -290,22 +289,102 @@
   line-height: 1.35;
 }
 
-.codexAd strong {
-  flex: none;
-  font-weight: 750;
+.codexAdStandard {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+  white-space: nowrap;
 }
 
-.codexAd span {
-  overflow-wrap: anywhere;
-  font-weight: 560;
+.codexAdStandard strong {
+  flex: none;
+  color: #aeb4ba;
+  font-weight: 720;
+}
+
+.codexAdStandard > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 540;
+}
+
+.codexAdStandard i {
+  color: #676e75;
+  font-style: normal;
 }
 
 .codexAdPremium {
-  border: 1px solid #9a6810;
-  border-radius: 8px;
-  padding: 7px 10px;
-  color: #d0b878;
-  box-shadow: inset 0 0 18px rgba(154, 104, 16, 0.04);
+  width: min(330px, calc(100% - 44px));
+  gap: 9px;
+  border: 1px solid rgba(215, 158, 54, 0.34);
+  border-left: 2px solid rgba(236, 180, 69, 0.82);
+  border-radius: 9px;
+  background: rgba(154, 104, 16, 0.12);
+  padding: 8px 10px 8px 9px;
+  color: #e4d2a1;
+  box-shadow: inset 0 0 18px rgba(198, 138, 25, 0.035);
+}
+
+.codexAdMark {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgba(244, 199, 109, 0.34);
+  border-radius: 6px;
+  background: rgba(229, 173, 64, 0.14);
+  color: #f3d99d;
+  font-size: 11px;
+  font-weight: 780;
+  line-height: 1;
+}
+
+.codexAdPremiumCopy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 2px;
+}
+
+.codexAdPremiumMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.2;
+}
+
+.codexAdPremiumMeta strong {
+  color: #f2dfad;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.codexAdPremiumMeta small {
+  overflow: hidden;
+  color: rgba(224, 202, 151, 0.62);
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codexAdPremiumMeta i {
+  margin-left: auto;
+  color: rgba(242, 218, 163, 0.76);
+  font-size: 11px;
+  font-style: normal;
+}
+
+.codexAdPremiumText {
+  overflow: hidden;
+  color: #d8c79f;
+  font-size: 11px;
+  font-weight: 560;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .codexSpace {
@@ -1721,6 +1800,10 @@
     max-width: calc(100% - 28px);
     margin-inline: 14px;
     font-size: 11px;
+  }
+
+  .codexAdPremium {
+    width: min(330px, calc(100% - 28px));
   }
 
   .codexComposer {
