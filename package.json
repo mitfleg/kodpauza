@@ -10,6 +10,7 @@
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm --filter @kodpauza/api test && pnpm --filter @kodpauza/shared test",
+    "test:installers": "node scripts/test-one-command-installer.cjs",
     "lint": "pnpm -r lint",
     "format": "prettier --write .",
     "smoke:api": "tsx scripts/smoke-api.ts",

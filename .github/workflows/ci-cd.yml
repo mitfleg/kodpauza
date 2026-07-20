@@ -68,6 +68,9 @@ jobs:
       - name: Test API and shared package
         run: pnpm test
 
+      - name: Test one-command installers
+        run: pnpm test:installers
+
       - name: Test VS Code extension
         run: pnpm --filter kodpauza-vscode test
 

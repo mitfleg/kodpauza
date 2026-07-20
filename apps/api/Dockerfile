@@ -13,9 +13,17 @@ COPY tsconfig.base.json prisma.config.ts ./
 COPY prisma prisma
 COPY apps/api apps/api
 COPY packages/shared packages/shared
-RUN pnpm db:generate && pnpm --filter @kodpauza/shared build && pnpm --filter @kodpauza/api build
+COPY packages/vscode-extension packages/vscode-extension
+RUN pnpm db:generate \
+  && pnpm --filter @kodpauza/shared build \
+  && pnpm --filter kodpauza-vscode package:vsix \
+  && pnpm --filter @kodpauza/api build
 RUN pnpm --filter @kodpauza/api deploy --prod /prod/api \
   && cp -R prisma /prod/api/prisma \
+  && mkdir -p /prod/api/artifacts \
+  && cp packages/vscode-extension/dist/kodpauza.vsix /prod/api/artifacts/kodpauza.vsix \
+  && node -p "require('./packages/vscode-extension/package.json').version" \
+    > /prod/api/artifacts/kodpauza-version.txt \
   && cd /prod/api \
   && ./node_modules/.bin/prisma generate --schema prisma/schema.prisma
 

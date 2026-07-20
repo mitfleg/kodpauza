@@ -30,6 +30,7 @@ import {
   type RuntimePolicySurface,
 } from './runtimePolicy';
 import { runtimeReloadDecision } from './runtimeWatchdog';
+import { ExtensionUpdater } from './extensionUpdater';
 
 type CommandHandler = (...args: unknown[]) => void | Promise<void>;
 type IntegrationDetection = CodexDetection;
@@ -110,6 +111,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   const outbox = new TelemetryOutbox(api, state);
   const clientVersion = String(context.extension.packageJSON.version ?? '0.0.0');
+  const extensionUpdater = new ExtensionUpdater(context, api, clientVersion);
   const codexPresenter = new StatusBarAdPresenter(
     api,
     state,
@@ -822,6 +824,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       );
     }),
     register('kodpauza.openDashboard', async () => openExternal(api.dashboardUrl)),
+    register('kodpauza.checkForUpdates', async () => extensionUpdater.check(true)),
     register('kodpauza.openAd', async () => {
       const presenter = [claudePresenter, codexPresenter].find(
         (candidate) => candidate.isVisible && candidate.ad,
@@ -849,6 +852,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   }
 
   outbox.start();
+  extensionUpdater.start();
   await reconcileIntegration();
   await reportDetectedVersions();
   await reportInstallHeartbeat();

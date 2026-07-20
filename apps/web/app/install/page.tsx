@@ -1,44 +1,67 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
+  Check,
   CheckCircle2,
   Code2,
   Download,
   ExternalLink,
   KeyRound,
-  MousePointer2,
+  MonitorCog,
   RefreshCw,
+  Search,
   ShieldCheck,
+  Terminal,
 } from 'lucide-react';
-import { PageShell } from '@/components/page-shell';
+import { InstallerCommandCard } from '@/components/installer-command-card';
 import { JsonLd } from '@/components/json-ld';
 import { MetrikaGoalLink } from '@/components/metrika-goal-link';
+import { PageShell } from '@/components/page-shell';
 import { buildPublicMetadata } from '@/lib/seo';
 import { breadcrumbJsonLd, softwareApplicationJsonLd } from '@/lib/structured-data';
-import { EXTENSION_MARKETPLACE_URL, EXTENSION_VERSION } from '@/lib/extension-release';
+import {
+  EXTENSION_MARKETPLACE_URL,
+  EXTENSION_OPEN_VSX_URL,
+  EXTENSION_VERSION,
+} from '@/lib/extension-release';
 
 export const metadata: Metadata = buildPublicMetadata({
-  title: 'Расширение Kodpauza для VS Code',
+  title: 'Установка Kodpauza одной командой',
   description:
-    'Скачайте расширение Kodpauza для Visual Studio Code, подключите Codex и Claude Code и получайте доход за подтвержденные показы рекламы во время ожидания AI.',
+    'Установите Kodpauza в Visual Studio Code и Cursor одной командой. Установщик сам найдет редакторы, подключит автоматические обновления и проверит пакет.',
   path: '/install',
 });
 
-const installSteps = [
+const installerActions = [
   {
-    icon: Download,
-    title: 'Скачайте пакет',
-    text: 'Нажмите «Скачать расширение». Браузер сохранит файл kodpauza.vsix в папку загрузок.',
+    icon: Search,
+    title: 'Найдёт редакторы',
+    text: 'Определит VS Code, Cursor и VSCodium на компьютере.',
   },
   {
-    icon: MousePointer2,
-    title: 'Откройте установку из VSIX',
-    text: 'В VS Code откройте «Расширения», нажмите меню с тремя точками и выберите «Установить из VSIX…».',
+    icon: Download,
+    title: 'Установит актуальную версию',
+    text: 'Сначала использует магазин, а при его недоступности — проверенный VSIX.',
   },
   {
     icon: RefreshCw,
-    title: 'Перезапустите окно VS Code',
-    text: 'После установки нажмите «Перезагрузить окно», если редактор предложит это сделать.',
+    title: 'Сохранит обновления',
+    text: 'Магазин обновит сам, а резервная установка проверит подписанную новую версию.',
+  },
+];
+
+const firstRunSteps = [
+  {
+    title: 'Откройте палитру команд',
+    text: 'Нажмите Ctrl + Shift + P в Windows/Linux или Cmd + Shift + P на macOS.',
+  },
+  {
+    title: 'Введите «Kodpauza: Войти»',
+    text: 'Выберите команду в списке, нажмите Enter и укажите почту и пароль.',
+  },
+  {
+    title: 'Продолжайте работать как обычно',
+    text: 'Kodpauza проверит совместимые Codex и Claude Code и подготовит интеграции.',
   },
 ];
 
@@ -50,184 +73,216 @@ export default function InstallPage() {
           softwareApplicationJsonLd,
           breadcrumbJsonLd([
             { name: 'Главная', path: '/' },
-            { name: 'Расширение для VS Code', path: '/install' },
+            { name: 'Установка', path: '/install' },
           ]),
         ]}
       />
       <PageShell
-        eyebrow="Расширение для VS Code"
-        title="Установите Kodpauza и зарабатывайте во время работы AI"
-        description="Codex и Claude Code продолжают работать как обычно. Kodpauza показывает короткую рекламу только во время ожидания и начисляет деньги за подтвержденный просмотр."
+        eyebrow="Установка за минуту"
+        title="Одна команда — Kodpauza в VS Code и Cursor"
+        description="Без поиска файлов и меню «Установить из VSIX». Скопируйте команду: она найдёт редакторы, установит расширение и подключит автоматические обновления."
+        compact
       >
-        <div className="grid gap-6">
-          <section className="grid gap-6 rounded-md border border-slate-700 bg-ink p-6 text-white shadow-panel lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div>
-              <div className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-md bg-white/10">
-                  <Code2 aria-hidden className="h-6 w-6" />
-                </span>
-                <div>
-                  <h2 className="text-xl font-bold">Kodpauza для Visual Studio Code</h2>
-                  <p className="mt-1 text-sm text-slate-400">
-                    Версия {EXTENSION_VERSION} · VS Code 1.90 и новее
-                  </p>
+        <div className="grid gap-5">
+          <section className="grid gap-5 lg:grid-cols-[minmax(300px,0.72fr)_minmax(480px,1.28fr)] lg:items-stretch">
+            <div className="relative overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50 p-5 sm:p-6">
+              <div
+                aria-hidden
+                className="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-emerald-200/50 blur-3xl"
+              />
+              <div className="relative">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-11 w-11 place-items-center rounded-md bg-white text-mint shadow-sm">
+                    <Code2 aria-hidden className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h2 className="font-bold text-emerald-950">Kodpauza {EXTENSION_VERSION}</h2>
+                    <p className="mt-0.5 text-xs text-emerald-800">
+                      VS Code 1.90+ · Cursor · VSCodium
+                    </p>
+                  </div>
                 </div>
+                <ul className="mt-6 grid gap-3">
+                  {[
+                    'Установит сразу во все найденные редакторы',
+                    'Не попросит sudo или права администратора',
+                    'Не читает проекты, терминал и содержимое файлов',
+                    'Повторный запуск безопасно обновит расширение',
+                    'Сохранит предыдущий пакет для отката при ошибке',
+                  ].map((item) => (
+                    <li key={item} className="flex gap-2.5 text-sm leading-5 text-emerald-950">
+                      <Check aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-mint" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <p className="mt-5 max-w-2xl text-sm leading-6 text-slate-300">
-                Один вход и одно подключение. Дальше расширение автоматически восстанавливает
-                совместимые интеграции, подтверждает реальную видимость рекламы и показывает
-                начисления в кабинете.
-              </p>
             </div>
-            <div className="grid gap-2">
-              <MetrikaGoalLink
-                goal="extension_download"
-                href="/downloads/kodpauza.vsix"
-                download="kodpauza.vsix"
-                className="focus-ring inline-flex h-12 items-center justify-center gap-2 rounded-md bg-white px-5 text-sm font-bold text-ink transition hover:bg-slate-100"
-              >
-                <Download aria-hidden className="h-5 w-5" />
-                Скачать расширение
-              </MetrikaGoalLink>
-              <a
-                href={EXTENSION_MARKETPLACE_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-md border border-white/20 px-4 text-sm font-semibold text-white hover:bg-white/10"
-              >
-                Открыть Marketplace
-                <ExternalLink aria-hidden className="h-4 w-4" />
-              </a>
-            </div>
+
+            <InstallerCommandCard />
           </section>
 
-          <section className="rounded-md border border-blue-200 bg-blue-50 p-5 text-blue-950">
-            <h2 className="font-bold">Как обновляется расширение</h2>
-            <p className="mt-2 text-sm leading-6">
-              При установке из Visual Studio Marketplace VS Code получает новые версии Kodpauza
-              автоматически. Установка из скачанного VSIX не подписывает редактор на обновления:
-              такой пакет нужно обновлять вручную либо затем установить Kodpauza из Marketplace.
-            </p>
-          </section>
-
-          <section aria-labelledby="install-steps-title">
-            <h2 id="install-steps-title" className="text-2xl font-bold text-ink">
-              Установка
-            </h2>
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-              {installSteps.map((step, index) => {
-                const Icon = step.icon;
+          <section
+            aria-labelledby="installer-actions-title"
+            className="rounded-lg border border-line bg-white shadow-sm"
+          >
+            <div className="border-b border-line px-5 py-4">
+              <h2 id="installer-actions-title" className="font-bold text-ink">
+                Что произойдёт после Enter
+              </h2>
+            </div>
+            <div className="grid divide-y divide-line md:grid-cols-3 md:divide-x md:divide-y-0">
+              {installerActions.map((action, index) => {
+                const Icon = action.icon;
                 return (
-                  <article
-                    key={step.title}
-                    className="rounded-md border border-line bg-white p-5 shadow-sm"
-                  >
+                  <article key={action.title} className="p-5">
                     <div className="flex items-center justify-between">
-                      <span className="grid h-10 w-10 place-items-center rounded-md bg-slate-100 text-ink">
-                        <Icon aria-hidden className="h-5 w-5" />
+                      <span className="grid h-9 w-9 place-items-center rounded-md bg-slate-100 text-ink">
+                        <Icon aria-hidden className="h-4 w-4" />
                       </span>
-                      <span className="text-sm font-bold text-slate-400">0{index + 1}</span>
+                      <span className="font-mono text-xs font-semibold text-slate-400">
+                        0{index + 1}
+                      </span>
                     </div>
-                    <h3 className="mt-5 font-semibold text-ink">{step.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">{step.text}</p>
+                    <h3 className="mt-4 text-sm font-bold text-ink">{action.title}</h3>
+                    <p className="mt-1.5 text-sm leading-5 text-slate-600">{action.text}</p>
                   </article>
                 );
               })}
             </div>
           </section>
 
-          <section className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="rounded-md border border-line bg-white shadow-panel">
-              <div className="border-b border-line px-5 py-4">
-                <h2 className="text-lg font-bold text-ink">Первый запуск</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Откройте палитру команд:{' '}
-                  <kbd className="rounded border border-line bg-slate-50 px-1.5 py-0.5 font-mono text-xs text-ink">
-                    Ctrl + Shift + P
-                  </kbd>{' '}
-                  в Windows/Linux или{' '}
-                  <kbd className="rounded border border-line bg-slate-50 px-1.5 py-0.5 font-mono text-xs text-ink">
-                    Cmd + Shift + P
-                  </kbd>{' '}
-                  на macOS.
-                </p>
+          <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="rounded-lg border border-line bg-white shadow-sm">
+              <div className="flex items-center gap-3 border-b border-line px-5 py-4">
+                <span className="grid h-9 w-9 place-items-center rounded-md bg-slate-100 text-ink">
+                  <MonitorCog aria-hidden className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 className="font-bold text-ink">Первый запуск</h2>
+                  <p className="mt-0.5 text-xs text-slate-500">Вход выполняется внутри редактора</p>
+                </div>
               </div>
               <ol className="divide-y divide-line">
-                {[
-                  [
-                    'Откройте команду входа',
-                    'В строке вверху окна введите «Kodpauza: Войти», выберите эту команду в списке и нажмите Enter.',
-                  ],
-                  [
-                    'Введите почту и пароль',
-                    'Сначала укажите почту аккаунта Kodpauza, затем пароль. Оба поля появятся по очереди вверху окна редактора.',
-                  ],
-                  [
-                    'Дождитесь подключения',
-                    'Kodpauza найдет Codex и Claude Code, проверит версии и создаст резервные копии перед изменением файлов.',
-                  ],
-                  [
-                    'Автоматический перезапуск',
-                    'Если файлы изменились, окно редактора перезапустится один раз.',
-                  ],
-                  [
-                    'Отправьте запрос AI',
-                    'Работайте как обычно. Объявление появится внутри активного статуса Codex или Claude Code и исчезнет после ответа.',
-                  ],
-                ].map(([command, text], index) => (
+                {firstRunSteps.map((step, index) => (
                   <li
-                    key={command}
+                    key={step.title}
                     className="grid gap-3 px-5 py-4 sm:grid-cols-[28px_minmax(0,1fr)]"
                   >
                     <span className="grid h-7 w-7 place-items-center rounded-md bg-emerald-50 text-xs font-bold text-mint">
                       {index + 1}
                     </span>
                     <div>
-                      <code className="text-sm font-semibold text-ink">{command}</code>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">{text}</p>
+                      <h3 className="text-sm font-semibold text-ink">{step.title}</h3>
+                      <p className="mt-1 text-sm leading-5 text-slate-600">{step.text}</p>
                     </div>
                   </li>
                 ))}
               </ol>
             </div>
 
-            <aside className="grid gap-4">
-              <div className="rounded-md border border-emerald-200 bg-emerald-50 p-5">
-                <div className="flex items-center gap-2 font-semibold text-emerald-900">
-                  <CheckCircle2 aria-hidden className="h-5 w-5" />
-                  Как проверить
-                </div>
-                <p className="mt-3 text-sm leading-6 text-emerald-900">
-                  Отправьте запрос в Codex или Claude Code и оставьте окно редактора активным пять
-                  секунд. После ответа обновите кабинет разработчика.
-                </p>
-              </div>
-              <div className="rounded-md border border-line bg-white p-5 shadow-sm">
-                <div className="font-semibold text-ink">Если Codex запросит доверие</div>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Запустите <code className="font-mono text-ink">codex</code> в терминале и
-                  выполните <code className="font-mono text-ink">/hooks</code> в Codex CLI. В
-                  боковой панели редактора эта команда не работает.
-                </p>
-              </div>
-              <div className="rounded-md border border-line bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-2 font-semibold text-ink">
+            <aside className="grid content-start gap-3">
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+                <div className="flex items-center gap-2 text-sm font-bold text-emerald-950">
                   <ShieldCheck aria-hidden className="h-5 w-5 text-mint" />
-                  Без доступа к коду
+                  Безопасная установка
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Расширение не читает файлы проекта, терминал, промпты, ответы ИИ или буфер обмена.
+                <p className="mt-2 text-sm leading-5 text-emerald-900">
+                  Основной источник — магазин редактора. Резервный VSIX принимается только после
+                  проверки SHA-256. Следующие резервные обновления дополнительно защищены подписью
+                  Ed25519, и расширение предложит их само.
+                </p>
+                <div className="mt-3 flex gap-3 text-xs font-semibold text-emerald-950">
+                  <a
+                    href="/install.sh"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    install.sh
+                  </a>
+                  <a
+                    href="/install.ps1"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    install.ps1
+                  </a>
+                </div>
+              </div>
+              <div className="rounded-lg border border-line bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2 text-sm font-bold text-ink">
+                  <Terminal aria-hidden className="h-4 w-4" />
+                  Если Codex запросит доверие
+                </div>
+                <p className="mt-2 text-sm leading-5 text-slate-600">
+                  Запустите <code className="font-mono text-ink">codex</code> в терминале и
+                  выполните <code className="font-mono text-ink">/hooks</code>. В боковой панели
+                  редактора эта команда не работает.
                 </p>
               </div>
-              <Link
-                href="/docs"
-                className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink hover:bg-slate-50"
-              >
-                <KeyRound aria-hidden className="h-4 w-4" />
-                Открыть помощь
-                <ExternalLink aria-hidden className="h-4 w-4" />
-              </Link>
             </aside>
+          </section>
+
+          <section className="flex flex-col gap-4 rounded-lg border border-line bg-slate-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-bold text-ink">Нужен другой способ?</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Можно открыть магазин редактора или скачать VSIX вручную.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={EXTENSION_MARKETPLACE_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink hover:bg-slate-100"
+              >
+                Visual Studio Marketplace
+                <ExternalLink aria-hidden className="h-3.5 w-3.5" />
+              </a>
+              <a
+                href={EXTENSION_OPEN_VSX_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink hover:bg-slate-100"
+              >
+                Open VSX
+                <ExternalLink aria-hidden className="h-3.5 w-3.5" />
+              </a>
+              <MetrikaGoalLink
+                goal="extension_download"
+                href="/downloads/kodpauza.vsix"
+                download="kodpauza.vsix"
+                className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink hover:bg-slate-100"
+              >
+                <Download aria-hidden className="h-3.5 w-3.5" />
+                Скачать VSIX
+              </MetrikaGoalLink>
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-3 rounded-lg border border-blue-200 bg-blue-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex gap-3">
+              <CheckCircle2 aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-signal" />
+              <div>
+                <h2 className="text-sm font-bold text-blue-950">
+                  После входа всё подключается автоматически
+                </h2>
+                <p className="mt-1 text-sm leading-5 text-blue-900">
+                  Если потребуется ручная проверка, диагностика покажет конкретную причину и способ
+                  исправления.
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/docs"
+              className="focus-ring inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-blue-300 bg-white px-4 text-xs font-semibold text-blue-950 hover:bg-blue-100"
+            >
+              <KeyRound aria-hidden className="h-3.5 w-3.5" />
+              Открыть помощь
+            </Link>
           </section>
         </div>
       </PageShell>

@@ -48,6 +48,10 @@ export const config = {
   emailVerificationSecret:
     process.env.KODPAUZA_EMAIL_VERIFICATION_SECRET ?? localEmailVerificationSecret,
   dashboardUrl: process.env.KODPAUZA_PUBLIC_DASHBOARD_URL ?? 'http://localhost:3000',
+  publicApiUrl:
+    process.env.KODPAUZA_PUBLIC_API_URL ??
+    (nodeEnv === 'production' ? 'https://api.kodpauza.ru' : 'http://localhost:4000'),
+  extensionArtifactDirectory: process.env.KODPAUZA_EXTENSION_ARTIFACT_DIRECTORY ?? 'artifacts',
   allowedOrigins: csvFromEnv(process.env.KODPAUZA_ALLOWED_ORIGINS),
   trustProxy: process.env.KODPAUZA_TRUST_PROXY === 'true' ? 1 : false,
   localDevelopment: process.env.KODPAUZA_LOCAL_DEVELOPMENT === 'true',
@@ -276,7 +280,7 @@ export function validateRuntimeConfig() {
     throw new Error('Production SMTP transport must require TLS.');
   }
 
-  const urls = [config.dashboardUrl, ...config.allowedOrigins];
+  const urls = [config.dashboardUrl, config.publicApiUrl, ...config.allowedOrigins];
   for (const value of urls) {
     const url = new URL(value);
     const local = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
@@ -330,7 +334,7 @@ function validateLocalDevelopmentConfig() {
   if (!config.allowInsecureLocalhost) {
     throw new Error('KODPAUZA_LOCAL_DEVELOPMENT requires KODPAUZA_ALLOW_INSECURE_LOCALHOST=true.');
   }
-  const urls = [config.dashboardUrl, ...config.allowedOrigins];
+  const urls = [config.dashboardUrl, config.publicApiUrl, ...config.allowedOrigins];
   if (urls.length < 2) throw new Error('Local development requires localhost URLs.');
   for (const value of urls) {
     const url = new URL(value);

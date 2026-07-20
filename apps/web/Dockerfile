@@ -19,7 +19,14 @@ RUN pnpm --filter @kodpauza/shared build
 COPY apps/web apps/web
 RUN mkdir -p apps/web/public/downloads \
   && cp packages/vscode-extension/dist/kodpauza.vsix apps/web/public/downloads/kodpauza.vsix \
-  && test -s apps/web/public/downloads/kodpauza.vsix
+  && node -p "require('./packages/vscode-extension/package.json').version" \
+    > apps/web/public/downloads/kodpauza-version.txt \
+  && sha256sum apps/web/public/downloads/kodpauza.vsix \
+    | sed 's#  .*#  kodpauza.vsix#' \
+    > apps/web/public/downloads/kodpauza-vsix.sha256 \
+  && test -s apps/web/public/downloads/kodpauza.vsix \
+  && test -s apps/web/public/downloads/kodpauza-vsix.sha256 \
+  && test -s apps/web/public/downloads/kodpauza-version.txt
 
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY

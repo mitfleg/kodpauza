@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { Balance, KodpauzaAd, KodpauzaEvent, KodpauzaEventType, Surface } from './types';
 import { normalizeApiBaseUrl, normalizeExternalUrl } from './urls';
 import type { RuntimePolicyEnvelope } from './runtimePolicy';
+import type { ExtensionUpdateEnvelope } from './extensionUpdate';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_API_BASE_URL = 'https://api.kodpauza.ru';
@@ -217,6 +218,15 @@ export class KodpauzaApiClient {
   async runtimePolicy(): Promise<RuntimePolicyEnvelope> {
     return this.request<RuntimePolicyEnvelope>(
       '/v1/runtime-policy',
+      { method: 'GET' },
+      false,
+      false,
+    );
+  }
+
+  async extensionUpdate(): Promise<ExtensionUpdateEnvelope> {
+    return this.request<ExtensionUpdateEnvelope>(
+      '/v1/extension/update',
       { method: 'GET' },
       false,
       false,

@@ -2,7 +2,7 @@
   "name": "kodpauza-vscode",
   "displayName": "Kodpauza",
   "description": "Зарабатывайте во время работы Codex и Claude Code: Kodpauza показывает короткую рекламу, пока AI выполняет запрос.",
-  "version": "0.7.18",
+  "version": "0.7.19",
   "publisher": "kodpauza",
   "icon": "resources/icon.png",
   "homepage": "https://kodpauza.ru",
@@ -39,6 +39,7 @@
     "onCommand:kodpauza.runDiagnostics",
     "onCommand:kodpauza.showBalance",
     "onCommand:kodpauza.openDashboard",
+    "onCommand:kodpauza.checkForUpdates",
     "onCommand:kodpauza.openAd"
   ],
   "main": "./dist/extension.js",
@@ -97,6 +98,10 @@
       {
         "command": "kodpauza.openDashboard",
         "title": "Kodpauza: Открыть кабинет"
+      },
+      {
+        "command": "kodpauza.checkForUpdates",
+        "title": "Kodpauza: Проверить обновления"
       },
       {
         "command": "kodpauza.openAd",
