@@ -207,7 +207,7 @@ function CampaignModerationDetails({
   const creatives = campaign.creatives?.filter((creative) => creative.enabled) ?? [];
   const visibleCreatives = creatives.length
     ? creatives
-    : [{ id: `${campaign.id}-legacy`, label: 'Основной', text: campaign.text, url: campaign.url }];
+    : [{ id: `${campaign.id}-legacy`, label: 'Вариант 1', text: campaign.text, url: campaign.url }];
   const surfaces = campaign.surfaces?.filter((surface) => surface.enabled) ?? [];
 
   return (
@@ -215,7 +215,7 @@ function CampaignModerationDetails({
       <section className="rounded-md border border-line bg-slate-50 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <div className="text-xs text-slate-500">Компания</div>
+            <div className="text-xs text-slate-500">Рекламодатель</div>
             <div className="mt-1 text-sm font-semibold text-ink">{companyName}</div>
             {showAdvertiserContact ? (
               <div className="mt-0.5 break-all text-xs text-slate-500">
@@ -234,7 +234,7 @@ function CampaignModerationDetails({
                 {creative.label || `Вариант ${index + 1}`}
               </div>
               <p className="mt-1 text-sm leading-6 text-ink">
-                <span className="font-semibold">{companyName}</span>
+                <span className="font-semibold">{campaign.name}</span>
                 <span className="text-slate-400"> · </span>
                 {creative.text}
               </p>

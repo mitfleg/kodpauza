@@ -10,18 +10,8 @@ import { kopecksFromRubles, money, optionalPositiveInteger } from './format';
 import type { AdvertiserStats, ApiError, CampaignForecast } from './types';
 import { Field, inputClass, Message, PrimaryButton, SecondaryButton, WorkSurface } from './ui';
 
-type ExtraCreative = {
-  id: number;
-  label: string;
-  isLabelCustomized: boolean;
-  text: string;
-  url: string;
-};
+type ExtraCreative = { id: number; label: string; text: string; url: string };
 type SurfaceId = 'codex_vscode' | 'claude_code_vscode';
-
-function creativeLabelFromCampaignName(name: string, fallback: string) {
-  return name.trim().slice(0, 40) || fallback;
-}
 
 const surfaceOptions: Array<{ id: SurfaceId; label: string; detail: string }> = [
   { id: 'codex_vscode', label: 'Codex в VS Code', detail: 'Строка ожидания Codex.' },
@@ -81,11 +71,7 @@ export function AdvertiserNewCampaignPanel() {
     const impressionsLimit = optionalPositiveInteger(form.get('impressionsLimit'));
     const erid = String(form.get('erid') ?? '').trim();
     const creatives = [
-      {
-        label: creativeLabelFromCampaignName(campaignName, 'Основной'),
-        text: adText,
-        url: campaignUrl,
-      },
+      { label: 'Вариант 1', text: adText, url: campaignUrl },
       ...extraCreatives.map((creative) => ({
         label: creative.label,
         text: creative.text,
@@ -214,35 +200,11 @@ export function AdvertiserNewCampaignPanel() {
   function addCreative() {
     if (extraCreatives.length >= 2) return;
     const id = nextCreativeId;
-    const fallbackLabel = `Вариант ${String.fromCharCode(65 + id - 1)}`;
     setExtraCreatives((current) => [
       ...current,
-      {
-        id,
-        label: creativeLabelFromCampaignName(campaignName, fallbackLabel),
-        isLabelCustomized: false,
-        text: '',
-        url: '',
-      },
+      { id, label: `Вариант ${id}`, text: '', url: '' },
     ]);
     setNextCreativeId((value) => value + 1);
-  }
-
-  function updateCampaignName(name: string) {
-    setCampaignName(name);
-    setExtraCreatives((current) =>
-      current.map((creative) =>
-        creative.isLabelCustomized
-          ? creative
-          : {
-              ...creative,
-              label: creativeLabelFromCampaignName(
-                name,
-                `Вариант ${String.fromCharCode(65 + creative.id - 1)}`,
-              ),
-            },
-      ),
-    );
   }
 
   function updateExtraCreative(id: number, changes: Partial<ExtraCreative>) {
@@ -264,14 +226,14 @@ export function AdvertiserNewCampaignPanel() {
           className="grid gap-4"
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Название" hint="Видно только вам и администратору.">
+            <Field label="Название в объявлении" hint="Показывается перед текстом, например: KodPauza · Оффер.">
               <input
                 className={inputClass}
                 name="name"
                 value={campaignName}
-                onChange={(event) => updateCampaignName(event.target.value)}
-                maxLength={120}
-                placeholder="Облако для разработчиков"
+                onChange={(event) => setCampaignName(event.target.value)}
+                maxLength={40}
+                placeholder="KodPauza"
                 required
               />
             </Field>
@@ -298,7 +260,7 @@ export function AdvertiserNewCampaignPanel() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-ink">Варианты объявления</p>
-                <p className="mt-0.5 text-xs text-slate-500">До трёх офферов. Статистика будет собираться отдельно по каждому.</p>
+                <p className="mt-0.5 text-xs text-slate-500">До трёх офферов. Метки вариантов нужны только для статистики и не показываются в объявлении.</p>
               </div>
               <SecondaryButton onClick={addCreative} disabled={extraCreatives.length >= 2}>Добавить вариант</SecondaryButton>
             </div>
@@ -307,15 +269,10 @@ export function AdvertiserNewCampaignPanel() {
                 <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto]">
                   <input
                     aria-label="Название варианта"
-                    title="Подставляется из названия кампании, но его можно изменить"
+                    title="Внутренняя метка варианта — видна только в статистике"
                     className={inputClass}
                     value={creative.label}
-                    onChange={(event) =>
-                      updateExtraCreative(creative.id, {
-                        label: event.target.value,
-                        isLabelCustomized: true,
-                      })
-                    }
+                    onChange={(event) => updateExtraCreative(creative.id, { label: event.target.value })}
                     maxLength={40}
                     required
                   />
@@ -342,7 +299,7 @@ export function AdvertiserNewCampaignPanel() {
             <div className={`rounded-md border px-4 py-3 text-white ${format === 'premium' ? 'border-amber-400 bg-slate-900' : 'border-slate-700 bg-ink'}`}>
               <div className="text-xs text-slate-400">Предпросмотр</div>
               <div className="mt-3 flex min-h-6 items-center gap-2 text-sm font-medium">
-                <span className={format === 'premium' ? 'text-amber-300' : 'text-emerald-300'}>{stats?.companyName || 'Название компании'}</span>
+                <span className={format === 'premium' ? 'text-amber-300' : 'text-emerald-300'}>{campaignName || 'Название кампании'}</span>
                 <span aria-hidden className="text-slate-500">·</span>
                 <span className="break-words">{adText || 'Текст объявления'}</span>
               </div>

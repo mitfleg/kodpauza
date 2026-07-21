@@ -104,6 +104,7 @@ describe('shared helpers', () => {
     expect(createCampaignSchema.safeParse({ ...base, erid: '' }).success).toBe(true);
     expect(createCampaignSchema.safeParse({ ...base, erid: '123' }).success).toBe(false);
     expect(createCampaignSchema.safeParse({ ...base, cpmKopecks: 1999 }).success).toBe(false);
+    expect(createCampaignSchema.safeParse({ ...base, name: 'К'.repeat(41) }).success).toBe(false);
     expect(createCampaignSchema.safeParse({ ...base, url: 'file:///tmp/ad' }).success).toBe(false);
     expect(createCampaignSchema.safeParse({ ...base, text: 'Реклама:' }).success).toBe(false);
     expect(

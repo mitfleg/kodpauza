@@ -245,6 +245,7 @@ export function registerAdsRoutes(app: FastifyInstance) {
       url: creative.url,
       erid: campaign.erid,
       advertiserName: campaign.advertiser.companyName,
+      campaignName: campaign.name,
       durationSec: adPolicy.impressionVisibleMs / 1000,
       surface: parsed.data.surface,
       format: campaign.format,
