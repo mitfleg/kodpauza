@@ -10,8 +10,18 @@ import { kopecksFromRubles, money, optionalPositiveInteger } from './format';
 import type { AdvertiserStats, ApiError, CampaignForecast } from './types';
 import { Field, inputClass, Message, PrimaryButton, SecondaryButton, WorkSurface } from './ui';
 
-type ExtraCreative = { id: number; label: string; text: string; url: string };
+type ExtraCreative = {
+  id: number;
+  label: string;
+  isLabelCustomized: boolean;
+  text: string;
+  url: string;
+};
 type SurfaceId = 'codex_vscode' | 'claude_code_vscode';
+
+function creativeLabelFromCampaignName(name: string, fallback: string) {
+  return name.trim().slice(0, 40) || fallback;
+}
 
 const surfaceOptions: Array<{ id: SurfaceId; label: string; detail: string }> = [
   { id: 'codex_vscode', label: 'Codex в VS Code', detail: 'Строка ожидания Codex.' },
@@ -22,6 +32,7 @@ export function AdvertiserNewCampaignPanel() {
   const [stats, setStats] = useState<AdvertiserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [campaignName, setCampaignName] = useState('');
   const [adText, setAdText] = useState('');
   const [format, setFormat] = useState<'standard' | 'premium'>('standard');
   const [baseCpmRubles, setBaseCpmRubles] = useState(300);
@@ -70,7 +81,11 @@ export function AdvertiserNewCampaignPanel() {
     const impressionsLimit = optionalPositiveInteger(form.get('impressionsLimit'));
     const erid = String(form.get('erid') ?? '').trim();
     const creatives = [
-      { label: 'Основной', text: adText, url: campaignUrl },
+      {
+        label: creativeLabelFromCampaignName(campaignName, 'Основной'),
+        text: adText,
+        url: campaignUrl,
+      },
       ...extraCreatives.map((creative) => ({
         label: creative.label,
         text: creative.text,
@@ -125,6 +140,7 @@ export function AdvertiserNewCampaignPanel() {
         hasImpressionsLimit: Boolean(impressionsLimit),
       });
       formElement.reset();
+      setCampaignName('');
       setAdText('');
       setFormat('standard');
       setBaseCpmRubles(300);
@@ -197,11 +213,36 @@ export function AdvertiserNewCampaignPanel() {
 
   function addCreative() {
     if (extraCreatives.length >= 2) return;
+    const id = nextCreativeId;
+    const fallbackLabel = `Вариант ${String.fromCharCode(65 + id - 1)}`;
     setExtraCreatives((current) => [
       ...current,
-      { id: nextCreativeId, label: `Вариант ${String.fromCharCode(65 + nextCreativeId - 1)}`, text: '', url: '' },
+      {
+        id,
+        label: creativeLabelFromCampaignName(campaignName, fallbackLabel),
+        isLabelCustomized: false,
+        text: '',
+        url: '',
+      },
     ]);
     setNextCreativeId((value) => value + 1);
+  }
+
+  function updateCampaignName(name: string) {
+    setCampaignName(name);
+    setExtraCreatives((current) =>
+      current.map((creative) =>
+        creative.isLabelCustomized
+          ? creative
+          : {
+              ...creative,
+              label: creativeLabelFromCampaignName(
+                name,
+                `Вариант ${String.fromCharCode(65 + creative.id - 1)}`,
+              ),
+            },
+      ),
+    );
   }
 
   function updateExtraCreative(id: number, changes: Partial<ExtraCreative>) {
@@ -224,7 +265,15 @@ export function AdvertiserNewCampaignPanel() {
         >
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Название" hint="Видно только вам и администратору.">
-              <input className={inputClass} name="name" maxLength={120} placeholder="Облако для разработчиков" required />
+              <input
+                className={inputClass}
+                name="name"
+                value={campaignName}
+                onChange={(event) => updateCampaignName(event.target.value)}
+                maxLength={120}
+                placeholder="Облако для разработчиков"
+                required
+              />
             </Field>
             <Field label="Целевая ссылка" hint="Только HTTPS.">
               <input className={inputClass} value={landingUrl} onChange={(event) => setLandingUrl(event.target.value)} type="url" pattern="https://.*" placeholder="https://example.ru/landing" required />
@@ -256,7 +305,20 @@ export function AdvertiserNewCampaignPanel() {
             {extraCreatives.map((creative) => (
               <div key={creative.id} className="grid gap-3 rounded-md border border-line bg-white p-3">
                 <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto]">
-                  <input aria-label="Название варианта" className={inputClass} value={creative.label} onChange={(event) => updateExtraCreative(creative.id, { label: event.target.value })} maxLength={40} required />
+                  <input
+                    aria-label="Название варианта"
+                    title="Подставляется из названия кампании, но его можно изменить"
+                    className={inputClass}
+                    value={creative.label}
+                    onChange={(event) =>
+                      updateExtraCreative(creative.id, {
+                        label: event.target.value,
+                        isLabelCustomized: true,
+                      })
+                    }
+                    maxLength={40}
+                    required
+                  />
                   <input aria-label="Текст варианта" className={inputClass} value={creative.text} onChange={(event) => updateExtraCreative(creative.id, { text: event.target.value })} minLength={8} maxLength={120} placeholder="Другой текст оффера" required />
                   <button type="button" onClick={() => setExtraCreatives((current) => current.filter((item) => item.id !== creative.id))} className="focus-ring rounded-md px-3 text-xs font-semibold text-red-600 hover:bg-red-50">Удалить</button>
                 </div>
