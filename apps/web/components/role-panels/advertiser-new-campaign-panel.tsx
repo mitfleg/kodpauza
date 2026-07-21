@@ -22,6 +22,7 @@ export function AdvertiserNewCampaignPanel() {
   const [stats, setStats] = useState<AdvertiserStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [campaignName, setCampaignName] = useState('');
   const [adText, setAdText] = useState('');
   const [format, setFormat] = useState<'standard' | 'premium'>('standard');
   const [baseCpmRubles, setBaseCpmRubles] = useState(300);
@@ -70,7 +71,7 @@ export function AdvertiserNewCampaignPanel() {
     const impressionsLimit = optionalPositiveInteger(form.get('impressionsLimit'));
     const erid = String(form.get('erid') ?? '').trim();
     const creatives = [
-      { label: 'Основной', text: adText, url: campaignUrl },
+      { label: 'Вариант 1', text: adText, url: campaignUrl },
       ...extraCreatives.map((creative) => ({
         label: creative.label,
         text: creative.text,
@@ -125,6 +126,7 @@ export function AdvertiserNewCampaignPanel() {
         hasImpressionsLimit: Boolean(impressionsLimit),
       });
       formElement.reset();
+      setCampaignName('');
       setAdText('');
       setFormat('standard');
       setBaseCpmRubles(300);
@@ -197,9 +199,10 @@ export function AdvertiserNewCampaignPanel() {
 
   function addCreative() {
     if (extraCreatives.length >= 2) return;
+    const id = nextCreativeId;
     setExtraCreatives((current) => [
       ...current,
-      { id: nextCreativeId, label: `Вариант ${String.fromCharCode(65 + nextCreativeId - 1)}`, text: '', url: '' },
+      { id, label: `Вариант ${id}`, text: '', url: '' },
     ]);
     setNextCreativeId((value) => value + 1);
   }
@@ -223,8 +226,16 @@ export function AdvertiserNewCampaignPanel() {
           className="grid gap-4"
         >
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Название" hint="Видно только вам и администратору.">
-              <input className={inputClass} name="name" maxLength={120} placeholder="Облако для разработчиков" required />
+            <Field label="Название в объявлении" hint="Показывается перед текстом, например: KodPauza · Оффер.">
+              <input
+                className={inputClass}
+                name="name"
+                value={campaignName}
+                onChange={(event) => setCampaignName(event.target.value)}
+                maxLength={40}
+                placeholder="KodPauza"
+                required
+              />
             </Field>
             <Field label="Целевая ссылка" hint="Только HTTPS.">
               <input className={inputClass} value={landingUrl} onChange={(event) => setLandingUrl(event.target.value)} type="url" pattern="https://.*" placeholder="https://example.ru/landing" required />
@@ -249,14 +260,22 @@ export function AdvertiserNewCampaignPanel() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-ink">Варианты объявления</p>
-                <p className="mt-0.5 text-xs text-slate-500">До трёх офферов. Статистика будет собираться отдельно по каждому.</p>
+                <p className="mt-0.5 text-xs text-slate-500">До трёх офферов. Метки вариантов нужны только для статистики и не показываются в объявлении.</p>
               </div>
               <SecondaryButton onClick={addCreative} disabled={extraCreatives.length >= 2}>Добавить вариант</SecondaryButton>
             </div>
             {extraCreatives.map((creative) => (
               <div key={creative.id} className="grid gap-3 rounded-md border border-line bg-white p-3">
                 <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)_auto]">
-                  <input aria-label="Название варианта" className={inputClass} value={creative.label} onChange={(event) => updateExtraCreative(creative.id, { label: event.target.value })} maxLength={40} required />
+                  <input
+                    aria-label="Название варианта"
+                    title="Внутренняя метка варианта — видна только в статистике"
+                    className={inputClass}
+                    value={creative.label}
+                    onChange={(event) => updateExtraCreative(creative.id, { label: event.target.value })}
+                    maxLength={40}
+                    required
+                  />
                   <input aria-label="Текст варианта" className={inputClass} value={creative.text} onChange={(event) => updateExtraCreative(creative.id, { text: event.target.value })} minLength={8} maxLength={120} placeholder="Другой текст оффера" required />
                   <button type="button" onClick={() => setExtraCreatives((current) => current.filter((item) => item.id !== creative.id))} className="focus-ring rounded-md px-3 text-xs font-semibold text-red-600 hover:bg-red-50">Удалить</button>
                 </div>
@@ -280,7 +299,7 @@ export function AdvertiserNewCampaignPanel() {
             <div className={`rounded-md border px-4 py-3 text-white ${format === 'premium' ? 'border-amber-400 bg-slate-900' : 'border-slate-700 bg-ink'}`}>
               <div className="text-xs text-slate-400">Предпросмотр</div>
               <div className="mt-3 flex min-h-6 items-center gap-2 text-sm font-medium">
-                <span className={format === 'premium' ? 'text-amber-300' : 'text-emerald-300'}>{stats?.companyName || 'Название компании'}</span>
+                <span className={format === 'premium' ? 'text-amber-300' : 'text-emerald-300'}>{campaignName || 'Название кампании'}</span>
                 <span aria-hidden className="text-slate-500">·</span>
                 <span className="break-words">{adText || 'Текст объявления'}</span>
               </div>

@@ -4,8 +4,8 @@ export function adDisplayText(value: string): string {
   return withoutDisclosure || 'Узнать подробнее';
 }
 
-export function adPresentationText(advertiserName: string, offer: string): string {
-  const advertiser = advertiserName.trim() || 'Kodpauza';
+export function adPresentationText(campaignName: string, offer: string): string {
+  const advertiser = campaignName.trim() || 'Kodpauza';
   const cleanOffer = adDisplayText(offer);
   const prefix = `${advertiser} · `;
   return cleanOffer.toLowerCase().startsWith(prefix.toLowerCase())

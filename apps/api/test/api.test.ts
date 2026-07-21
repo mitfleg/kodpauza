@@ -106,6 +106,7 @@ type Ad = {
   text: string;
   url: string;
   advertiserName: string;
+  campaignName: string;
   surface: 'codex_vscode';
   trackable: boolean;
   format: 'standard' | 'premium';
@@ -1912,6 +1913,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       const ad = await nextAd(developer.token);
       expect(ad.campaignId).toBe(campaignId);
       expect(ad.advertiserName).toBe(moderated.advertiser.companyName);
+      expect(ad.campaignName).toBe(moderated.name);
       expect(moderated.creatives).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ id: ad.creativeId, text: ad.text, url: ad.url, enabled: true }),

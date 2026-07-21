@@ -6,6 +6,7 @@ function ad(campaignId, advertiserName, expiresAt) {
   return {
     adId: `${campaignId}-${Math.random()}`,
     campaignId,
+    campaignName: campaignId,
     advertiserName,
     text: campaignId,
     url: 'https://example.com',

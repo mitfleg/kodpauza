@@ -390,6 +390,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
       text: adPresentationText('Kodpauza', 'Зарабатывайте, пока AI работает'),
       url: this.api.dashboardUrl,
       erid: null,
+      campaignName: 'Kodpauza',
       advertiserName: 'Kodpauza',
       durationSec: 1,
       surface: placement.surface,
@@ -458,7 +459,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
   }
 
   private forPresentation(ad: KodpauzaAd): KodpauzaAd {
-    return { ...ad, text: adPresentationText(ad.advertiserName, ad.text) };
+    return { ...ad, text: adPresentationText(ad.campaignName, ad.text) };
   }
 
   private resumeEmptyAdRetry(): void {

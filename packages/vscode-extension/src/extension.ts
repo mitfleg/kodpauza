@@ -938,9 +938,9 @@ function createUiAdapter(runtime: IntegrationRuntime): {
       return {
         active: true,
         adId: ad.adId,
-        text: adPresentationText(ad.advertiserName, ad.text),
+        text: adPresentationText(ad.campaignName, ad.text),
         format: ad.format,
-        advertiserName: ad.advertiserName,
+        advertiserName: ad.campaignName,
         erid: ad.erid ?? '',
         iconUrl: canary ? KODPAUZA_FALLBACK_ICON : undefined,
         domain,

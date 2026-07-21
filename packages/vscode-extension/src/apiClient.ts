@@ -478,6 +478,7 @@ function parseAd(value: unknown, expectedSurface: Surface): KodpauzaAd {
   const trackable = value.trackable;
   const format = value.format;
   const expiresAt = value.expiresAt;
+  const campaignName = value.campaignName;
   if (
     typeof value.adId !== 'string' ||
     !value.adId ||
@@ -487,6 +488,8 @@ function parseAd(value: unknown, expectedSurface: Surface): KodpauzaAd {
     !value.text.trim() ||
     value.text.length > 500 ||
     typeof value.url !== 'string' ||
+    (campaignName !== undefined &&
+      (typeof campaignName !== 'string' || !campaignName.trim() || campaignName.length > 120)) ||
     typeof value.advertiserName !== 'string' ||
     !value.advertiserName.trim() ||
     value.advertiserName.length > 160 ||
@@ -510,6 +513,8 @@ function parseAd(value: unknown, expectedSurface: Surface): KodpauzaAd {
     text: value.text.trim(),
     url: normalizeExternalUrl(value.url, 'Объявление содержит небезопасную ссылку'),
     erid,
+    campaignName:
+      typeof campaignName === 'string' ? campaignName.trim() : value.advertiserName.trim(),
     advertiserName: value.advertiserName.trim(),
     durationSec,
     surface: expectedSurface,

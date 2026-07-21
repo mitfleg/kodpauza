@@ -6,6 +6,9 @@ export interface KodpauzaAd {
   text: string;
   url: string;
   erid: string | null;
+  /** Public name shown before the offer text. */
+  campaignName: string;
+  /** Legal/company name retained for advertiser-level rotation. */
   advertiserName: string;
   durationSec: number;
   surface: Surface;

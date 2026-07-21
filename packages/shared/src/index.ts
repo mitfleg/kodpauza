@@ -169,7 +169,7 @@ export function eventSignaturePayload(
 
 export const createCampaignSchema = z
   .object({
-    name: z.string().trim().min(2).max(120),
+    name: z.string().trim().min(2).max(40),
     text: campaignCreativeTextSchema,
     url: httpsUrlSchema,
     erid: z.preprocess(

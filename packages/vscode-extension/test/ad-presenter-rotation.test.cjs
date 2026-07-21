@@ -53,7 +53,8 @@ test('в одной активной сессии запрашивает нов�
         text: `Объявление ${requests}`,
         url: 'https://example.com',
         erid: null,
-        advertiserName: 'Тест',
+        campaignName: 'KodPauza',
+        advertiserName: 'ООО Тест',
         durationSec: 5,
         surface,
         trackable: true,
@@ -82,7 +83,7 @@ test('в одной активной сессии запрашивает нов�
   presenter.markPatchedUiVisibility(presenter.ad.adId, 'canary-view-1', true);
   await waitFor(() => presenter.ad?.adId === 'ad-1', 500);
   assert.equal(presenter.ad.adId, 'ad-1');
-  assert.equal(presenter.ad.text, 'Тест · Объявление 1');
+  assert.equal(presenter.ad.text, 'KodPauza · Объявление 1');
   assert.equal(requests, 6);
 
   presenter.markPatchedUiVisibility('ad-1', 'rotation-view-1', true);
@@ -117,6 +118,7 @@ test('не повторяет две последние кампании, есл
         text: campaignId,
         url: 'https://example.com',
         erid: null,
+        campaignName: campaignId,
         advertiserName: campaignId,
         durationSec: 5,
         surface,
