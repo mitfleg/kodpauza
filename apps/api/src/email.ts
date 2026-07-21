@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 import { config } from './config.js';
+import { renderVerificationEmail } from './emailTemplates.js';
 
 export type VerificationEmail = {
   email: string;
@@ -40,22 +41,16 @@ export function createEmailVerificationMailer(): EmailVerificationMailer {
 
   return {
     async sendVerificationCode({ email, code, expiresInMinutes }) {
+      const message = renderVerificationEmail({
+        code,
+        expiresInMinutes,
+        dashboardUrl: config.dashboardUrl,
+      });
+
       await transporter.sendMail({
         from: config.smtpFrom,
         to: email,
-        subject: 'Код подтверждения аккаунта Kodpauza',
-        text: [
-          `Ваш код подтверждения: ${code}`,
-          '',
-          `Код действует ${expiresInMinutes} минут.`,
-          'Если вы не регистрировались в Kodpauza, просто проигнорируйте это письмо.',
-        ].join('\n'),
-        html: [
-          '<p>Ваш код подтверждения аккаунта Kodpauza:</p>',
-          `<p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p>`,
-          `<p>Код действует ${expiresInMinutes} минут.</p>`,
-          '<p>Если вы не регистрировались в Kodpauza, просто проигнорируйте это письмо.</p>',
-        ].join(''),
+        ...message,
       });
     },
   };
