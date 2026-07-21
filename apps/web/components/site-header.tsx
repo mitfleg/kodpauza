@@ -24,7 +24,6 @@ export function SiteHeader() {
   const [isOpen, setIsOpen] = useState(false);
   const { user, isLoading, logout } = useAuthState();
   const links = user ? roleNavigation[user.role] : publicNav;
-  const brandHref = user ? roleHome[user.role] : '/';
   const activeHref = activeNavigationHref(pathname, links);
 
   function handleLogout() {
@@ -37,7 +36,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-line bg-white/95 backdrop-blur">
       <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
         <Link
-          href={brandHref}
+          href="/"
           className="focus-ring flex shrink-0 items-center gap-3 rounded-md"
           aria-label="Kodpauza"
         >
