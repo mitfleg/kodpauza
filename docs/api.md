@@ -9,7 +9,7 @@
 
 ## Авторизация
 
-- `POST /v1/auth/register` - регистрация `developer` или `advertiser`; вместе с данными передается `captchaToken` от Turnstile;
+- `POST /v1/auth/register` - регистрация `developer` или `advertiser`; вместе с данными передается одноразовый `captchaToken` от Yandex SmartCaptcha;
 - `POST /v1/auth/verify-email` - подтверждение шестизначным одноразовым кодом;
 - `POST /v1/auth/resend-verification` - повторная отправка кода с cooldown;
 - `POST /v1/auth/login` - вход.

@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Code2, LogIn, LogOut, Menu, Settings, UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
-import { publicNav, roleHome, roleLabel, roleNavigation } from '@/lib/navigation';
+import { publicNav, roleLabel, roleNavigation } from '@/lib/navigation';
 import { useAuthState } from '@/lib/auth-state';
 
 function matchesPath(pathname: string, href: string) {

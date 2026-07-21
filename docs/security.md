@@ -30,7 +30,7 @@
 
 Обязательны `DATABASE_URL`, `JWT_SECRET`, `IP_HASH_SECRET`, `KODPAUZA_EMAIL_VERIFICATION_SECRET`, `KODPAUZA_ALLOWED_ORIGINS`. Для production также нужны ключ CAPTCHA и SMTP с TLS. Генерируйте секреты как минимум из 32 случайных байт и храните их в secret manager, а не в образе или репозитории.
 
-Для регистрации задаются `NEXT_PUBLIC_TURNSTILE_SITE_KEY` и серверный `KODPAUZA_CAPTCHA_SECRET_KEY`. CAPTCHA всегда проверяется API через Cloudflare Siteverify. Письма отправляются через `KODPAUZA_EMAIL_TRANSPORT=smtp` и `KODPAUZA_SMTP_*`; production не запускается без SMTP с TLS. `console` и dev-токен допустимы только в development/test.
+Для регистрации задаются клиентский `NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY` и серверный `KODPAUZA_CAPTCHA_SECRET_KEY`. CAPTCHA всегда проверяется API через Yandex SmartCaptcha; в production обязателен `KODPAUZA_CAPTCHA_EXPECTED_HOSTS=kodpauza.ru`. Письма отправляются через `KODPAUZA_EMAIL_TRANSPORT=smtp` и `KODPAUZA_SMTP_*`; production не запускается без CAPTCHA с проверкой домена и SMTP с TLS. `console` и dev-токен допустимы только в development/test.
 
 Новые временные почтовые домены можно оперативно добавлять через `KODPAUZA_DISPOSABLE_EMAIL_DOMAINS` без изменения кода.
 

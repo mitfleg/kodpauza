@@ -88,7 +88,10 @@ export const config = {
   captchaSecretKey: process.env.KODPAUZA_CAPTCHA_SECRET_KEY?.trim() ?? '',
   captchaVerifyUrl:
     process.env.KODPAUZA_CAPTCHA_VERIFY_URL?.trim() ||
-    'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+    'https://smartcaptcha.cloud.yandex.ru/validate',
+  captchaExpectedHosts: csvFromEnv(process.env.KODPAUZA_CAPTCHA_EXPECTED_HOSTS).map((host) =>
+    host.toLowerCase(),
+  ),
   captchaDevToken: process.env.KODPAUZA_CAPTCHA_DEV_TOKEN?.trim() || 'kodpauza-local-captcha-pass',
   disposableEmailDomains: csvFromEnv(process.env.KODPAUZA_DISPOSABLE_EMAIL_DOMAINS).map((domain) =>
     domain.toLowerCase(),
@@ -241,6 +244,9 @@ export function validateRuntimeConfig() {
   ) {
     throw new Error('KODPAUZA_CAPTCHA_VERIFY_URL must use HTTPS and must not contain credentials.');
   }
+  if (!config.captchaExpectedHosts.every(isValidHostname)) {
+    throw new Error('KODPAUZA_CAPTCHA_EXPECTED_HOSTS must contain only valid hostnames.');
+  }
   if (config.localDevelopment) validateLocalDevelopmentConfig();
   if (config.nodeEnv !== 'production') return;
 
@@ -270,6 +276,9 @@ export function validateRuntimeConfig() {
   if (!config.localDevelopment && !config.captchaSecretKey) {
     throw new Error('KODPAUZA_CAPTCHA_SECRET_KEY is required in production.');
   }
+  if (!config.localDevelopment && config.captchaExpectedHosts.length === 0) {
+    throw new Error('KODPAUZA_CAPTCHA_EXPECTED_HOSTS is required in production.');
+  }
   if (
     !config.localDevelopment &&
     (config.emailTransport !== 'smtp' || !config.smtpHost || !config.smtpFrom)
@@ -287,6 +296,23 @@ export function validateRuntimeConfig() {
     if (url.protocol !== 'https:' && !(config.allowInsecureLocalhost && local)) {
       throw new Error(`Production URL must use HTTPS: ${value}`);
     }
+  }
+}
+
+function isValidHostname(value: string): boolean {
+  try {
+    const url = new URL(`http://${value}`);
+    return (
+      Boolean(value) &&
+      !value.includes('/') &&
+      !value.includes(':') &&
+      url.hostname.toLowerCase() === value.toLowerCase() &&
+      !url.username &&
+      !url.password &&
+      !url.port
+    );
+  } catch {
+    return false;
   }
 }
 

@@ -1,6 +1,6 @@
 export const legalDocumentVersions = {
   terms: '2026-07-17.2',
-  privacy: '2026-07-17.3',
+  privacy: '2026-07-21',
   personalDataConsent: '2026-07-17.3',
   cookies: '2026-07-17.2',
   advertisingRules: '2026-07-17',

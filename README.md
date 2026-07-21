@@ -74,7 +74,7 @@ docker compose up -d --build api web
 docker compose ps
 ```
 
-Перед запуском замените `JWT_SECRET`, `IP_HASH_SECRET` и `KODPAUZA_EMAIL_VERIFICATION_SECRET` в `.env` тремя независимыми значениями из `openssl rand -hex 32`. Также задайте пару ключей Cloudflare Turnstile (`NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `KODPAUZA_CAPTCHA_SECRET_KEY`) и рабочий SMTP через `KODPAUZA_SMTP_*`. API в production намеренно не стартует без CAPTCHA, TLS-защищенной отправки писем и этих секретов. По умолчанию PostgreSQL публикуется на порту `55432`, чтобы не конфликтовать с уже установленной локальной БД.
+Перед запуском замените `JWT_SECRET`, `IP_HASH_SECRET` и `KODPAUZA_EMAIL_VERIFICATION_SECRET` в `.env` тремя независимыми значениями из `openssl rand -hex 32`. Для production задайте пару ключей Yandex SmartCaptcha (`NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY`, `KODPAUZA_CAPTCHA_SECRET_KEY`) и рабочий SMTP через `KODPAUZA_SMTP_*`. Локальная разработка использует отдельный dev-токен и не показывает CAPTCHA. API в production намеренно не стартует без CAPTCHA, TLS-защищенной отправки писем и этих секретов. По умолчанию PostgreSQL публикуется на порту `55432`, чтобы не конфликтовать с уже установленной локальной БД.
 
 `pnpm db:local:reset` удаляет и пересоздает только схему, имя которой заканчивается на `_local`. Схема `public` и другие существующие данные не затрагиваются. Не используйте `prisma migrate reset` для общей базы.
 

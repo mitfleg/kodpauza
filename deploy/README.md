@@ -8,7 +8,7 @@ repository and does not need Node.js or pnpm.
 Create these repository variables in `Settings → Secrets and variables → Actions → Variables`:
 
 - `NEXT_PUBLIC_API_BASE_URL` — public API URL, for example `https://api.kodpauza.ru`;
-- `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — public production Turnstile site key;
+- `NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY` — public Yandex SmartCaptcha client key (`ysc1_...`);
 - `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` — optional Google Search Console HTML tag value;
 - `NEXT_PUBLIC_YANDEX_SITE_VERIFICATION` — optional Yandex Webmaster HTML tag value;
 - `NEXT_PUBLIC_BING_SITE_VERIFICATION` — optional Bing Webmaster Tools HTML tag value;
@@ -86,9 +86,25 @@ If GHCR packages remain private, log in once as the deploy user with a classic P
 docker login ghcr.io -u GITHUB_USERNAME
 ```
 
-The production web URL and Turnstile site key are baked into the web image. Changing either
+The production web URL and SmartCaptcha client key are baked into the web image. Changing either
 repository variable requires a new workflow build; changing `.env.production` only affects the API
 and PostgreSQL runtime.
+
+The SmartCaptcha server key (`ysc2_...`) must be stored only in the server-side
+`KODPAUZA_CAPTCHA_SECRET_KEY` variable. Set `KODPAUZA_CAPTCHA_EXPECTED_HOSTS=kodpauza.ru` so the API
+rejects tokens issued on another host. Service email is sent through the Timeweb mailbox using
+`smtp.timeweb.ru:587`, STARTTLS (`KODPAUZA_SMTP_SECURE=false`,
+`KODPAUZA_SMTP_REQUIRE_TLS=true`) and the full mailbox address as the SMTP username.
+
+To switch or rotate both providers without exposing secrets in shell history, copy
+`deploy/configure-russian-providers.sh` to the server and run it as the deploy user. The script
+prompts for both secrets with hidden input, preserves special characters in the mailbox password,
+and keeps the environment file at mode `600`:
+
+```bash
+scp deploy/configure-russian-providers.sh kodpauza:/tmp/configure-russian-providers.sh
+ssh -t kodpauza 'sudo -u deploy bash /tmp/configure-russian-providers.sh'
+```
 
 GitHub Actions uploads `compose.production.yml` and exact image digests, runs the migration service,
 starts the stack and checks both health endpoints. The previous image references are kept in

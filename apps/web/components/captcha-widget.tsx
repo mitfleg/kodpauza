@@ -4,36 +4,42 @@ import Script from 'next/script';
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 
-type TurnstileOptions = {
+type SmartCaptchaWidgetId = string | number;
+type SmartCaptchaEvent =
+  | 'challenge-visible'
+  | 'challenge-hidden'
+  | 'network-error'
+  | 'javascript-error'
+  | 'success'
+  | 'token-expired';
+
+type SmartCaptchaOptions = {
   sitekey: string;
   callback: (token: string) => void;
-  'expired-callback': () => void;
-  'error-callback': () => void;
-  language: string;
-  theme: 'light';
-  appearance: 'interaction-only';
+  hl: 'ru';
 };
 
-type TurnstileApi = {
-  render: (element: HTMLElement, options: TurnstileOptions) => string;
-  reset: (widgetId: string) => void;
-  remove: (widgetId: string) => void;
+type SmartCaptchaApi = {
+  render: (element: HTMLElement, options: SmartCaptchaOptions) => SmartCaptchaWidgetId;
+  reset: (widgetId?: SmartCaptchaWidgetId) => void;
+  destroy: (widgetId?: SmartCaptchaWidgetId) => void;
+  subscribe: (
+    widgetId: SmartCaptchaWidgetId,
+    event: SmartCaptchaEvent,
+    callback: (...args: unknown[]) => void,
+  ) => () => void;
 };
 
 declare global {
   interface Window {
-    turnstile?: TurnstileApi;
+    smartCaptcha?: SmartCaptchaApi;
   }
 }
 
-const developmentSiteKey = '1x00000000000000000000AA';
-const configuredSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? '';
+const siteKey = process.env.NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY ?? '';
 const developmentToken = process.env.NEXT_PUBLIC_CAPTCHA_DEV_TOKEN ?? 'kodpauza-local-captcha-pass';
 const localDevelopment = process.env.NEXT_PUBLIC_LOCAL_DEVELOPMENT === 'true';
 const localCaptchaBypass = process.env.NODE_ENV === 'development' || localDevelopment;
-const usesDevelopmentSiteKey =
-  (!configuredSiteKey || configuredSiteKey === developmentSiteKey) && localCaptchaBypass;
-const siteKey = configuredSiteKey || (usesDevelopmentSiteKey ? developmentSiteKey : '');
 
 type CaptchaWidgetProps = {
   onTokenChange: (token: string | null) => void;
@@ -42,13 +48,13 @@ type CaptchaWidgetProps = {
 
 export function CaptchaWidget({ onTokenChange, resetKey }: CaptchaWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const widgetIdRef = useRef<string | null>(null);
+  const widgetIdRef = useRef<SmartCaptchaWidgetId | null>(null);
   const [scriptReady, setScriptReady] = useState(false);
   const [error, setError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    if (!localCaptchaBypass && window.turnstile) setScriptReady(true);
+    if (!localCaptchaBypass && window.smartCaptcha) setScriptReady(true);
   }, []);
 
   useEffect(() => {
@@ -61,29 +67,34 @@ export function CaptchaWidget({ onTokenChange, resetKey }: CaptchaWidgetProps) {
     if (localCaptchaBypass) return;
     onTokenChange(null);
 
-    if (!siteKey || !scriptReady || !containerRef.current || !window.turnstile) return;
+    if (!siteKey || !scriptReady || !containerRef.current || !window.smartCaptcha) return;
 
     setError('');
-    const widgetId = window.turnstile.render(containerRef.current, {
+    const widgetId = window.smartCaptcha.render(containerRef.current, {
       sitekey: siteKey,
-      language: 'ru',
-      theme: 'light',
-      appearance: 'interaction-only',
+      hl: 'ru',
       callback: (token) => {
         setError('');
-        onTokenChange(usesDevelopmentSiteKey ? developmentToken : token);
-      },
-      'expired-callback': () => onTokenChange(null),
-      'error-callback': () => {
-        onTokenChange(null);
-        setError('Не удалось пройти проверку. Обновите капчу и попробуйте ещё раз.');
+        onTokenChange(token);
       },
     });
     widgetIdRef.current = widgetId;
+    const unsubscribe = [
+      window.smartCaptcha.subscribe(widgetId, 'token-expired', () => onTokenChange(null)),
+      window.smartCaptcha.subscribe(widgetId, 'network-error', () => {
+        onTokenChange(null);
+        setError('Не удалось пройти проверку. Обновите капчу и попробуйте ещё раз.');
+      }),
+      window.smartCaptcha.subscribe(widgetId, 'javascript-error', () => {
+        onTokenChange(null);
+        setError('Не удалось пройти проверку. Обновите капчу и попробуйте ещё раз.');
+      }),
+    ];
 
     return () => {
-      if (widgetIdRef.current && window.turnstile) {
-        window.turnstile.remove(widgetIdRef.current);
+      for (const unsubscribeEvent of unsubscribe) unsubscribeEvent();
+      if (widgetIdRef.current !== null && window.smartCaptcha) {
+        window.smartCaptcha.destroy(widgetIdRef.current);
       }
       widgetIdRef.current = null;
     };
@@ -102,9 +113,9 @@ export function CaptchaWidget({ onTokenChange, resetKey }: CaptchaWidgetProps) {
   return (
     <div>
       <Script
-        src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+        src="https://smartcaptcha.cloud.yandex.ru/captcha.js?render=onload"
         strategy="afterInteractive"
-        onLoad={() => setScriptReady(true)}
+        onReady={() => setScriptReady(Boolean(window.smartCaptcha))}
         onError={() =>
           setError('Не удалось загрузить CAPTCHA. Проверьте соединение и повторите попытку.')
         }

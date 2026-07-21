@@ -1,8 +1,18 @@
 import { config } from './config.js';
 
-type TurnstileResponse = {
-  success?: boolean;
+type SmartCaptchaResponse = {
+  status?: string;
+  host?: string;
 };
+
+function normalizeResponseHostname(value: string | undefined): string {
+  if (!value) return '';
+  try {
+    return new URL(`http://${value}`).hostname.toLowerCase().replace(/\.$/, '');
+  } catch {
+    return '';
+  }
+}
 
 export async function verifyCaptcha(token: string, remoteIp?: string): Promise<boolean> {
   if (
@@ -15,9 +25,9 @@ export async function verifyCaptcha(token: string, remoteIp?: string): Promise<b
 
   const body = new URLSearchParams({
     secret: config.captchaSecretKey,
-    response: token,
+    token,
   });
-  if (remoteIp) body.set('remoteip', remoteIp);
+  if (remoteIp) body.set('ip', remoteIp);
 
   try {
     const response = await fetch(config.captchaVerifyUrl, {
@@ -27,8 +37,15 @@ export async function verifyCaptcha(token: string, remoteIp?: string): Promise<b
       signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) return false;
-    const result = (await response.json()) as TurnstileResponse;
-    return result.success === true;
+    const result = (await response.json()) as SmartCaptchaResponse;
+    if (result.status !== 'ok') return false;
+
+    if (config.captchaExpectedHosts.length > 0) {
+      const responseHostname = normalizeResponseHostname(result.host);
+      return config.captchaExpectedHosts.includes(responseHostname);
+    }
+
+    return true;
   } catch {
     return false;
   }

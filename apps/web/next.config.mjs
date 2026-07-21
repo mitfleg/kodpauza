@@ -2,7 +2,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const turnstileOrigin = 'https://challenges.cloudflare.com';
+const smartCaptchaOrigins =
+  'https://smartcaptcha.cloud.yandex.ru https://smartcaptcha.yandexcloud.net';
 const metrikaScriptOrigins = 'https://mc.yandex.ru https://yastatic.net';
 const metrikaDataOrigins =
   'https://mc.yandex.ru https://mc.yandex.com https://mc.webvisor.org https://mc.webvisor.com wss://mc.yandex.ru wss://mc.yandex.com wss://mc.webvisor.org wss://mc.webvisor.com';
@@ -26,10 +27,10 @@ const contentSecurityPolicy = [
   "img-src 'self' data: https://mc.yandex.ru https://mc.yandex.com",
   "font-src 'self' data:",
   "style-src 'self' 'unsafe-inline'",
-  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} ${turnstileOrigin} ${metrikaScriptOrigins}`,
-  `connect-src 'self' ${apiOrigin} ${turnstileOrigin} ${metrikaDataOrigins}`,
+  `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} ${smartCaptchaOrigins} ${metrikaScriptOrigins}`,
+  `connect-src 'self' ${apiOrigin} ${smartCaptchaOrigins} ${metrikaDataOrigins}`,
   `child-src blob: https://mc.yandex.ru`,
-  `frame-src blob: ${turnstileOrigin} https://mc.yandex.ru`,
+  `frame-src blob: ${smartCaptchaOrigins} https://mc.yandex.ru`,
 ].join('; ');
 
 const securityHeaders = [

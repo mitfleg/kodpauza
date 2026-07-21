@@ -96,7 +96,7 @@ jobs:
             cache_scope: pull-request-web
             build_args: |
               NEXT_PUBLIC_API_BASE_URL=https://api.example.test
-              NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA
+              NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY=ysc1_test
               NEXT_PUBLIC_LOCAL_DEVELOPMENT=false
               NEXT_PUBLIC_LEGAL_OPERATOR_NAME=Test Operator
               NEXT_PUBLIC_LEGAL_OPERATOR_STATUS=Individual entrepreneur
@@ -143,7 +143,7 @@ jobs:
       - name: Validate production build variables
         env:
           NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
-          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+          NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY: ${{ vars.NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY }}
           NEXT_PUBLIC_LEGAL_OPERATOR_NAME: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_NAME }}
           NEXT_PUBLIC_LEGAL_OPERATOR_STATUS: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_STATUS }}
           NEXT_PUBLIC_LEGAL_OPERATOR_INN: ${{ vars.NEXT_PUBLIC_LEGAL_OPERATOR_INN }}
@@ -155,8 +155,8 @@ jobs:
             echo "::error::Repository variable NEXT_PUBLIC_API_BASE_URL is required"
             exit 1
           }
-          test -n "$NEXT_PUBLIC_TURNSTILE_SITE_KEY" || {
-            echo "::error::Repository variable NEXT_PUBLIC_TURNSTILE_SITE_KEY is required"
+          test -n "$NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY" || {
+            echo "::error::Repository variable NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY is required"
             exit 1
           }
           for variable in \
@@ -242,7 +242,7 @@ jobs:
           labels: ${{ steps.web_meta.outputs.labels }}
           build-args: |
             NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL }}
-            NEXT_PUBLIC_TURNSTILE_SITE_KEY=${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+            NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY=${{ vars.NEXT_PUBLIC_SMARTCAPTCHA_SITE_KEY }}
             NEXT_PUBLIC_LOCAL_DEVELOPMENT=false
             NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=${{ vars.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION }}
             NEXT_PUBLIC_YANDEX_SITE_VERIFICATION=${{ vars.NEXT_PUBLIC_YANDEX_SITE_VERIFICATION }}
