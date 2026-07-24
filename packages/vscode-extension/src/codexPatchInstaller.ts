@@ -37,7 +37,7 @@ export type CodexPatchProfile = {
   reasoningCount?: number;
   thinkingDescriptorIdentifier?: string;
   thinkingDescriptorCount?: number;
-  exploringChildrenIdentifier: string;
+  exploringChildrenIdentifier?: string;
   hostAnchor: string;
 };
 
@@ -103,6 +103,18 @@ export const CODEX_26_715_31925_SHIMMER_PATCH_PROFILE: CodexShimmerPatchProfile 
   intlIdentifier: 'i'
 };
 
+export const CODEX_26_721_30844_PATCH_PROFILE: CodexPatchProfile = {
+  reactAnchor: 'var Ba,Q,$,Va,Ha,Ua,Wa,Ga,Ka,qa,Ja=',
+  reactIdentifier: 'Q',
+  jsxIdentifier: '$',
+  intlIdentifier: 'U',
+  thinkingCount: 0,
+  reasoningCount: 0,
+  thinkingDescriptorIdentifier: 'Ka',
+  thinkingDescriptorCount: 1,
+  hostAnchor: 'let n=[t,r,...Zst,...Kst];'
+};
+
 const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
   {
     version: '26.623.141536',
@@ -133,6 +145,12 @@ const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
     patchProfile: CODEX_26_715_31925_PATCH_PROFILE,
     shimmerSha256: 'bc928b184ba150446923e759defc6d04dcb67ca5c2842bad5750224f0e086e4d',
     shimmerPatchProfile: CODEX_26_715_31925_SHIMMER_PATCH_PROFILE
+  },
+  {
+    version: '26.721.30844',
+    hostSha256: '5a27120dbeba4b9b3a7101a061d8e76de138e57d3688e4f0ac8ec8c1b448cebe',
+    webviewSha256: 'bfc3600bbe3e1d83404e683ff0e04b6d3ff09948376d271b4c491a20e690dea3',
+    patchProfile: CODEX_26_721_30844_PATCH_PROFILE
   }
 ] as const;
 
@@ -709,13 +727,15 @@ export function patchWebviewSource(
   const jsx = profile.jsxIdentifier;
   const intl = profile.intlIdentifier;
   const thinkingFallback = `(0,${jsx}.jsx)(${intl},{id:\`thinkingShimmer.default\`,defaultMessage:\`Thinking\`,description:\`Default placeholder shown while the assistant is thinking\`})`;
-  patched = replaceExact(
-    patched,
-    thinkingFallback,
-    `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${thinkingFallback}})`,
-    profile.thinkingCount,
-    'активные строки Thinking'
-  );
+  if (profile.thinkingCount > 0) {
+    patched = replaceExact(
+      patched,
+      thinkingFallback,
+      `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${thinkingFallback}})`,
+      profile.thinkingCount,
+      'активные строки Thinking'
+    );
+  }
 
   if (profile.thinkingDescriptorIdentifier) {
     const descriptorFallback = `(0,${jsx}.jsx)(${intl},{...${profile.thinkingDescriptorIdentifier}.thinking})`;
@@ -729,22 +749,27 @@ export function patchWebviewSource(
   }
 
   const reasoningFallback = `(0,${jsx}.jsx)(${intl},{id:\`reasoningItem.thinking\`,defaultMessage:\`Thinking\`,description:\`Message shown when AI is currently thinking\`})`;
-  patched = replaceExact(
-    patched,
-    reasoningFallback,
-    `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${reasoningFallback}})`,
-    profile.reasoningCount ?? 1,
-    'строка Thinking в блоке рассуждения'
-  );
+  const reasoningCount = profile.reasoningCount ?? 1;
+  if (reasoningCount > 0) {
+    patched = replaceExact(
+      patched,
+      reasoningFallback,
+      `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${reasoningFallback}})`,
+      reasoningCount,
+      'строка Thinking в блоке рассуждения'
+    );
+  }
 
-  const exploringFallback = `(0,${jsx}.jsx)(${intl},{id:\`localConversationTurn.exploration.accordion.header.active\`,defaultMessage:\`Exploring\`,description:\`Header for the exploration accordion while Codex is listing or reading files\`,children:${profile.exploringChildrenIdentifier}})`;
-  patched = replaceExact(
-    patched,
-    exploringFallback,
-    `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${exploringFallback}})`,
-    1,
-    'активная строка Exploring'
-  );
+  if (profile.exploringChildrenIdentifier) {
+    const exploringFallback = `(0,${jsx}.jsx)(${intl},{id:\`localConversationTurn.exploration.accordion.header.active\`,defaultMessage:\`Exploring\`,description:\`Header for the exploration accordion while Codex is listing or reading files\`,children:${profile.exploringChildrenIdentifier}})`;
+    patched = replaceExact(
+      patched,
+      exploringFallback,
+      `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${exploringFallback}})`,
+      1,
+      'активная строка Exploring'
+    );
+  }
 
   return patched;
 }
@@ -810,24 +835,32 @@ function validatePatchProfile(profile: CodexPatchProfile): void {
     profile.reactIdentifier,
     profile.jsxIdentifier,
     profile.intlIdentifier,
-    profile.exploringChildrenIdentifier,
+    ...(profile.exploringChildrenIdentifier ? [profile.exploringChildrenIdentifier] : []),
     ...(profile.thinkingDescriptorIdentifier ? [profile.thinkingDescriptorIdentifier] : [])
   ];
+  const reasoningCount = profile.reasoningCount ?? 1;
+  const hasReplacementTarget = (
+    profile.thinkingCount > 0 ||
+    reasoningCount > 0 ||
+    Boolean(profile.thinkingDescriptorIdentifier) ||
+    Boolean(profile.exploringChildrenIdentifier)
+  );
   if (
     !profile.reactAnchor ||
     !profile.hostAnchor ||
     !Number.isInteger(profile.thinkingCount) ||
-    profile.thinkingCount < 1 ||
-    (profile.reasoningCount !== undefined && (
-      !Number.isInteger(profile.reasoningCount) ||
-      profile.reasoningCount < 0 ||
-      profile.reasoningCount > 1
-    )) ||
+    profile.thinkingCount < 0 ||
+    profile.thinkingCount > 32 ||
+    !Number.isInteger(reasoningCount) ||
+    reasoningCount < 0 ||
+    reasoningCount > 1 ||
     Boolean(profile.thinkingDescriptorIdentifier) !== Boolean(profile.thinkingDescriptorCount) ||
     (profile.thinkingDescriptorCount !== undefined && (
       !Number.isInteger(profile.thinkingDescriptorCount) ||
-      profile.thinkingDescriptorCount < 1
+      profile.thinkingDescriptorCount < 1 ||
+      profile.thinkingDescriptorCount > 32
     )) ||
+    !hasReplacementTarget ||
     !identifiers.every((identifier) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(identifier))
   ) {
     throw new Error('Некорректный профиль UI-патча Codex.');
