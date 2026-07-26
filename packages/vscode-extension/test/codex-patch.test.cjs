@@ -12,6 +12,7 @@ const {
   CODEX_26_715_31925_PATCH_PROFILE,
   CODEX_26_715_31925_SHIMMER_PATCH_PROFILE,
   CODEX_26_721_30844_PATCH_PROFILE,
+  CODEX_26_721_41059_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -123,6 +124,10 @@ function codex2721FixtureWebview() {
 
 function codex2721FixtureHost() {
   return 'prefix;let n=[t,r,...Zst,...Kst];suffix';
+}
+
+function codex2721UpdatedFixtureHost() {
+  return 'prefix;let n=[t,r,...zst,...jst];suffix';
 }
 
 function inferredFixtureWebview() {
@@ -555,6 +560,21 @@ test('профиль Codex 26.721.30844 fail-closed при измененном 
     () => patchWebviewSource(changed, token, CODEX_26_721_30844_PATCH_PROFILE),
     /видимый placeholder Thinking/
   );
+});
+
+test('профиль Codex 26.721.41059 патчит обновленный CSP-якорь', () => {
+  const token = '9'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2721FixtureWebview(),
+    token,
+    CODEX_26_721_41059_PATCH_PROFILE
+  );
+  const host = patchHostSource(codex2721UpdatedFixtureHost(), CODEX_26_721_41059_PATCH_PROFILE);
+
+  assert.match(webview, /__KODPAUZA_UI_START__/);
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 2);
+  assert.match(host, /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/);
+  assert.doesNotThrow(() => new vm.Script(webview));
 });
 
 test('профиль Codex 26.707 патчит и восстанавливает отдельный модуль видимого Thinking', async (context) => {
