@@ -62,6 +62,18 @@ export function AdvertiserNewCampaignPanel() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    setForecast(null);
+  }, [
+    budgetRubles,
+    dailyBudgetRubles,
+    endsAt,
+    format,
+    impressionsLimit,
+    startsAt,
+    surfaceSettings,
+  ]);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
@@ -179,18 +191,30 @@ export function AdvertiserNewCampaignPanel() {
   async function updateForecast() {
     setIsForecasting(true);
     try {
+      const selectedSurfaces = surfaceOptions.filter(
+        (surface) => surfaceSettings[surface.id].enabled,
+      );
       const query = new URLSearchParams({
         budgetKopecks: String(Math.round(budgetRubles * 100)),
         cpmKopecks: String(Math.round(averageSurfaceCpmRubles * 100)),
         format,
-        surfaces: surfaceOptions
-          .filter((surface) => surfaceSettings[surface.id].enabled)
-          .map((surface) => surface.id)
+        surfaces: selectedSurfaces.map((surface) => surface.id).join(','),
+        surfaceCpms: selectedSurfaces
+          .map(
+            (surface) =>
+              `${surface.id}:${Math.round(surfaceSettings[surface.id].cpmRubles * 100)}`,
+          )
           .join(','),
       });
       if (impressionsLimit) query.set('impressionsLimit', impressionsLimit);
+      if (dailyBudgetRubles) {
+        query.set('dailyBudgetKopecks', String(Math.round(Number(dailyBudgetRubles) * 100)));
+      }
+      if (startsAt) query.set('startsAt', new Date(startsAt).toISOString());
+      if (endsAt) query.set('endsAt', new Date(endsAt).toISOString());
       setForecast(await api<CampaignForecast>(`/v1/advertiser/forecast?${query}`));
     } catch (error) {
+      setForecast(null);
       setNotice({ text: (error as ApiError).message, tone: 'error' });
     } finally {
       setIsForecasting(false);
@@ -349,6 +373,9 @@ export function AdvertiserNewCampaignPanel() {
             <div className="grid gap-2 lg:grid-cols-3">
               {surfaceOptions.map((surface) => {
                 const setting = surfaceSettings[surface.id];
+                const marketForecast = forecast?.placements.find(
+                  (placement) => placement.surface === surface.id,
+                );
                 return (
                   <label key={surface.id} className={`grid gap-2 rounded-md border p-3 ${setting.enabled ? 'border-blue-200 bg-blue-50' : 'border-line bg-slate-50'}`}>
                     <span className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -360,6 +387,32 @@ export function AdvertiserNewCampaignPanel() {
                       CPM
                       <input aria-label={`CPM ${surface.label}`} className="focus-ring h-9 min-w-0 flex-1 rounded-md border border-line bg-white px-2 text-sm text-ink" type="number" min={20} step={1} disabled={!setting.enabled} value={setting.cpmRubles} onChange={(event) => setSurfaceSettings((current) => ({ ...current, [surface.id]: { ...current[surface.id], cpmRubles: Number(event.target.value) } }))} /> ₽
                     </span>
+                    {setting.enabled && marketForecast ? (
+                      <span className={`rounded border px-2 py-1.5 text-xs leading-5 ${
+                        marketForecast.warningCode === 'below_competitive' ||
+                        marketForecast.warningCode === 'top_100_risk'
+                          ? 'border-amber-200 bg-amber-50 text-amber-900'
+                          : marketForecast.warningCode === 'insufficient_history'
+                            ? 'border-slate-200 bg-white text-slate-600'
+                            : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                      }`}>
+                        Рекомендуемый CPM:{' '}
+                        <strong>
+                          {marketForecast.recommendedCpmMinKopecks === marketForecast.recommendedCpmMaxKopecks
+                            ? money(marketForecast.recommendedCpmMinKopecks ?? 0, 0)
+                            : `${money(marketForecast.recommendedCpmMinKopecks ?? 0, 0)}–${money(marketForecast.recommendedCpmMaxKopecks ?? 0, 0)}`}
+                        </strong>
+                        <span className="block">
+                          {marketForecast.warningCode === 'below_competitive'
+                            ? 'Ставка ниже конкурентного уровня.'
+                            : marketForecast.warningCode === 'top_100_risk'
+                              ? 'Ставка рискует не попасть в первые 100 кампаний.'
+                              : marketForecast.warningCode === 'insufficient_history'
+                                ? 'Недостаточно истории показов для точной оценки.'
+                                : `Ожидается около ${marketForecast.expectedDailyImpressions.toLocaleString('ru-RU')} показов в день.`}
+                        </span>
+                      </span>
+                    ) : null}
                   </label>
                 );
               })}
@@ -391,11 +444,36 @@ export function AdvertiserNewCampaignPanel() {
             <div>
               <p className="flex items-center gap-2 text-sm font-semibold text-ink"><Calculator aria-hidden className="h-4 w-4 text-signal" /> Прогноз кампании</p>
               {forecast ? (
-                <p className="mt-1 text-sm leading-6 text-slate-600">
-                  Около <strong className="text-ink">{forecast.estimatedImpressions.toLocaleString('ru-RU')} показов</strong>
-                  {forecast.estimatedDays ? ` за ${forecast.estimatedDays} дн.` : '; срок пока нельзя оценить из-за недостатка истории сети'}
+                <div className="mt-1 text-sm leading-6 text-slate-600">
+                  <p>
+                    Около <strong className="text-ink">{forecast.estimatedImpressions.toLocaleString('ru-RU')} показов</strong>
+                    {forecast.estimatedDays ? ` за ${forecast.estimatedDays} дн.` : '; срок пока нельзя оценить из-за недостатка истории сети'}
+                  </p>
+                  <p>
+                    Ожидаемый темп:{' '}
+                    <strong className="text-ink">
+                      {forecast.dailyImpressionRange.p10.toLocaleString('ru-RU')}–{forecast.dailyImpressionRange.p90.toLocaleString('ru-RU')} показов в день
+                    </strong>
+                    .
+                  </p>
+                  {forecast.completionProbability !== null ? (
+                    <p>
+                      Вероятность выполнить цель до завершения:{' '}
+                      <strong className={forecast.completionProbability >= 70 ? 'text-emerald-700' : forecast.completionProbability >= 50 ? 'text-amber-700' : 'text-red-700'}>
+                        {forecast.completionProbability}%
+                      </strong>
+                      {forecast.requiredDailyImpressions
+                        ? ` · требуется ${forecast.requiredDailyImpressions.toLocaleString('ru-RU')} показов в день`
+                        : ''}
+                    </p>
+                  ) : null}
+                  {forecast.warningCode ? (
+                    <p className="mt-1 rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs font-medium text-amber-900">
+                      {forecastWarningText(forecast.warningCode)}
+                    </p>
+                  ) : null}
                   <span className="block text-xs text-slate-500">{forecast.basis.label} {forecast.disclaimer}</span>
-                </p>
+                </div>
               ) : (
                 <p className="mt-1 text-xs leading-5 text-slate-500">Расчёт учитывает бюджет, итоговый CPM, лимит и фактическую выдачу сети.</p>
               )}
@@ -436,4 +514,17 @@ function FormatOption({ active, onChange, value, title, text, premium = false }:
       <span className={`mt-0.5 block text-xs ${premium ? 'text-amber-800' : 'text-slate-500'}`}>{text}</span>
     </label>
   );
+}
+
+function forecastWarningText(warning: NonNullable<CampaignForecast['warningCode']>) {
+  if (warning === 'below_competitive') {
+    return 'Ставка ниже конкурентного уровня: кампания может откручиваться медленнее.';
+  }
+  if (warning === 'top_100_risk') {
+    return 'Ставка рискует не попасть в первые 100 кампаний выбранной поверхности.';
+  }
+  if (warning === 'insufficient_inventory') {
+    return 'При текущем трафике цель, вероятно, не будет выполнена в выбранный срок.';
+  }
+  return 'Недостаточно истории показов для надёжного прогноза.';
 }

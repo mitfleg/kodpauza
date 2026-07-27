@@ -154,9 +154,30 @@ export type AdvertiserStats = {
 export type CampaignForecast = {
   estimatedImpressions: number;
   estimatedDays: number | null;
+  estimatedDailyImpressions: number;
+  requiredDailyImpressions: number | null;
+  completionProbability: number | null;
+  dailyImpressionRange: { p10: number; p50: number; p90: number };
   recentDailyNetworkImpressions: number;
   activeCampaigns: number;
   billableCpmKopecks: number;
+  blendedBillableCpmKopecks: number;
+  warningCode:
+    | 'below_competitive'
+    | 'top_100_risk'
+    | 'insufficient_inventory'
+    | 'insufficient_history'
+    | null;
+  placements: Array<{
+    surface: 'codex_vscode' | 'claude_code_vscode';
+    cpmKopecks: number;
+    billableCpmKopecks: number;
+    recommendedCpmMinKopecks: number | null;
+    recommendedCpmMaxKopecks: number | null;
+    expectedDailyImpressions: number;
+    activeCampaigns: number;
+    warningCode: 'below_competitive' | 'top_100_risk' | 'insufficient_history' | null;
+  }>;
   basis: { sampleDays: number; recentImpressions: number; surfaces: string[]; label: string };
   disclaimer: string;
 };

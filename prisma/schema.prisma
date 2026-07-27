@@ -410,6 +410,7 @@ model AdEvent {
   @@index([campaignId, type, createdAt])
   @@index([creativeId, type, createdAt])
   @@index([adServeId, type])
+  @@index([surface, type, fraudStatus, createdAt])
 }
 
 model FraudFlag {

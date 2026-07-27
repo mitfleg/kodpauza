@@ -1753,6 +1753,63 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     expect(dailyBudgetBelowOneImpression.statusCode).toBe(400);
   });
 
+  it('строит рыночный прогноз по поверхности, CPM и фактической истории', async () => {
+    const advertiser = await login('adv@kodpauza.local', 'adv123456');
+    const developer = await prisma.user.findFirstOrThrow({
+      where: { role: 'developer' },
+    });
+    const campaign = await prisma.campaign.findFirstOrThrow({
+      where: { creatives: { some: {} } },
+      include: { creatives: { take: 1 } },
+    });
+    const eventIds = Array.from({ length: 12 }, () => randomUUID());
+    const yesterday = new Date();
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    yesterday.setUTCHours(12, 0, 0, 0);
+
+    try {
+      await prisma.adEvent.createMany({
+        data: eventIds.map((eventId) => ({
+          eventId,
+          userId: developer.id,
+          campaignId: campaign.id,
+          creativeId: campaign.creatives[0]!.id,
+          adId: randomUUID(),
+          type: 'impression',
+          surface: 'codex_vscode',
+          visibleMs: 5_200,
+          clientVersion: '0.7.22',
+          toolName: 'codex',
+          toolVersion: 'test',
+          fraudStatus: 'clean',
+          createdAt: yesterday,
+        })),
+      });
+      const endsAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1_000).toISOString();
+      const response = await app.inject({
+        method: 'GET',
+        url: `/v1/advertiser/forecast?budgetKopecks=100000&cpmKopecks=30000&format=standard&surfaces=codex_vscode&surfaceCpms=codex_vscode%3A30000&impressionsLimit=100&endsAt=${encodeURIComponent(endsAt)}`,
+        headers: auth(advertiser.token),
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toMatchObject({
+        basis: { sampleDays: 28, surfaces: ['codex_vscode'] },
+        placements: [
+          {
+            surface: 'codex_vscode',
+            cpmKopecks: 30_000,
+            billableCpmKopecks: 30_000,
+          },
+        ],
+      });
+      expect(response.json().basis.recentImpressions).toBeGreaterThanOrEqual(12);
+      expect(response.json().completionProbability).toEqual(expect.any(Number));
+    } finally {
+      await prisma.adEvent.deleteMany({ where: { eventId: { in: eventIds } } });
+    }
+  });
+
   it('фиксирует премиальную наценку и возвращает формат в рекламной выдаче', async () => {
     const advertiser = await login('adv@kodpauza.local', 'adv123456');
     const admin = await login('admin@kodpauza.local', 'admin123456');
