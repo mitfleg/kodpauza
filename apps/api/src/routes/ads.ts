@@ -9,6 +9,7 @@ import {
 import { requireRole } from '../auth.js';
 import { config } from '../config.js';
 import { prisma } from '../prisma.js';
+import { appendEridToUrl } from '../services/adClickUrl.js';
 import { AD_ROTATION_HISTORY_SIZE, selectRotatedCampaign } from '../services/adRotation.js';
 import {
   deliveryAnomalyReason,
@@ -242,7 +243,7 @@ export function registerAdsRoutes(app: FastifyInstance) {
       campaignId: campaign.id,
       creativeId: creative.id,
       text: creative.text,
-      url: creative.url,
+      url: appendEridToUrl(creative.url, campaign.erid),
       erid: campaign.erid,
       advertiserName: campaign.advertiser.companyName,
       campaignName: campaign.name,

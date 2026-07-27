@@ -21,7 +21,7 @@ import { StatusBarAdPresenter } from './adPresenter';
 import { DiagnosticsReporter } from './diagnostics';
 import { KodpauzaState } from './state';
 import { TelemetryOutbox } from './telemetryOutbox';
-import { normalizeExternalUrl } from './urls';
+import { normalizeAdClickUrl, normalizeExternalUrl } from './urls';
 import { shouldAutomaticallyConnectIntegrations } from './integrationAutoConnect';
 import { findBundledCodexCli } from './codexCli';
 import {
@@ -835,7 +835,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         return;
       }
       if (await presenter.recordClick()) {
-        await openExternal(ad.url);
+        await openExternal(ad.url, ad.erid);
       }
     }),
   );
@@ -955,7 +955,7 @@ function createUiAdapter(runtime: IntegrationRuntime): {
       if (!ad || ad.adId !== adId || !(await runtime.presenter.recordClick())) {
         return;
       }
-      await openExternal(ad.url);
+      await openExternal(ad.url, ad.erid);
     },
     onVisibility: ({ adId, viewId, visible }) =>
       runtime.presenter.markPatchedUiVisibility(adId, viewId, visible),
@@ -1025,8 +1025,9 @@ function scheduleReload(message: string): void {
   }, 700);
 }
 
-async function openExternal(value: string): Promise<void> {
-  const safeUrl = normalizeExternalUrl(value);
+async function openExternal(value: string, erid?: string | null): Promise<void> {
+  const safeUrl =
+    erid === undefined ? normalizeExternalUrl(value) : normalizeAdClickUrl(value, erid);
   const opened = await vscode.env.openExternal(vscode.Uri.parse(safeUrl, true));
   if (!opened) {
     throw new Error('Не удалось открыть ссылку в браузере.');

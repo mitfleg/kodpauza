@@ -40,3 +40,18 @@ export function normalizeApiBaseUrl(value: string): string {
 export function normalizeExternalUrl(value: string, label = 'Некорректная внешняя ссылка'): string {
   return parseSafeHttpUrl(value, label).toString();
 }
+
+export function normalizeAdClickUrl(
+  value: string,
+  erid: string | null | undefined,
+  label = 'Некорректная ссылка объявления',
+): string {
+  const url = parseSafeHttpUrl(value, label);
+  const token = erid?.trim();
+
+  if (token) {
+    url.searchParams.set('erid', token);
+  }
+
+  return url.toString();
+}

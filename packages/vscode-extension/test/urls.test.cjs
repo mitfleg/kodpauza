@@ -1,9 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  normalizeAdClickUrl,
   normalizeApiBaseUrl,
   normalizeExternalUrl,
-  parseSafeHttpUrl
+  parseSafeHttpUrl,
 } = require('../dist/urls.js');
 
 test('разрешает HTTPS и локальный HTTP', () => {
@@ -22,4 +23,50 @@ test('запрещает удалённый HTTP и небезопасные с�
 test('адрес API не принимает query и fragment', () => {
   assert.throws(() => normalizeApiBaseUrl('https://api.kodpauza.ru?token=secret'), /HTTPS/);
   assert.throws(() => normalizeApiBaseUrl('https://api.kodpauza.ru/#debug'), /HTTPS/);
+});
+
+test('добавляет ERID в ссылку объявления и сохраняет остальные части URL', () => {
+  assert.equal(
+    normalizeAdClickUrl('https://kodpauza.ru/install?utm_source=extension#download', 'token-123'),
+    'https://kodpauza.ru/install?utm_source=extension&erid=token-123#download',
+  );
+});
+
+test('заменяет устаревший ERID и игнорирует пустой токен', () => {
+  assert.equal(
+    normalizeAdClickUrl('https://kodpauza.ru/install?erid=old', 'new'),
+    'https://kodpauza.ru/install?erid=new',
+  );
+  assert.equal(
+    normalizeAdClickUrl(
+      'https://kodpauza.ru/install?erid=old&utm_source=extension&erid=duplicate#start',
+      'new',
+    ),
+    'https://kodpauza.ru/install?erid=new&utm_source=extension#start',
+  );
+  assert.equal(
+    normalizeAdClickUrl('https://kodpauza.ru/install', '   '),
+    'https://kodpauza.ru/install',
+  );
+});
+
+test('повторная установка ERID идемпотентна', () => {
+  const marked = normalizeAdClickUrl(
+    'https://kodpauza.ru/install?utm_source=extension#download',
+    'token-123',
+  );
+  assert.equal(normalizeAdClickUrl(marked, 'token-123'), marked);
+});
+
+test('ссылка объявления разрешает только безопасные HTTP/HTTPS-адреса', () => {
+  assert.equal(
+    normalizeAdClickUrl('http://localhost:3000/install', 'token-123'),
+    'http://localhost:3000/install?erid=token-123',
+  );
+  assert.throws(() => normalizeAdClickUrl('http://example.ru/install', 'token-123'), /HTTPS/);
+  assert.throws(() => normalizeAdClickUrl('javascript:alert(1)', 'token-123'), /HTTPS/);
+  assert.throws(
+    () => normalizeAdClickUrl('https://user:secret@example.ru/install', 'token-123'),
+    /HTTPS/,
+  );
 });

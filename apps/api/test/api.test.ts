@@ -105,6 +105,7 @@ type Ad = {
   creativeId: string;
   text: string;
   url: string;
+  erid: string | null;
   advertiserName: string;
   campaignName: string;
   surface: 'codex_vscode';
@@ -740,6 +741,93 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       headers: auth(advertiser.token),
     });
     expect(forbidden.statusCode).toBe(403);
+  });
+
+  it('возвращает ERID отдельным полем и маркирует URL рекламной выдачи', async () => {
+    const developer = await login('dev@kodpauza.local', 'dev123456');
+    const advertiserLogin = await login('adv@kodpauza.local', 'adv123456');
+    const advertiser = await prisma.advertiserProfile.findUniqueOrThrow({
+      where: { userId: advertiserLogin.user.id },
+    });
+    const activeCampaigns = await prisma.campaign.findMany({
+      where: { status: 'active' },
+      select: { id: true },
+    });
+    const originalUrl = 'https://kodpauza.ru/install?utm_source=vscode#start';
+    const erid = 'route-token-123';
+    let campaignId: string | undefined;
+
+    try {
+      await prisma.campaign.updateMany({
+        where: { id: { in: activeCampaigns.map((campaign) => campaign.id) } },
+        data: { status: 'paused' },
+      });
+      const campaign = await prisma.campaign.create({
+        data: {
+          advertiserId: advertiser.id,
+          name: 'Проверка ERID в рекламной выдаче',
+          text: 'Установите Kodpauza для разработки',
+          url: originalUrl,
+          erid,
+          status: 'active',
+          cpmKopecks: 30_000,
+          billableCpmKopecks: 30_000,
+          budgetKopecks: 100_000,
+          surfaces: {
+            create: {
+              surface: 'codex_vscode',
+              cpmKopecks: 30_000,
+              billableCpmKopecks: 30_000,
+            },
+          },
+          creatives: {
+            create: {
+              label: 'Основной',
+              text: 'Установите Kodpauza для разработки',
+              url: originalUrl,
+            },
+          },
+        },
+      });
+      campaignId = campaign.id;
+
+      const markedResponse = await app.inject({
+        method: 'GET',
+        url: '/v1/ads/next?surface=codex_vscode',
+        headers: auth(developer.token),
+      });
+      expect(markedResponse.statusCode).toBe(200);
+      expect(markedResponse.json()).toMatchObject({
+        campaignId,
+        erid,
+        url: 'https://kodpauza.ru/install?utm_source=vscode&erid=route-token-123#start',
+      });
+
+      await prisma.campaign.update({
+        where: { id: campaignId },
+        data: { erid: null },
+      });
+      const unmarkedResponse = await app.inject({
+        method: 'GET',
+        url: '/v1/ads/next?surface=codex_vscode',
+        headers: auth(developer.token),
+      });
+      expect(unmarkedResponse.statusCode).toBe(200);
+      expect(unmarkedResponse.json()).toMatchObject({
+        campaignId,
+        erid: null,
+        url: originalUrl,
+      });
+    } finally {
+      if (campaignId) {
+        await prisma.adServe.deleteMany({ where: { campaignId } });
+        await prisma.campaign.delete({ where: { id: campaignId } });
+      }
+      await prisma.campaign.updateMany({
+        where: { id: { in: activeCampaigns.map((campaign) => campaign.id) } },
+        data: { status: 'active' },
+      });
+    }
   });
 
   it('учитывает авторизованную установку расширения и строит воронку беты', async () => {
