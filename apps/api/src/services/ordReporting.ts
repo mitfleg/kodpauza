@@ -12,6 +12,43 @@ export function reportMonthRange(month: string): { start: Date; end: Date } {
   return { start, end };
 }
 
+type ReportCreative = {
+  id: string;
+  ordCreativeId: string | null;
+  campaign: { ordPlatformId: string | null };
+};
+
+export type OrdReportCreativeGroup = {
+  creativeId: string;
+  ordCreativeId: string;
+  platformId: string;
+  creativeIds: string[];
+};
+
+export function groupOrdReportCreatives(
+  creatives: ReportCreative[],
+): OrdReportCreativeGroup[] {
+  const groups = new Map<string, OrdReportCreativeGroup>();
+  for (const creative of creatives) {
+    const ordCreativeId = creative.ordCreativeId;
+    const platformId = creative.campaign.ordPlatformId;
+    if (!ordCreativeId || !platformId) continue;
+    const key = `${platformId}\0${ordCreativeId}`;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.creativeIds.push(creative.id);
+      continue;
+    }
+    groups.set(key, {
+      creativeId: creative.id,
+      ordCreativeId,
+      platformId,
+      creativeIds: [creative.id],
+    });
+  }
+  return [...groups.values()];
+}
+
 export async function prepareMonthlyOrdReports(month: string): Promise<OrdStatisticReport[]> {
   const { start, end } = reportMonthRange(month);
   const creatives = await prisma.campaignCreative.findMany({
@@ -27,20 +64,20 @@ export async function prepareMonthlyOrdReports(month: string): Promise<OrdStatis
       },
     },
     include: { campaign: { select: { ordPlatformId: true } } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   });
   const reports: OrdStatisticReport[] = [];
-  for (const creative of creatives) {
-    const platformId = creative.campaign.ordPlatformId!;
+  for (const group of groupOrdReportCreatives(creatives)) {
     const [impressions, clicks] = await Promise.all([
       prisma.adServe.count({
         where: {
-          creativeId: creative.id,
+          creativeId: { in: group.creativeIds },
           impressionRecordedAt: { gte: start, lt: end },
         },
       }),
       prisma.adServe.count({
         where: {
-          creativeId: creative.id,
+          creativeId: { in: group.creativeIds },
           clickRecordedAt: { gte: start, lt: end },
         },
       }),
@@ -49,15 +86,15 @@ export async function prepareMonthlyOrdReports(month: string): Promise<OrdStatis
       await prisma.ordStatisticReport.upsert({
         where: {
           creativeId_platformId_periodStart_periodEnd: {
-            creativeId: creative.id,
-            platformId,
+            creativeId: group.creativeId,
+            platformId: group.platformId,
             periodStart: start,
             periodEnd: end,
           },
         },
         create: {
-          creativeId: creative.id,
-          platformId,
+          creativeId: group.creativeId,
+          platformId: group.platformId,
           periodStart: start,
           periodEnd: end,
           impressions,
@@ -65,7 +102,7 @@ export async function prepareMonthlyOrdReports(month: string): Promise<OrdStatis
           amountKopecks: 0,
         },
         update: {
-          ...((await isMutableReport(creative.id, platformId, start, end))
+          ...((await isMutableReport(group.creativeId, group.platformId, start, end))
             ? { impressions, clicks, amountKopecks: 0 }
             : {}),
         },

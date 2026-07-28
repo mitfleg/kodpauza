@@ -322,14 +322,14 @@ test('Claude UI-патч автоматически обновляет стар�
   const first = await installer.install();
   const manifestPath = path.join(value.home, 'claude-ui-patch.json');
   const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-  manifest.patchRevision = 1;
+  manifest.patchRevision = 8;
   await fs.writeFile(manifestPath, `${JSON.stringify(manifest)}\n`);
 
   const updated = await installer.ensureInstalled();
   assert.equal(updated.installed, true);
   assert.equal(updated.changed, true);
   assert.notEqual(updated.token, first.token);
-  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 8);
+  assert.equal(JSON.parse(await fs.readFile(manifestPath, 'utf8')).patchRevision, 9);
 });
 
 test('Claude UI-патч принимает новую версию при неизменной структуре цели', async (context) => {

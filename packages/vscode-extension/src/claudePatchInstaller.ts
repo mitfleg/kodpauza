@@ -12,7 +12,7 @@ import {
 import { webviewVisibilityRuntime } from './uiVisibilityRuntime';
 
 const PATCH_STATE_FILE = 'claude-ui-patch.json';
-const PATCH_REVISION = 8;
+const PATCH_REVISION = 9;
 const UI_MARKER_PREFIX = '/*__KODPAUZA_CLAUDE_UI_START__:';
 const UI_MARKER_END = '/*__KODPAUZA_CLAUDE_UI_END__*/';
 const CSP_MARKER_START = '<!--__KODPAUZA_CLAUDE_CSP_START__-->';

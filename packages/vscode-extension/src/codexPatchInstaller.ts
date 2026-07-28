@@ -12,7 +12,7 @@ import { webviewVisibilityRuntime } from './uiVisibilityRuntime';
 export const CODEX_UI_BRIDGE_PORT = 37_491;
 
 const PATCH_STATE_FILE = 'codex-ui-patch.json';
-const PATCH_REVISION = 8;
+const PATCH_REVISION = 9;
 const UI_MARKER_PREFIX = '/*__KODPAUZA_UI_START__:';
 const UI_MARKER_END = '/*__KODPAUZA_UI_END__*/';
 const CSP_MARKER_START = '/*__KODPAUZA_CSP_START__*/';
