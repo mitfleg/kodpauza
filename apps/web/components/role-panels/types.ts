@@ -67,6 +67,7 @@ export type Campaign = {
   name: string;
   text: string;
   url: string;
+  erid?: string | null;
   status: CampaignStatus | string;
   cpmKopecks: number;
   billableCpmKopecks: number;
@@ -86,6 +87,8 @@ export type Campaign = {
     label: string;
     text: string;
     url: string;
+    erid?: string | null;
+    ordCreativeId?: string | null;
     impressionsServed: number;
     clicks: number;
     enabled: boolean;
@@ -102,6 +105,9 @@ export type Campaign = {
   updatedAt: string;
   advertiser?: {
     companyName?: string;
+    publicName?: string;
+    advertiserInfoUrl?: string | null;
+    inn?: string | null;
     balanceKopecks?: number;
     user?: {
       email: string;
@@ -146,6 +152,7 @@ export type AdminUser = {
 
 export type AdvertiserStats = {
   companyName?: string | null;
+  publicName?: string | null;
   campaigns: Campaign[];
   balanceKopecks: number;
   totals: { impressions: number; clicks: number; spentKopecks: number };
@@ -163,11 +170,7 @@ export type CampaignForecast = {
   billableCpmKopecks: number;
   blendedBillableCpmKopecks: number;
   warningCode:
-    | 'below_competitive'
-    | 'top_100_risk'
-    | 'insufficient_inventory'
-    | 'insufficient_history'
-    | null;
+    'below_competitive' | 'top_100_risk' | 'insufficient_inventory' | 'insufficient_history' | null;
   placements: Array<{
     surface: 'codex_vscode' | 'claude_code_vscode';
     cpmKopecks: number;

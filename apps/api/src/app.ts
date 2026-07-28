@@ -18,12 +18,15 @@ import { registerRuntimePolicyRoutes } from './routes/runtimePolicy.js';
 import { registerAnalyticsRoutes } from './routes/analytics.js';
 import { YooKassaClient, type YooKassaClientContract } from './services/yookassa.js';
 import { TelegramAdminNotifier, type AdminNotifier } from './services/adminNotifier.js';
+import { YandexOrdClient, type YandexOrdClientContract } from './services/yandexOrd.js';
+import { runAutomaticOrdReporting } from './services/ordReporting.js';
 
 export function buildApp(
   options: {
     yooKassaClient?: YooKassaClientContract;
     emailVerificationMailer?: EmailVerificationMailer;
     adminNotifier?: AdminNotifier;
+    yandexOrdClient?: YandexOrdClientContract;
   } = {},
 ) {
   const app = Fastify({
@@ -40,6 +43,12 @@ export function buildApp(
   });
   const pruneTimer = setInterval(pruneRateLimitBuckets, config.rateLimitWindowMs);
   pruneTimer.unref();
+  const ordClient = options.yandexOrdClient ?? new YandexOrdClient();
+  const ordReportingTimer = setInterval(
+    () => void runAutomaticOrdReporting(ordClient),
+    6 * 60 * 60 * 1_000,
+  );
+  ordReportingTimer.unref();
 
   app.addHook('onRequest', async (request, reply) => {
     const origin = request.headers.origin;
@@ -64,6 +73,11 @@ export function buildApp(
 
   app.addHook('onClose', async () => {
     clearInterval(pruneTimer);
+    clearInterval(ordReportingTimer);
+  });
+
+  app.addHook('onReady', async () => {
+    void runAutomaticOrdReporting(ordClient);
   });
 
   app.options('/*', async (_request, reply) => {
@@ -87,7 +101,7 @@ export function buildApp(
   registerPaymentRoutes(app, options.yooKassaClient ?? new YooKassaClient());
   registerPrivacyRoutes(app);
   registerAnalyticsRoutes(app);
-  registerAdminRoutes(app);
+  registerAdminRoutes(app, ordClient);
 
   app.setNotFoundHandler((_request, reply) => {
     return reply.code(404).send({ error: 'Маршрут не найден.' });

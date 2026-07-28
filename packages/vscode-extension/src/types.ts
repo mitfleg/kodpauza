@@ -6,9 +6,9 @@ export interface KodpauzaAd {
   text: string;
   url: string;
   erid: string | null;
-  /** Public name shown before the offer text. */
+  /** Legacy campaign label retained for API compatibility. */
   campaignName: string;
-  /** Legal/company name retained for advertiser-level rotation. */
+  /** Public brand shown in the disclosure; legal identity is never sent to the extension. */
   advertiserName: string;
   durationSec: number;
   surface: Surface;

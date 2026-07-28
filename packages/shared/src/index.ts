@@ -73,6 +73,10 @@ export const campaignCreativeInputSchema = z
     label: z.string().trim().min(1).max(40),
     text: campaignCreativeTextSchema,
     url: httpsUrlSchema,
+    erid: z.preprocess(
+      (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+      z.string().trim().min(5).max(80).nullable().optional(),
+    ),
   })
   .strict();
 
@@ -98,6 +102,15 @@ export const registerSchema = z
     privacyVersion: z.literal(legalDocumentVersions.privacy),
     personalDataConsentAccepted: z.literal(true),
     personalDataConsentVersion: z.literal(legalDocumentVersions.personalDataConsent),
+  })
+  .strict();
+
+export const updateAdvertiserProfileSchema = z
+  .object({
+    companyName: z.string().trim().min(2).max(160),
+    publicName: z.string().trim().min(2).max(80),
+    inn: z.string().trim().min(10).max(12),
+    advertiserInfoUrl: httpsUrlSchema,
   })
   .strict();
 
@@ -176,6 +189,8 @@ export const createCampaignSchema = z
       (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
       z.string().trim().min(5).max(80).nullable().optional(),
     ),
+    selfPromotion: z.boolean().default(false),
+    ordPlatformId: z.string().trim().min(1).max(160).nullable().optional(),
     cpmKopecks: cpmKopecksSchema,
     budgetKopecks: moneyKopecksSchema.min(100),
     impressionsLimit: z.number().int().min(1).max(10_000_000).nullable().optional(),
@@ -275,7 +290,11 @@ export function accrueDeveloperReward(
     impressionAccounting.rewardRemainderDenominator,
     'CPM',
   );
-  if (!Number.isSafeInteger(developerShareBps) || developerShareBps < 0 || developerShareBps > 10_000) {
+  if (
+    !Number.isSafeInteger(developerShareBps) ||
+    developerShareBps < 0 ||
+    developerShareBps > 10_000
+  ) {
     throw new RangeError('Доля разработчика должна быть целым числом от 0 до 10000 bps.');
   }
   return divideAccrual(

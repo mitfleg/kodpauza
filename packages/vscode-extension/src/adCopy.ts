@@ -1,14 +1,15 @@
 export function adDisplayText(value: string): string {
   const source = value.trim();
-  const withoutDisclosure = source.replace(/^(?:Реклама|Advertisement)\s*:\s*/i, '').trim();
+  const withoutDisclosure = source.replace(/^(?:Реклама|Advertisement)(?:\s*[·:]\s*)?/i, '').trim();
   return withoutDisclosure || 'Узнать подробнее';
 }
 
-export function adPresentationText(campaignName: string, offer: string): string {
-  const advertiser = campaignName.trim() || 'Kodpauza';
+export function adPresentationText(advertiserName: string, offer: string): string {
+  const advertiser = advertiserName.trim() || 'Kodpauza';
   const cleanOffer = adDisplayText(offer);
-  const prefix = `${advertiser} · `;
-  return cleanOffer.toLowerCase().startsWith(prefix.toLowerCase())
-    ? cleanOffer
-    : `${prefix}${cleanOffer}`;
+  const advertiserPrefix = `${advertiser} · `;
+  const offerWithoutAdvertiser = cleanOffer.toLowerCase().startsWith(advertiserPrefix.toLowerCase())
+    ? cleanOffer.slice(advertiserPrefix.length).trim() || 'Узнать подробнее'
+    : cleanOffer;
+  return `Реклама · ${advertiser} · ${offerWithoutAdvertiser}`;
 }

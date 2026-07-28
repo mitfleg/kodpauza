@@ -63,10 +63,17 @@ async function main() {
 
   const advertiserProfile = await prisma.advertiserProfile.upsert({
     where: { userId: advertiser.id },
-    update: { companyName: 'Тестовый рекламодатель', inn: '0000000000' },
+    update: {
+      companyName: 'Тестовый рекламодатель',
+      publicName: 'Тестовый бренд',
+      advertiserInfoUrl: 'https://example.ru/advertiser',
+      inn: '0000000000',
+    },
     create: {
       userId: advertiser.id,
       companyName: 'Тестовый рекламодатель',
+      publicName: 'Тестовый бренд',
+      advertiserInfoUrl: 'https://example.ru/advertiser',
       inn: '0000000000',
       balanceKopecks: 1000000,
     },
@@ -79,6 +86,7 @@ async function main() {
       status: 'active',
       text: 'Тестовое облако — быстрый запуск окружения',
       url: 'https://example.ru',
+      erid: 'local-test-erid',
       cpmKopecks: 30000,
       billableCpmKopecks: 30000,
       format: 'standard',
@@ -106,6 +114,7 @@ async function main() {
           label: 'Основной',
           text: 'Тестовое облако — быстрый запуск окружения',
           url: 'https://example.ru',
+          erid: 'local-test-erid',
         },
       },
     },

@@ -754,7 +754,8 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       select: { id: true },
     });
     const originalUrl = 'https://kodpauza.ru/install?utm_source=vscode#start';
-    const erid = 'route-token-123';
+    const erid = 'creative-route-token-123';
+    const legacyErid = 'legacy-route-token-123';
     let campaignId: string | undefined;
 
     try {
@@ -768,7 +769,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
           name: 'Проверка ERID в рекламной выдаче',
           text: 'Установите Kodpauza для разработки',
           url: originalUrl,
-          erid,
+          erid: legacyErid,
           status: 'active',
           cpmKopecks: 30_000,
           billableCpmKopecks: 30_000,
@@ -785,6 +786,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
               label: 'Основной',
               text: 'Установите Kodpauza для разработки',
               url: originalUrl,
+              erid,
             },
           },
         },
@@ -800,7 +802,23 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       expect(markedResponse.json()).toMatchObject({
         campaignId,
         erid,
-        url: 'https://kodpauza.ru/install?utm_source=vscode&erid=route-token-123#start',
+        url: 'https://kodpauza.ru/install?utm_source=vscode&erid=creative-route-token-123#start',
+      });
+
+      await prisma.campaignCreative.updateMany({
+        where: { campaignId },
+        data: { erid: null },
+      });
+      const legacyResponse = await app.inject({
+        method: 'GET',
+        url: '/v1/ads/next?surface=codex_vscode',
+        headers: auth(developer.token),
+      });
+      expect(legacyResponse.statusCode).toBe(200);
+      expect(legacyResponse.json()).toMatchObject({
+        campaignId,
+        erid: legacyErid,
+        url: 'https://kodpauza.ru/install?utm_source=vscode&erid=legacy-route-token-123#start',
       });
 
       await prisma.campaign.update({
@@ -1093,7 +1111,11 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         role: 'advertiser',
         emailVerifiedAt: new Date(),
         advertiserProfile: {
-          create: { companyName: 'Rollback advertiser', balanceKopecks: 2 },
+          create: {
+            companyName: 'Rollback advertiser',
+            publicName: 'Rollback brand',
+            balanceKopecks: 2,
+          },
         },
       },
       include: { advertiserProfile: true },
@@ -1910,6 +1932,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         name: 'Премиальная кампания',
         text: 'Премиальная инфраструктура для разработки',
         url: 'https://example.ru/premium',
+        erid: 'premium-erid',
         cpmKopecks: 40_000,
         budgetKopecks: 100_000,
         format: 'premium',
@@ -1920,7 +1943,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       format: 'premium',
       cpmKopecks: 40_000,
       billableCpmKopecks: 60_000,
-      erid: null,
+      erid: 'premium-erid',
     });
 
     const campaignId = created.json().campaign.id as string;
@@ -1940,6 +1963,37 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       billableCpmKopecks: 60_000,
       costKopecks: 60,
       rewardKopecks: 30,
+    });
+  });
+
+  it('не активирует кампанию, пока у каждого креатива нет ERID', async () => {
+    const advertiser = await login('adv@kodpauza.local', 'adv123456');
+    const admin = await login('admin@kodpauza.local', 'admin123456');
+    const created = await app.inject({
+      method: 'POST',
+      url: '/v1/advertiser/campaigns',
+      headers: auth(advertiser.token),
+      payload: {
+        name: 'Неполная маркировка',
+        text: 'Объявление без токена одного из вариантов',
+        url: 'https://example.ru/incomplete',
+        cpmKopecks: 30_000,
+        budgetKopecks: 100_000,
+      },
+    });
+    expect(created.statusCode).toBe(201);
+
+    const approved = await app.inject({
+      method: 'POST',
+      url: `/v1/admin/campaigns/${created.json().campaign.id}/approve`,
+      headers: auth(admin.token),
+      payload: { reviewedUpdatedAt: created.json().campaign.updatedAt },
+    });
+
+    expect(approved.statusCode).toBe(409);
+    expect(approved.json()).toMatchObject({
+      code: 'CAMPAIGN_COMPLIANCE_REQUIRED',
+      issues: [expect.stringContaining('ERID')],
     });
   });
 
@@ -1965,11 +2019,13 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
           label: 'Основной',
           text: 'Канонический основной вариант',
           url: 'https://example.ru/canonical',
+          erid: 'canonical-erid',
         },
         {
           label: 'Вариант B',
           text: 'Второй вариант, который тоже должен пройти модерацию',
           url: 'https://example.ru/variant-b',
+          erid: 'variant-b-erid',
         },
       ];
       const created = await app.inject({
@@ -2057,13 +2113,18 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
 
       const ad = await nextAd(developer.token);
       expect(ad.campaignId).toBe(campaignId);
-      expect(ad.advertiserName).toBe(moderated.advertiser.companyName);
+      expect(ad.advertiserName).toBe(moderated.advertiser.publicName);
       expect(ad.campaignName).toBe(moderated.name);
       expect(moderated.creatives).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: ad.creativeId, text: ad.text, url: ad.url, enabled: true }),
+          expect.objectContaining({ id: ad.creativeId, text: ad.text, enabled: true }),
         ]),
       );
+      const servedCreative = moderated.creatives.find(
+        (creative: { id: string }) => creative.id === ad.creativeId,
+      );
+      expect(new URL(ad.url).origin + new URL(ad.url).pathname).toBe(servedCreative.url);
+      expect(new URL(ad.url).searchParams.get('erid')).toBe(servedCreative.erid);
       expect(ad.text).not.toBe('Legacy-текст не должен попасть в выдачу');
       expect(ad.url).not.toBe('https://example.ru/legacy-mismatch');
     } finally {
@@ -2088,6 +2149,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         name: 'Гонка модерации',
         text: 'Проверенная версия предложения',
         url: 'https://example.ru/reviewed',
+        erid: 'reviewed-erid',
         cpmKopecks: 30_000,
         budgetKopecks: 100_000,
       },
@@ -2160,9 +2222,11 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     expect(response.json()).toEqual({
       error: 'Лимит показов не может быть меньше уже выполненных показов.',
     });
-    expect(
-      await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } }),
-    ).toMatchObject({ impressionsServed: 7, impressionsLimit: null, status: 'pending' });
+    expect(await prisma.campaign.findUniqueOrThrow({ where: { id: campaignId } })).toMatchObject({
+      impressionsServed: 7,
+      impressionsLimit: null,
+      status: 'pending',
+    });
   });
 
   it('возвращает измененную активную кампанию на модерацию и атомарно пишет решение', async () => {

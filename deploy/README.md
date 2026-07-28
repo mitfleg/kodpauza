@@ -96,6 +96,11 @@ rejects tokens issued on another host. Service email is sent through the Timeweb
 `smtp.timeweb.ru:587`, STARTTLS (`KODPAUZA_SMTP_SECURE=false`,
 `KODPAUZA_SMTP_REQUIRE_TLS=true`) and the full mailbox address as the SMTP username.
 
+The Yandex ORD OAuth token is stored only in
+`KODPAUZA_YANDEX_ORD_API_TOKEN`. Leave it empty until the ORD account is connected; the API remains
+healthy and monthly submission stays disabled. Campaign and creative bindings are database records,
+not environment variables. See [ERID and Yandex ORD](../docs/ord.md).
+
 To switch or rotate both providers without exposing secrets in shell history, copy
 `deploy/configure-russian-providers.sh` to the server and run it as the deploy user. The script
 prompts for both secrets with hidden input, preserves special characters in the mailbox password,

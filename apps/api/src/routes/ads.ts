@@ -66,7 +66,13 @@ export function registerAdsRoutes(app: FastifyInstance) {
       include: {
         campaign: {
           include: {
-            advertiser: { select: { balanceKopecks: true, companyName: true } },
+            advertiser: {
+              select: {
+                balanceKopecks: true,
+                publicName: true,
+                advertiserInfoUrl: true,
+              },
+            },
             creatives: {
               where: { enabled: true },
               orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -107,16 +113,19 @@ export function registerAdsRoutes(app: FastifyInstance) {
             _count: { _all: true },
           }),
         ])
-      : [[], [], []] as const;
+      : ([[], [], []] as const);
     const spentToday = new Map(deliveryRows.map((row) => [row.campaignId, row.spentKopecks]));
     const frequencyToday = new Map(userFrequency.map((row) => [row.campaignId, row._count._all]));
-    const anomalyByCampaign = new Map<string, {
-      impressions: number;
-      clicks: number;
-      suspiciousImpressions: number;
-      users: Set<string>;
-      ips: Set<string>;
-    }>();
+    const anomalyByCampaign = new Map<
+      string,
+      {
+        impressions: number;
+        clicks: number;
+        suspiciousImpressions: number;
+        users: Set<string>;
+        ips: Set<string>;
+      }
+    >();
     for (const row of recentAnomalies) {
       const current = anomalyByCampaign.get(row.campaignId) ?? {
         impressions: 0,
@@ -147,7 +156,9 @@ export function registerAdsRoutes(app: FastifyInstance) {
       if (reason) anomalyReasons.set(campaignId, reason);
     }
     for (const reason of ['fraud_spike', 'ctr_spike'] as const) {
-      const ids = [...anomalyReasons].filter((entry) => entry[1] === reason).map((entry) => entry[0]);
+      const ids = [...anomalyReasons]
+        .filter((entry) => entry[1] === reason)
+        .map((entry) => entry[0]);
       if (ids.length > 0) {
         await prisma.campaign.updateMany({
           where: { id: { in: ids }, status: 'active' },
@@ -155,37 +166,40 @@ export function registerAdsRoutes(app: FastifyInstance) {
         });
       }
     }
-    const eligibleCampaigns = campaigns.filter((item) => {
-      if (!runtimePolicyAllows({ ...runtimeContext, campaignId: item.id }, runtimePolicy)) {
-        return false;
-      }
-      if (anomalyReasons.has(item.id)) return false;
-      const placement = item.surfaces[0];
-      if (!placement) return false;
-      const costKopecks = accrueImpressionCharge(
-        placement.billableCpmKopecks,
-        item.billingRemainderMilliKopecks,
-      ).amountKopecks;
-      const balanceOk = item.advertiser.balanceKopecks >= costKopecks;
-      const limitOk = item.impressionsLimit === null || item.impressionsServed < item.impressionsLimit;
-      const frequencyOk =
-        item.frequencyCapPerDay === null ||
-        (frequencyToday.get(item.id) ?? 0) < item.frequencyCapPerDay;
-      const delivery = deliveryEligibility({
-        now,
-        startsAt: item.startsAt,
-        endsAt: item.endsAt,
-        mode: item.deliveryMode,
-        nextCostKopecks: costKopecks,
-        remainingBudgetKopecks: item.budgetKopecks - item.spentKopecks,
-        dailyBudgetKopecks: item.dailyBudgetKopecks,
-        spentTodayKopecks: spentToday.get(item.id) ?? 0,
-      });
-      return balanceOk && limitOk && frequencyOk && delivery.eligible;
-    }).map((campaign) => ({
-      ...campaign,
-      billableCpmKopecks: campaign.surfaces[0]!.billableCpmKopecks,
-    }));
+    const eligibleCampaigns = campaigns
+      .filter((item) => {
+        if (!runtimePolicyAllows({ ...runtimeContext, campaignId: item.id }, runtimePolicy)) {
+          return false;
+        }
+        if (anomalyReasons.has(item.id)) return false;
+        const placement = item.surfaces[0];
+        if (!placement) return false;
+        const costKopecks = accrueImpressionCharge(
+          placement.billableCpmKopecks,
+          item.billingRemainderMilliKopecks,
+        ).amountKopecks;
+        const balanceOk = item.advertiser.balanceKopecks >= costKopecks;
+        const limitOk =
+          item.impressionsLimit === null || item.impressionsServed < item.impressionsLimit;
+        const frequencyOk =
+          item.frequencyCapPerDay === null ||
+          (frequencyToday.get(item.id) ?? 0) < item.frequencyCapPerDay;
+        const delivery = deliveryEligibility({
+          now,
+          startsAt: item.startsAt,
+          endsAt: item.endsAt,
+          mode: item.deliveryMode,
+          nextCostKopecks: costKopecks,
+          remainingBudgetKopecks: item.budgetKopecks - item.spentKopecks,
+          dailyBudgetKopecks: item.dailyBudgetKopecks,
+          spentTodayKopecks: spentToday.get(item.id) ?? 0,
+        });
+        return balanceOk && limitOk && frequencyOk && delivery.eligible;
+      })
+      .map((campaign) => ({
+        ...campaign,
+        billableCpmKopecks: campaign.surfaces[0]!.billableCpmKopecks,
+      }));
 
     if (eligibleCampaigns.length === 0) {
       return reply.code(204).send();
@@ -243,9 +257,10 @@ export function registerAdsRoutes(app: FastifyInstance) {
       campaignId: campaign.id,
       creativeId: creative.id,
       text: creative.text,
-      url: appendEridToUrl(creative.url, campaign.erid),
-      erid: campaign.erid,
-      advertiserName: campaign.advertiser.companyName,
+      url: appendEridToUrl(creative.url, creative.erid ?? campaign.erid),
+      erid: creative.erid ?? campaign.erid,
+      advertiserName: campaign.advertiser.publicName,
+      advertiserInfoUrl: campaign.advertiser.advertiserInfoUrl,
       campaignName: campaign.name,
       durationSec: adPolicy.impressionVisibleMs / 1000,
       surface: parsed.data.surface,

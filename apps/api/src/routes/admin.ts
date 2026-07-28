@@ -6,16 +6,57 @@ import { classifyUnsupportedIntegrationVersion } from '../services/integrationVe
 import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
 import { lockCampaignMutation, sameCampaignRevision } from '../services/campaignMutation.js';
+import { campaignComplianceIssues } from '../services/campaignCompliance.js';
+import {
+  prepareMonthlyOrdReports,
+  refreshOrdReport,
+  submitOrdReport,
+} from '../services/ordReporting.js';
+import type { YandexOrdClientContract } from '../services/yandexOrd.js';
 
 const reviewedCampaignSchema = z
-  .object({ reviewedUpdatedAt: z.string().datetime({ offset: true }).transform((value) => new Date(value)) })
+  .object({
+    reviewedUpdatedAt: z
+      .string()
+      .datetime({ offset: true })
+      .transform((value) => new Date(value)),
+  })
   .strict();
 
 const rejectedCampaignSchema = reviewedCampaignSchema.extend({
   reason: z.string().trim().min(3).max(500),
 });
 
-export function registerAdminRoutes(app: FastifyInstance) {
+const ordMonthSchema = z.object({ month: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/) }).strict();
+const ordCampaignBindingSchema = z
+  .object({
+    organizationId: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_-]{1,128}$/),
+    platformId: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_-]{1,128}$/),
+    creatives: z
+      .array(
+        z
+          .object({
+            id: z.string().trim().min(1).max(128),
+            ordCreativeId: z
+              .string()
+              .trim()
+              .regex(/^[A-Za-z0-9_-]{1,128}$/),
+            erid: z.string().trim().min(5).max(80),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(3),
+  })
+  .strict();
+
+export function registerAdminRoutes(app: FastifyInstance, ordClient: YandexOrdClientContract) {
   app.get('/v1/admin/funnel', { preHandler: requireRole('admin') }, async () => {
     const since = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const [developers, installs, serves, impressions, registrations, recentInstalls, recentEvents] =
@@ -134,6 +175,132 @@ export function registerAdminRoutes(app: FastifyInstance) {
       },
     }),
   }));
+
+  app.patch(
+    '/v1/admin/campaigns/:id/ord',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const parsed = ordCampaignBindingSchema.safeParse(request.body);
+      if (!parsed.success) return reply.code(400).send({ error: 'Неверная привязка ОРД.' });
+      const result = await prisma.$transaction(async (tx) => {
+        await lockCampaignMutation(tx, id);
+        const campaign = await tx.campaign.findUnique({
+          where: { id },
+          include: { creatives: { where: { enabled: true }, orderBy: { createdAt: 'asc' } } },
+        });
+        if (!campaign) return { kind: 'not_found' as const };
+        const activeIds = new Set(campaign.creatives.map((creative) => creative.id));
+        if (
+          parsed.data.creatives.length !== activeIds.size ||
+          parsed.data.creatives.some((creative) => !activeIds.has(creative.id))
+        ) {
+          return { kind: 'creative_mismatch' as const };
+        }
+        await tx.advertiserProfile.update({
+          where: { id: campaign.advertiserId },
+          data: { ordOrganizationId: parsed.data.organizationId },
+        });
+        await tx.campaign.update({
+          where: { id },
+          data: {
+            selfPromotion: true,
+            ordPlatformId: parsed.data.platformId,
+            erid: parsed.data.creatives[0]!.erid,
+          },
+        });
+        for (const creative of parsed.data.creatives) {
+          await tx.campaignCreative.update({
+            where: { id: creative.id },
+            data: {
+              erid: creative.erid,
+              ordCreativeId: creative.ordCreativeId,
+              ordStatus: 'registered',
+              ordRegisteredAt: new Date(),
+              ordLastError: null,
+            },
+          });
+        }
+        await writeAuditLog(tx, request.authUser!.id, 'campaign.ord.bind', 'campaign', id, {
+          organizationId: parsed.data.organizationId,
+          platformId: parsed.data.platformId,
+          creativeIds: parsed.data.creatives.map((creative) => creative.id),
+        });
+        return {
+          kind: 'bound' as const,
+          campaign: await tx.campaign.findUniqueOrThrow({
+            where: { id },
+            include: { advertiser: true, creatives: { where: { enabled: true } } },
+          }),
+        };
+      });
+      if (result.kind === 'not_found') {
+        return reply.code(404).send({ error: 'Кампания не найдена.' });
+      }
+      if (result.kind === 'creative_mismatch') {
+        return reply
+          .code(409)
+          .send({ error: 'Передайте привязки для всех текущих активных креативов.' });
+      }
+      return { campaign: result.campaign };
+    },
+  );
+
+  app.get('/v1/admin/ord/reports', { preHandler: requireRole('admin') }, async () => ({
+    configured: ordClient.isConfigured(),
+    reports: await prisma.ordStatisticReport.findMany({
+      orderBy: [{ periodStart: 'desc' }, { createdAt: 'desc' }],
+      take: 200,
+      include: {
+        creative: {
+          select: {
+            label: true,
+            ordCreativeId: true,
+            campaign: { select: { id: true, name: true } },
+          },
+        },
+      },
+    }),
+  }));
+
+  app.post(
+    '/v1/admin/ord/reports/prepare',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      const parsed = ordMonthSchema.safeParse(request.body);
+      if (!parsed.success)
+        return reply.code(400).send({ error: 'Укажите месяц в формате YYYY-MM.' });
+      return { reports: await prepareMonthlyOrdReports(parsed.data.month) };
+    },
+  );
+
+  app.post(
+    '/v1/admin/ord/reports/:id/submit',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      try {
+        return { report: await submitOrdReport(id, ordClient) };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Не удалось отправить отчёт ОРД.';
+        return reply.code(message.includes('не найден') ? 404 : 503).send({ error: message });
+      }
+    },
+  );
+
+  app.post(
+    '/v1/admin/ord/reports/:id/refresh',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      try {
+        return { report: await refreshOrdReport(id, ordClient) };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Не удалось проверить отчёт ОРД.';
+        return reply.code(message.includes('не найден') ? 404 : 503).send({ error: message });
+      }
+    },
+  );
 
   app.get('/v1/admin/events', { preHandler: requireRole('admin') }, async () => ({
     events: await prisma.adEvent.findMany({
@@ -336,21 +503,29 @@ export function registerAdminRoutes(app: FastifyInstance) {
       }
       const result = await prisma.$transaction(async (tx) => {
         await lockCampaignMutation(tx, id);
-        const existing = await tx.campaign.findUnique({ where: { id } });
+        const existing = await tx.campaign.findUnique({
+          where: { id },
+          include: {
+            advertiser: true,
+            creatives: { where: { enabled: true }, orderBy: { createdAt: 'asc' } },
+          },
+        });
         if (!existing) return { kind: 'not_found' as const };
         if (existing.status === 'active') return { kind: 'approved' as const, campaign: existing };
         if (!sameCampaignRevision(existing.updatedAt, body.data.reviewedUpdatedAt)) {
           return { kind: 'conflict' as const };
         }
         if (existing.status !== 'pending') return { kind: 'invalid_status' as const };
-        const advertiser = await tx.advertiserProfile.findUnique({
-          where: { id: existing.advertiserId },
-        });
+        const advertiser = existing.advertiser;
         if (
           !advertiser ||
           advertiser.balanceKopecks < impressionCostKopecks(existing.billableCpmKopecks)
         ) {
           return { kind: 'insufficient_balance' as const };
+        }
+        const complianceIssues = campaignComplianceIssues(advertiser, existing.creatives);
+        if (complianceIssues.length > 0) {
+          return { kind: 'compliance' as const, issues: complianceIssues };
         }
         const updated = await tx.campaign.update({ where: { id }, data: { status: 'active' } });
         await writeAuditLog(tx, request.authUser!.id, 'campaign.approve', 'campaign', id, {
@@ -375,6 +550,13 @@ export function registerAdminRoutes(app: FastifyInstance) {
         return reply
           .code(409)
           .send({ error: 'У рекламодателя недостаточно средств для первого показа.' });
+      }
+      if (result.kind === 'compliance') {
+        return reply.code(409).send({
+          error: 'Кампания не готова к активации.',
+          code: 'CAMPAIGN_COMPLIANCE_REQUIRED',
+          issues: result.issues,
+        });
       }
       return { campaign: result.campaign };
     },

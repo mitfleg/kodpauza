@@ -70,6 +70,7 @@ export function registerAuthRoutes(app: FastifyInstance, mailer: EmailVerificati
               ? {
                   create: {
                     companyName: parsed.data.companyName ?? parsed.data.displayName ?? 'Компания',
+                    publicName: parsed.data.companyName ?? parsed.data.displayName ?? 'Компания',
                     inn: parsed.data.inn,
                     balanceKopecks: config.testAdvertiserCreditKopecks,
                   },
@@ -405,7 +406,13 @@ export function registerAuthRoutes(app: FastifyInstance, mailer: EmailVerificati
           },
         },
         advertiserProfile: {
-          select: { companyName: true, inn: true, balanceKopecks: true },
+          select: {
+            companyName: true,
+            publicName: true,
+            advertiserInfoUrl: true,
+            inn: true,
+            balanceKopecks: true,
+          },
         },
       },
     }),

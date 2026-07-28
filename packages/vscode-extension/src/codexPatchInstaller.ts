@@ -5,7 +5,7 @@ import { defaultKodpauzaHome } from './codexHookInstaller';
 import {
   assertFilesUnchanged,
   assertJavaScriptParses,
-  PatchCompatibilityMode
+  PatchCompatibilityMode,
 } from './patchSafety';
 import { webviewVisibilityRuntime } from './uiVisibilityRuntime';
 
@@ -55,7 +55,7 @@ export const LEGACY_CODEX_PATCH_PROFILE: CodexPatchProfile = {
   intlIdentifier: 'K',
   thinkingCount: 4,
   exploringChildrenIdentifier: 'Dd',
-  hostAnchor: 'let n=[t,r,...b8e,...v8e];'
+  hostAnchor: 'let n=[t,r,...b8e,...v8e];',
 };
 
 export const CODEX_26_707_PATCH_PROFILE: CodexPatchProfile = {
@@ -67,20 +67,20 @@ export const CODEX_26_707_PATCH_PROFILE: CodexPatchProfile = {
   thinkingDescriptorIdentifier: 'Gm',
   thinkingDescriptorCount: 3,
   exploringChildrenIdentifier: 'Of',
-  hostAnchor: 'let n=[t,r,...jYe,...HYe];'
+  hostAnchor: 'let n=[t,r,...jYe,...HYe];',
 };
 
 export const CODEX_26_707_91948_PATCH_PROFILE: CodexPatchProfile = {
   ...CODEX_26_707_PATCH_PROFILE,
   reactAnchor: 'var $=e(t(),1),Wa=',
-  exploringChildrenIdentifier: 'kf'
+  exploringChildrenIdentifier: 'kf',
 };
 
 export const CODEX_26_707_SHIMMER_PATCH_PROFILE: CodexShimmerPatchProfile = {
   reactAnchor: 'var c=e(t(),1),l=',
   reactIdentifier: 'c',
   jsxIdentifier: 'f',
-  intlIdentifier: 'i'
+  intlIdentifier: 'i',
 };
 
 export const CODEX_26_715_31925_PATCH_PROFILE: CodexPatchProfile = {
@@ -93,14 +93,14 @@ export const CODEX_26_715_31925_PATCH_PROFILE: CodexPatchProfile = {
   thinkingDescriptorIdentifier: '_a',
   thinkingDescriptorCount: 3,
   exploringChildrenIdentifier: 'Nr',
-  hostAnchor: 'let n=[t,r,...wtt,...Stt];'
+  hostAnchor: 'let n=[t,r,...wtt,...Stt];',
 };
 
 export const CODEX_26_715_31925_SHIMMER_PATCH_PROFILE: CodexShimmerPatchProfile = {
   reactAnchor: 'var c=r(),l=e(t(),1),u=',
   reactIdentifier: 'l',
   jsxIdentifier: 'f',
-  intlIdentifier: 'i'
+  intlIdentifier: 'i',
 };
 
 export const CODEX_26_721_30844_PATCH_PROFILE: CodexPatchProfile = {
@@ -112,12 +112,12 @@ export const CODEX_26_721_30844_PATCH_PROFILE: CodexPatchProfile = {
   reasoningCount: 0,
   thinkingDescriptorIdentifier: 'Ka',
   thinkingDescriptorCount: 1,
-  hostAnchor: 'let n=[t,r,...Zst,...Kst];'
+  hostAnchor: 'let n=[t,r,...Zst,...Kst];',
 };
 
 export const CODEX_26_721_41059_PATCH_PROFILE: CodexPatchProfile = {
   ...CODEX_26_721_30844_PATCH_PROFILE,
-  hostAnchor: 'let n=[t,r,...zst,...jst];'
+  hostAnchor: 'let n=[t,r,...zst,...jst];',
 };
 
 const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
@@ -125,7 +125,7 @@ const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
     version: '26.623.141536',
     hostSha256: '50e1c9e90d8575515b0f169abddabd00bd5aae2989df38a3b4c6bc6e2e74d445',
     webviewSha256: '75fb9945bd4c268d5505cd35dea8e03eaf46c0f050cabec778afdcbe8257e05a',
-    patchProfile: LEGACY_CODEX_PATCH_PROFILE
+    patchProfile: LEGACY_CODEX_PATCH_PROFILE,
   },
   {
     version: '26.707.71524',
@@ -133,7 +133,7 @@ const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
     webviewSha256: '2942b7b29ab998b72680e499369bb6f17aaddd689ee29581d7261237bbb6876d',
     patchProfile: CODEX_26_707_PATCH_PROFILE,
     shimmerSha256: '4c91733cbf4948b50b02c6bc3a6590e7ed218e21e8dfbddc5cd1a3f3d955a140',
-    shimmerPatchProfile: CODEX_26_707_SHIMMER_PATCH_PROFILE
+    shimmerPatchProfile: CODEX_26_707_SHIMMER_PATCH_PROFILE,
   },
   {
     version: '26.707.91948',
@@ -141,7 +141,7 @@ const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
     webviewSha256: '6604a581f475f86e1cb65108e5accc38cd9694232f8297216e6ac631e16ee50f',
     patchProfile: CODEX_26_707_91948_PATCH_PROFILE,
     shimmerSha256: '4eebc888d5fed0f4ee4aeba142c6296d32dcb4bbbe136bbb710fdc03a0b00dca',
-    shimmerPatchProfile: CODEX_26_707_SHIMMER_PATCH_PROFILE
+    shimmerPatchProfile: CODEX_26_707_SHIMMER_PATCH_PROFILE,
   },
   {
     version: '26.715.31925',
@@ -149,20 +149,20 @@ const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
     webviewSha256: 'f63a12ba815cd82719d90eb6a8f570f3598b87bcb3158522187c7a082ba3a465',
     patchProfile: CODEX_26_715_31925_PATCH_PROFILE,
     shimmerSha256: 'bc928b184ba150446923e759defc6d04dcb67ca5c2842bad5750224f0e086e4d',
-    shimmerPatchProfile: CODEX_26_715_31925_SHIMMER_PATCH_PROFILE
+    shimmerPatchProfile: CODEX_26_715_31925_SHIMMER_PATCH_PROFILE,
   },
   {
     version: '26.721.30844',
     hostSha256: '5a27120dbeba4b9b3a7101a061d8e76de138e57d3688e4f0ac8ec8c1b448cebe',
     webviewSha256: 'bfc3600bbe3e1d83404e683ff0e04b6d3ff09948376d271b4c491a20e690dea3',
-    patchProfile: CODEX_26_721_30844_PATCH_PROFILE
+    patchProfile: CODEX_26_721_30844_PATCH_PROFILE,
   },
   {
     version: '26.721.41059',
     hostSha256: '7408425e3fe73d0443ea1cba3a0ffb6de2ed7426ecec8372b8746cf440227ddd',
     webviewSha256: 'b30c8571171acd122bcad8304fa98215fa23e7a852bc051ac61bfc3e275d219b',
-    patchProfile: CODEX_26_721_41059_PATCH_PROFILE
-  }
+    patchProfile: CODEX_26_721_41059_PATCH_PROFILE,
+  },
 ] as const;
 
 type PatchFileRecord = {
@@ -237,10 +237,11 @@ export class CodexPatchInstaller {
     private readonly extensionPath: string,
     private readonly codexVersion: string,
     private readonly kodpauzaHome = defaultKodpauzaHome(),
-    supportedBuild?: CodexSupportedBuild
+    supportedBuild?: CodexSupportedBuild,
   ) {
     this.statePath = path.join(kodpauzaHome, PATCH_STATE_FILE);
-    this.supportedBuild = supportedBuild ?? SUPPORTED_BUILDS.find((build) => build.version === codexVersion);
+    this.supportedBuild =
+      supportedBuild ?? SUPPORTED_BUILDS.find((build) => build.version === codexVersion);
     this.compatibilityMode = this.supportedBuild ? 'exact' : 'unsupported';
   }
 
@@ -259,14 +260,14 @@ export class CodexPatchInstaller {
         installed: false,
         compatible: false,
         compatibilityMode: 'unsupported',
-        codexVersion: this.codexVersion
+        codexVersion: this.codexVersion,
       };
     }
 
     const rawPatchStates = [
       candidates.hostSource.includes(CSP_MARKER_START),
       candidates.webviewSource.includes(UI_MARKER_PREFIX),
-      ...(candidates.shimmerSource?.includes(UI_MARKER_PREFIX) ? [true] : [])
+      ...(candidates.shimmerSource?.includes(UI_MARKER_PREFIX) ? [true] : []),
     ];
     if (rawPatchStates.some(Boolean)) {
       throw new PartialPatchError();
@@ -278,7 +279,7 @@ export class CodexPatchInstaller {
       webviewPath: candidates.webviewPath,
       ...(this.supportedBuild?.shimmerPatchProfile && candidates.shimmerPath
         ? { shimmerPath: candidates.shimmerPath }
-        : {})
+        : {}),
     };
 
     return {
@@ -286,7 +287,7 @@ export class CodexPatchInstaller {
       compatible: Boolean(this.supportedBuild),
       compatibilityMode: this.compatibilityMode,
       codexVersion: this.codexVersion,
-      ...paths
+      ...paths,
     };
   }
 
@@ -296,7 +297,9 @@ export class CodexPatchInstaller {
       return { ...current, changed: false };
     }
     if (!current.compatible) {
-      throw new Error(`Версия Codex ${this.codexVersion} изменила структуру UI. Реклама безопасно отключена.`);
+      throw new Error(
+        `Версия Codex ${this.codexVersion} изменила структуру UI. Реклама безопасно отключена.`,
+      );
     }
     const supportedBuild = this.supportedBuild;
     if (!supportedBuild) {
@@ -307,7 +310,7 @@ export class CodexPatchInstaller {
     const [hostSource, webviewSource, shimmerSource] = await Promise.all([
       readTextFile(paths.hostPath),
       readTextFile(paths.webviewPath),
-      paths.shimmerPath ? readTextFile(paths.shimmerPath) : undefined
+      paths.shimmerPath ? readTextFile(paths.shimmerPath) : undefined,
     ]);
     assertOriginalHash(paths.hostPath, hostSource, supportedBuild.hostSha256);
     assertOriginalHash(paths.webviewPath, webviewSource, supportedBuild.webviewSha256);
@@ -322,9 +325,10 @@ export class CodexPatchInstaller {
     const patchProfile = supportedBuild.patchProfile ?? LEGACY_CODEX_PATCH_PROFILE;
     const patchedHost = patchHostSource(hostSource, patchProfile);
     const patchedWebview = patchWebviewSource(webviewSource, token, patchProfile);
-    const patchedShimmer = supportedBuild.shimmerPatchProfile && shimmerSource
-      ? patchThinkingShimmerSource(shimmerSource, token, supportedBuild.shimmerPatchProfile)
-      : undefined;
+    const patchedShimmer =
+      supportedBuild.shimmerPatchProfile && shimmerSource
+        ? patchThinkingShimmerSource(shimmerSource, token, supportedBuild.shimmerPatchProfile)
+        : undefined;
     assertJavaScriptParses(patchedHost, 'Codex out/extension.js');
     assertJavaScriptParses(patchedWebview, 'Codex local-conversation-turn.js');
     if (patchedShimmer) {
@@ -332,21 +336,28 @@ export class CodexPatchInstaller {
     }
     const backupDirectory = await this.createBackup(paths);
     const files = [
-      backupRecord(this.extensionPath, paths.hostPath, path.join(backupDirectory, 'extension.js'), hostSource),
+      backupRecord(
+        this.extensionPath,
+        paths.hostPath,
+        path.join(backupDirectory, 'extension.js'),
+        hostSource,
+      ),
       backupRecord(
         this.extensionPath,
         paths.webviewPath,
         path.join(backupDirectory, path.basename(paths.webviewPath)),
-        webviewSource
-      )
+        webviewSource,
+      ),
     ];
     if (paths.shimmerPath && shimmerSource) {
-      files.push(backupRecord(
-        this.extensionPath,
-        paths.shimmerPath,
-        path.join(backupDirectory, path.basename(paths.shimmerPath)),
-        shimmerSource
-      ));
+      files.push(
+        backupRecord(
+          this.extensionPath,
+          paths.shimmerPath,
+          path.join(backupDirectory, path.basename(paths.shimmerPath)),
+          shimmerSource,
+        ),
+      );
     }
     const manifest: PatchManifest = {
       version: 1,
@@ -357,7 +368,7 @@ export class CodexPatchInstaller {
       token,
       port: CODEX_UI_BRIDGE_PORT,
       createdAt: new Date().toISOString(),
-      files
+      files,
     };
 
     await fs.mkdir(this.kodpauzaHome, { recursive: true, mode: 0o700 });
@@ -365,10 +376,20 @@ export class CodexPatchInstaller {
     try {
       await assertFilesUnchanged([
         { filePath: paths.hostPath, expectedSource: hostSource, label: 'Codex out/extension.js' },
-        { filePath: paths.webviewPath, expectedSource: webviewSource, label: 'Codex local-conversation-turn.js' },
+        {
+          filePath: paths.webviewPath,
+          expectedSource: webviewSource,
+          label: 'Codex local-conversation-turn.js',
+        },
         ...(paths.shimmerPath && shimmerSource
-          ? [{ filePath: paths.shimmerPath, expectedSource: shimmerSource, label: 'Codex thinking-shimmer.js' }]
-          : [])
+          ? [
+              {
+                filePath: paths.shimmerPath,
+                expectedSource: shimmerSource,
+                label: 'Codex thinking-shimmer.js',
+              },
+            ]
+          : []),
       ]);
       if (paths.shimmerPath && patchedShimmer) {
         await atomicWritePreservingMode(paths.shimmerPath, patchedShimmer);
@@ -377,10 +398,20 @@ export class CodexPatchInstaller {
       await atomicWritePreservingMode(paths.hostPath, patchedHost);
       await assertPatchedFiles([
         { filePath: paths.hostPath, expectedSource: patchedHost, label: 'Codex out/extension.js' },
-        { filePath: paths.webviewPath, expectedSource: patchedWebview, label: 'Codex local-conversation-turn.js' },
+        {
+          filePath: paths.webviewPath,
+          expectedSource: patchedWebview,
+          label: 'Codex local-conversation-turn.js',
+        },
         ...(paths.shimmerPath && patchedShimmer
-          ? [{ filePath: paths.shimmerPath, expectedSource: patchedShimmer, label: 'Codex thinking-shimmer.js' }]
-          : [])
+          ? [
+              {
+                filePath: paths.shimmerPath,
+                expectedSource: patchedShimmer,
+                label: 'Codex thinking-shimmer.js',
+              },
+            ]
+          : []),
       ]);
     } catch (error) {
       await this.restoreFromManifest(manifest).catch(() => undefined);
@@ -395,7 +426,7 @@ export class CodexPatchInstaller {
       token,
       ...paths,
       changed: true,
-      backupDirectory
+      backupDirectory,
     };
   }
 
@@ -428,7 +459,9 @@ export class CodexPatchInstaller {
     if (!manifest) {
       const current = await this.inspect();
       if (current.installed) {
-        throw new Error('Не найдена резервная копия файлов Codex. Автоматический откат остановлен.');
+        throw new Error(
+          'Не найдена резервная копия файлов Codex. Автоматический откат остановлен.',
+        );
       }
       return { ...current, changed: false };
     }
@@ -447,7 +480,7 @@ export class CodexPatchInstaller {
         compatible: Boolean(this.supportedBuild),
         compatibilityMode: this.compatibilityMode,
         codexVersion: this.codexVersion,
-        changed: true
+        changed: true,
       };
     }
     if (!current.installed) {
@@ -462,22 +495,28 @@ export class CodexPatchInstaller {
       compatible: Boolean(this.supportedBuild),
       compatibilityMode: this.compatibilityMode,
       codexVersion: this.codexVersion,
-      changed: true
+      changed: true,
     };
   }
 
-  private async inspectManifestInstallation(manifest: PatchManifest): Promise<CodexPatchStatus | undefined> {
+  private async inspectManifestInstallation(
+    manifest: PatchManifest,
+  ): Promise<CodexPatchStatus | undefined> {
     const extensionRoot = path.resolve(this.extensionPath);
-    const sources = await Promise.all(manifest.files.map(async (file) => {
-      const filePath = path.resolve(extensionRoot, file.relativePath);
-      if (!isPathInside(extensionRoot, filePath)) {
-        throw new Error('Манифест патча Codex указывает за пределы расширения.');
-      }
-      return { filePath, source: await readTextFile(filePath) };
-    }));
-    const states = sources.map(({ filePath, source }) => path.basename(filePath) === 'extension.js'
-      ? source.includes(CSP_MARKER_START) && source.includes(CSP_MARKER_END)
-      : Boolean(extractToken(source)) && source.includes(UI_MARKER_END));
+    const sources = await Promise.all(
+      manifest.files.map(async (file) => {
+        const filePath = path.resolve(extensionRoot, file.relativePath);
+        if (!isPathInside(extensionRoot, filePath)) {
+          throw new Error('Манифест патча Codex указывает за пределы расширения.');
+        }
+        return { filePath, source: await readTextFile(filePath) };
+      }),
+    );
+    const states = sources.map(({ filePath, source }) =>
+      path.basename(filePath) === 'extension.js'
+        ? source.includes(CSP_MARKER_START) && source.includes(CSP_MARKER_END)
+        : Boolean(extractToken(source)) && source.includes(UI_MARKER_END),
+    );
     if (states.some(Boolean) && !states.every(Boolean)) {
       throw new PartialPatchError();
     }
@@ -494,9 +533,15 @@ export class CodexPatchInstaller {
     if ((manifest.patchRevision ?? 1) !== PATCH_REVISION) {
       throw new OutdatedPatchError();
     }
-    const hostPath = sources.find(({ filePath }) => path.basename(filePath) === 'extension.js')?.filePath;
-    const webviewPath = sources.find(({ filePath }) => /^local-conversation-turn-/.test(path.basename(filePath)))?.filePath;
-    const shimmerPath = sources.find(({ filePath }) => /^thinking-shimmer-/.test(path.basename(filePath)))?.filePath;
+    const hostPath = sources.find(
+      ({ filePath }) => path.basename(filePath) === 'extension.js',
+    )?.filePath;
+    const webviewPath = sources.find(({ filePath }) =>
+      /^local-conversation-turn-/.test(path.basename(filePath)),
+    )?.filePath;
+    const shimmerPath = sources.find(({ filePath }) =>
+      /^thinking-shimmer-/.test(path.basename(filePath)),
+    )?.filePath;
     if (!hostPath || !webviewPath) {
       throw new Error('Манифест патча Codex не содержит обязательные файлы.');
     }
@@ -509,18 +554,23 @@ export class CodexPatchInstaller {
       token: manifest.token,
       hostPath,
       webviewPath,
-      shimmerPath
+      shimmerPath,
     };
   }
 
   private async readSourceCandidates(required: true): Promise<CodexSourceCandidates>;
   private async readSourceCandidates(required: false): Promise<CodexSourceCandidates | undefined>;
-  private async readSourceCandidates(required: boolean): Promise<CodexSourceCandidates | undefined> {
+  private async readSourceCandidates(
+    required: boolean,
+  ): Promise<CodexSourceCandidates | undefined> {
     const hostPath = path.join(this.extensionPath, 'out', 'extension.js');
     const assetsDirectory = path.join(this.extensionPath, 'webview', 'assets');
     const entries = await fs.readdir(assetsDirectory, { withFileTypes: true }).catch(() => []);
     const webviewCandidates = entries
-      .filter((entry) => entry.isFile() && /^local-conversation-turn-[A-Za-z0-9_-]+\.js$/.test(entry.name))
+      .filter(
+        (entry) =>
+          entry.isFile() && /^local-conversation-turn-[A-Za-z0-9_-]+\.js$/.test(entry.name),
+      )
       .map((entry) => path.join(assetsDirectory, entry.name));
     const shimmerCandidates = entries
       .filter((entry) => entry.isFile() && /^thinking-shimmer-[A-Za-z0-9_-]+\.js$/.test(entry.name))
@@ -531,7 +581,9 @@ export class CodexPatchInstaller {
       !(await fileExists(hostPath))
     ) {
       if (required) {
-        throw new Error('Структура установленного расширения Codex не распознана. Файлы не изменены.');
+        throw new Error(
+          'Структура установленного расширения Codex не распознана. Файлы не изменены.',
+        );
       }
       return undefined;
     }
@@ -540,7 +592,7 @@ export class CodexPatchInstaller {
     const [hostSource, webviewSource, shimmerSource] = await Promise.all([
       readTextFile(hostPath),
       readTextFile(webviewPath),
-      shimmerPath ? readTextFile(shimmerPath) : undefined
+      shimmerPath ? readTextFile(shimmerPath) : undefined,
     ]);
     return { hostPath, webviewPath, shimmerPath, hostSource, webviewSource, shimmerSource };
   }
@@ -556,17 +608,18 @@ export class CodexPatchInstaller {
 
     const inferredProfile = inferCodexCompatibilityProfile(candidates);
     const profiles = uniqueCompatibilityProfiles([
-      ...uniqueCodexProfiles([
-      ...(currentBuild ? [currentBuild] : []),
-      ...SUPPORTED_BUILDS
-      ]),
-      ...(inferredProfile ? [inferredProfile] : [])
+      ...uniqueCodexProfiles([...(currentBuild ? [currentBuild] : []), ...SUPPORTED_BUILDS]),
+      ...(inferredProfile ? [inferredProfile] : []),
     ]);
     const matches = profiles.filter((profile) => {
       try {
         const token = '0'.repeat(64);
         const patchedHost = patchHostSource(candidates.hostSource, profile.patchProfile);
-        const patchedWebview = patchWebviewSource(candidates.webviewSource, token, profile.patchProfile);
+        const patchedWebview = patchWebviewSource(
+          candidates.webviewSource,
+          token,
+          profile.patchProfile,
+        );
         assertJavaScriptParses(patchedHost, 'Codex out/extension.js');
         assertJavaScriptParses(patchedWebview, 'Codex local-conversation-turn.js');
         if (profile.shimmerPatchProfile) {
@@ -576,7 +629,7 @@ export class CodexPatchInstaller {
           const patchedShimmer = patchThinkingShimmerSource(
             candidates.shimmerSource,
             token,
-            profile.shimmerPatchProfile
+            profile.shimmerPatchProfile,
           );
           assertJavaScriptParses(patchedShimmer, 'Codex thinking-shimmer.js');
         } else if (candidates.shimmerSource?.includes('thinkingShimmer.default')) {
@@ -602,9 +655,9 @@ export class CodexPatchInstaller {
       ...(match.shimmerPatchProfile && candidates.shimmerSource
         ? {
             shimmerSha256: sha256(candidates.shimmerSource),
-            shimmerPatchProfile: match.shimmerPatchProfile
+            shimmerPatchProfile: match.shimmerPatchProfile,
           }
-        : {})
+        : {}),
     };
     this.compatibilityMode = 'structural';
   }
@@ -616,7 +669,10 @@ export class CodexPatchInstaller {
     const assetsDirectory = path.join(this.extensionPath, 'webview', 'assets');
     const entries = await fs.readdir(assetsDirectory, { withFileTypes: true }).catch(() => []);
     const webviewCandidates = entries
-      .filter((entry) => entry.isFile() && /^local-conversation-turn-[A-Za-z0-9_-]+\.js$/.test(entry.name))
+      .filter(
+        (entry) =>
+          entry.isFile() && /^local-conversation-turn-[A-Za-z0-9_-]+\.js$/.test(entry.name),
+      )
       .map((entry) => path.join(assetsDirectory, entry.name));
     const shimmerCandidates = entries
       .filter((entry) => entry.isFile() && /^thinking-shimmer-[A-Za-z0-9_-]+\.js$/.test(entry.name))
@@ -629,28 +685,37 @@ export class CodexPatchInstaller {
       !(await fileExists(hostPath))
     ) {
       if (required) {
-        throw new Error('Структура установленного расширения Codex не распознана. Файлы не изменены.');
+        throw new Error(
+          'Структура установленного расширения Codex не распознана. Файлы не изменены.',
+        );
       }
       return undefined;
     }
     return {
       hostPath,
       webviewPath: webviewCandidates[0],
-      shimmerPath: shimmerRequired ? shimmerCandidates[0] : undefined
+      shimmerPath: shimmerRequired ? shimmerCandidates[0] : undefined,
     };
   }
 
   private async createBackup(paths: PatchPaths): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const backupDirectory = path.join(this.kodpauzaHome, 'backups', `codex-ui-${this.codexVersion}-${timestamp}`);
+    const backupDirectory = path.join(
+      this.kodpauzaHome,
+      'backups',
+      `codex-ui-${this.codexVersion}-${timestamp}`,
+    );
     await fs.mkdir(backupDirectory, { recursive: true, mode: 0o700 });
     const backupOperations = [
       fs.copyFile(paths.hostPath, path.join(backupDirectory, 'extension.js')),
-      fs.copyFile(paths.webviewPath, path.join(backupDirectory, path.basename(paths.webviewPath)))
+      fs.copyFile(paths.webviewPath, path.join(backupDirectory, path.basename(paths.webviewPath))),
     ];
     if (paths.shimmerPath) {
       backupOperations.push(
-        fs.copyFile(paths.shimmerPath, path.join(backupDirectory, path.basename(paths.shimmerPath)))
+        fs.copyFile(
+          paths.shimmerPath,
+          path.join(backupDirectory, path.basename(paths.shimmerPath)),
+        ),
       );
     }
     await Promise.all(backupOperations);
@@ -664,7 +729,7 @@ export class CodexPatchInstaller {
     }
 
     const targetPaths = manifest.files.map((file) =>
-      path.resolve(manifest.extensionPath, file.relativePath)
+      path.resolve(manifest.extensionPath, file.relativePath),
     );
     const targetExists = await Promise.all(targetPaths.map(fileExists));
     if (targetExists.every((exists) => !exists)) {
@@ -672,7 +737,9 @@ export class CodexPatchInstaller {
       return;
     }
     if (!targetExists.every(Boolean)) {
-      throw new Error('Предыдущий патч Codex найден частично. Автоматическое обновление остановлено.');
+      throw new Error(
+        'Предыдущий патч Codex найден частично. Автоматическое обновление остановлено.',
+      );
     }
 
     await this.assertManifestCanBeRestored(manifest);
@@ -690,11 +757,14 @@ export class CodexPatchInstaller {
       const current = await fs.readFile(targetPath);
       const source = current.toString('utf8');
       const isOriginal = sha256(current) === file.originalSha256;
-      const isKodpauzaPatch = path.basename(targetPath) === 'extension.js'
-        ? source.includes(CSP_MARKER_START) && source.includes(CSP_MARKER_END)
-        : source.includes(UI_MARKER_PREFIX) && source.includes(UI_MARKER_END);
+      const isKodpauzaPatch =
+        path.basename(targetPath) === 'extension.js'
+          ? source.includes(CSP_MARKER_START) && source.includes(CSP_MARKER_END)
+          : source.includes(UI_MARKER_PREFIX) && source.includes(UI_MARKER_END);
       if (!isOriginal && !isKodpauzaPatch) {
-        throw new Error(`Файл Codex ${path.basename(targetPath)} изменен после установки. Автоматическое восстановление остановлено.`);
+        throw new Error(
+          `Файл Codex ${path.basename(targetPath)} изменен после установки. Автоматическое восстановление остановлено.`,
+        );
       }
     }
   }
@@ -705,7 +775,9 @@ export class CodexPatchInstaller {
     for (const file of manifest.files) {
       const targetPath = path.resolve(extensionRoot, file.relativePath);
       if (!isPathInside(extensionRoot, targetPath)) {
-        throw new Error('Файл резервной копии указывает за пределы установленного расширения Codex.');
+        throw new Error(
+          'Файл резервной копии указывает за пределы установленного расширения Codex.',
+        );
       }
       const backupPath = path.resolve(file.backupPath);
       if (!isPathInside(backupRoot, backupPath)) {
@@ -723,7 +795,7 @@ export class CodexPatchInstaller {
 export function patchWebviewSource(
   source: string,
   token: string,
-  profile: CodexPatchProfile = LEGACY_CODEX_PATCH_PROFILE
+  profile: CodexPatchProfile = LEGACY_CODEX_PATCH_PROFILE,
 ): string {
   validateToken(token);
   if (source.includes(UI_MARKER_PREFIX)) {
@@ -744,7 +816,7 @@ export function patchWebviewSource(
       thinkingFallback,
       `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${thinkingFallback}})`,
       profile.thinkingCount,
-      'активные строки Thinking'
+      'активные строки Thinking',
     );
   }
 
@@ -755,7 +827,7 @@ export function patchWebviewSource(
       descriptorFallback,
       `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${descriptorFallback}})`,
       profile.thinkingDescriptorCount ?? 0,
-      'видимый placeholder Thinking'
+      'видимый placeholder Thinking',
     );
   }
 
@@ -767,7 +839,7 @@ export function patchWebviewSource(
       reasoningFallback,
       `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${reasoningFallback}})`,
       reasoningCount,
-      'строка Thinking в блоке рассуждения'
+      'строка Thinking в блоке рассуждения',
     );
   }
 
@@ -778,7 +850,7 @@ export function patchWebviewSource(
       exploringFallback,
       `(0,${jsx}.jsx)(__kpAdMessage,{fallback:${exploringFallback}})`,
       1,
-      'активная строка Exploring'
+      'активная строка Exploring',
     );
   }
 
@@ -788,7 +860,7 @@ export function patchWebviewSource(
 export function patchThinkingShimmerSource(
   source: string,
   token: string,
-  profile: CodexShimmerPatchProfile
+  profile: CodexShimmerPatchProfile,
 ): string {
   validateToken(token);
   if (source.includes(UI_MARKER_PREFIX)) {
@@ -797,21 +869,27 @@ export function patchThinkingShimmerSource(
   validateShimmerPatchProfile(profile);
 
   const injected = `${uiRuntime(token, profile)}${profile.reactAnchor}`;
-  let patched = replaceExact(source, profile.reactAnchor, injected, 1, 'точка подключения React в строке ожидания');
+  let patched = replaceExact(
+    source,
+    profile.reactAnchor,
+    injected,
+    1,
+    'точка подключения React в строке ожидания',
+  );
   const thinkingFallback = `(0,${profile.jsxIdentifier}.jsx)(${profile.intlIdentifier},{id:\`thinkingShimmer.default\`,defaultMessage:\`Thinking\`,description:\`Default placeholder shown while the assistant is thinking\`})`;
   patched = replaceExact(
     patched,
     thinkingFallback,
     `(0,${profile.jsxIdentifier}.jsx)(__kpAdMessage,{fallback:${thinkingFallback}})`,
     1,
-    'видимая строка Thinking'
+    'видимая строка Thinking',
   );
   return patched;
 }
 
 export function patchHostSource(
   source: string,
-  profile: CodexPatchProfile = LEGACY_CODEX_PATCH_PROFILE
+  profile: CodexPatchProfile = LEGACY_CODEX_PATCH_PROFILE,
 ): string {
   if (source.includes(CSP_MARKER_START)) {
     throw new Error('CSP-патч Kodpauza уже присутствует в файле Codex.');
@@ -819,7 +897,7 @@ export function patchHostSource(
   validatePatchProfile(profile);
   const anchor = profile.hostAnchor;
   const prefix = anchor.match(
-    /^let [A-Za-z_$][A-Za-z0-9_$]*=\[[A-Za-z_$][A-Za-z0-9_$]*,[A-Za-z_$][A-Za-z0-9_$]*,/
+    /^let [A-Za-z_$][A-Za-z0-9_$]*=\[[A-Za-z_$][A-Za-z0-9_$]*,[A-Za-z_$][A-Za-z0-9_$]*,/,
   )?.[0];
   if (!prefix) {
     throw new Error('Некорректный профиль CSP-патча Codex.');
@@ -830,7 +908,7 @@ export function patchHostSource(
 
 function uiRuntime(
   token: string,
-  profile: Pick<CodexPatchProfile, 'reactIdentifier' | 'jsxIdentifier'>
+  profile: Pick<CodexPatchProfile, 'reactIdentifier' | 'jsxIdentifier'>,
 ): string {
   const endpoint = `http://127.0.0.1:${CODEX_UI_BRIDGE_PORT}/v1/codex/ad`;
   const react = profile.reactIdentifier;
@@ -838,7 +916,35 @@ function uiRuntime(
   const visibilityRuntime = webviewVisibilityRuntime('__kp', '__kpEndpoint', '__kpToken');
   const baseRuntime = `${UI_MARKER_PREFIX}${token}__*/var __kpEndpoint=${JSON.stringify(endpoint)},__kpToken=${JSON.stringify(token)},__kpAdState=null,__kpSubscribers=new Set,__kpTimer,__kpActivityRefs=0,__kpActivityTimer,__kpActivityViewId="kp-"+Math.random().toString(36).slice(2)+Date.now().toString(36),__kpCanaryViewId="kp-canary-"+Math.random().toString(36).slice(2)+Date.now().toString(36);function __kpSendActivity(e){fetch(__kpEndpoint+"/activity?token="+encodeURIComponent(__kpToken),{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({viewId:__kpActivityViewId,active:e})}).catch(()=>{})}function __kpStartActivity(){__kpActivityRefs+=1,__kpActivityRefs===1&&(__kpSendActivity(!0),__kpActivityTimer=setInterval(()=>__kpSendActivity(!0),1e3))}function __kpStopActivity(){__kpActivityRefs=Math.max(0,__kpActivityRefs-1),__kpActivityRefs===0&&(__kpActivityTimer!=null&&clearInterval(__kpActivityTimer),__kpActivityTimer=void 0,__kpSendActivity(!1))}function __kpUseActivity(){(0,${react}.useEffect)(()=>{__kpStartActivity();return()=>__kpStopActivity()},[])}function __kpSnapshot(){return __kpAdState}function __kpNotify(){for(let e of __kpSubscribers)e()}function __kpSafeIcon(e){if(typeof e!="string")return null;if(e.length<=9e4&&/^data:image\\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(e))return e;if(e.length>8e3||!e.startsWith("data:image/svg+xml,"))return null;try{let t=decodeURIComponent(e.slice(19));return/^<svg[\\s>]/i.test(t)&&/<\\/svg>$/i.test(t)&&!/(?:<script|<foreignObject|<image|\\bhref\\s*=|\\burl\\s*\\(|@import|\\bon[a-z]+\\s*=)/i.test(t)?e:null}catch{return null}}function __kpSafeDomain(e){return typeof e=="string"&&e.length<=253&&/^(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\\.)*[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(e)?e:null}function __kpSetAd(e){e?.canary===!0&&typeof e.adId=="string"&&(__kpVisibilityHeartbeat(e,__kpCanaryViewId,!0),e=null);let t=e&&e.active===!0&&typeof e.adId=="string"&&typeof e.text=="string"&&(e.format==="standard"||e.format==="premium")?{active:!0,adId:e.adId,text:e.text,format:e.format,advertiserName:typeof e.advertiserName=="string"&&e.advertiserName.trim().length>0&&e.advertiserName.length<=160?e.advertiserName.trim():"Kodpauza",iconUrl:__kpSafeIcon(e.iconUrl),domain:__kpSafeDomain(e.domain)}:null;if(__kpAdState?.adId===t?.adId&&__kpAdState?.text===t?.text&&__kpAdState?.format===t?.format&&__kpAdState?.iconUrl===t?.iconUrl&&__kpAdState?.domain===t?.domain&&__kpAdState?.advertiserName===t?.advertiserName)return;__kpAdState=t,__kpNotify()}function __kpPoll(){fetch(__kpEndpoint+"/current?token="+encodeURIComponent(__kpToken),{cache:"no-store"}).then(e=>e.ok?e.json():null).then(__kpSetAd).catch(()=>__kpSetAd(null)).finally(()=>{__kpSubscribers.size>0&&(__kpTimer=setTimeout(__kpPoll,750))})}function __kpSubscribe(e){return __kpSubscribers.add(e),__kpSubscribers.size===1&&__kpPoll(),()=>{__kpSubscribers.delete(e),__kpSubscribers.size===0&&(__kpTimer!=null&&clearTimeout(__kpTimer),__kpTimer=void 0)}}function __kpUseAd(){return(0,${react}.useSyncExternalStore)(__kpSubscribe,__kpSnapshot,__kpSnapshot)}${visibilityRuntime}function __kpOpenAd(e){fetch(__kpEndpoint+"/click?token="+encodeURIComponent(__kpToken),{method:"POST",headers:{"content-type":"text/plain"},body:e.adId}).catch(()=>{})}`;
   const adMessageRuntime = `function __kpAdMessage(e){__kpUseActivity();let t=__kpUseAd(),n=(0,${react}.useRef)(null);(0,${react}.useEffect)(()=>t?__kpObserveVisibility(n.current,t):void 0,[t?.adId]);if(t==null)return e.fallback;let r=e=>{e.preventDefault(),e.stopPropagation(),__kpOpenAd(t)},i=e=>{(e.key==="Enter"||e.key===" ")&&r(e)},o=t.format==="premium",a=t.advertiserName.slice(0,1).toUpperCase()||"K",c=t.domain,h=t.advertiserName+" · ",u=t.text.toLowerCase().startsWith(h.toLowerCase())?t.text.slice(h.length).trim()||t.text:t.text,s=t.advertiserName+": "+u+(c?" · "+c:"")+". Нажмите, чтобы открыть.";if(o)return(0,${jsx}.jsxs)("span",{"data-kodpauza-ad":"",ref:n,className:"inline-flex max-w-full min-w-0 items-center",role:"link",tabIndex:0,title:s,"aria-label":s,onClick:r,onKeyDown:i,style:{cursor:"pointer",display:"inline-flex",alignItems:"center",gap:"7px",background:"rgba(245,158,11,.10)",border:"1px solid rgba(245,158,11,.32)",borderLeft:"3px solid rgba(245,158,11,.78)",borderRadius:"7px",padding:"4px 7px 4px 6px",maxWidth:"100%",minWidth:0,boxSizing:"border-box",overflow:"hidden"},children:[t.iconUrl?(0,${jsx}.jsx)("img",{src:t.iconUrl,alt:"",width:21,height:21,className:"shrink-0",style:{width:"21px",height:"21px",objectFit:"contain",borderRadius:"5px"}}):(0,${jsx}.jsx)("span",{"aria-hidden":"true",className:"shrink-0 inline-flex items-center justify-center",style:{width:"21px",height:"21px",borderRadius:"5px",fontSize:"10px",lineHeight:"21px",fontWeight:700,color:"#fbbf24",background:"rgba(245,158,11,.16)"},children:a}),(0,${jsx}.jsxs)("span",{className:"min-w-0",style:{display:"flex",flexDirection:"column",flex:"1 1 auto",minWidth:0,lineHeight:1.2},children:[(0,${jsx}.jsxs)("span",{className:"min-w-0",style:{display:"flex",alignItems:"baseline",gap:"4px",minWidth:0,fontSize:"10px",opacity:.82},children:[(0,${jsx}.jsx)("span",{className:"truncate",style:{fontWeight:700,minWidth:0},children:t.advertiserName}),c?(0,${jsx}.jsx)("span",{className:"truncate",style:{minWidth:0,opacity:.78},children:c}):null]}),(0,${jsx}.jsx)("span",{className:"truncate",style:{minWidth:0,fontSize:"12px",marginTop:"1px"},children:u})]}),(0,${jsx}.jsx)("span",{"aria-hidden":"true",className:"shrink-0",style:{fontSize:"12px",lineHeight:1,opacity:.72},children:"↗"})]});return(0,${jsx}.jsxs)("span",{"data-kodpauza-ad":"",ref:n,className:"inline-flex max-w-full min-w-0 items-center gap-1.5",role:"link",tabIndex:0,title:s,"aria-label":s,onClick:r,onKeyDown:i,style:{cursor:"pointer",borderBottom:"1px solid rgba(148,163,184,.34)",paddingBottom:"1px",maxWidth:"100%"},children:[t.iconUrl?(0,${jsx}.jsx)("img",{src:t.iconUrl,alt:"",width:14,height:14,className:"shrink-0",style:{width:"14px",height:"14px",objectFit:"contain",borderRadius:"3px"}}):(0,${jsx}.jsx)("span",{"aria-hidden":"true",className:"shrink-0 inline-flex items-center justify-center",style:{width:"14px",height:"14px",borderRadius:"3px",fontSize:"9px",lineHeight:"14px",fontWeight:700,color:"#34d399",background:"rgba(16,185,129,.12)"},children:a}),(0,${jsx}.jsx)("span",{className:"min-w-0 truncate",children:t.text})]})}`;
-  return `${baseRuntime}${adMessageRuntime}${UI_MARKER_END}`;
+  const compliantBaseRuntime = replaceExact(
+    baseRuntime,
+    'domain:__kpSafeDomain(e.domain)}:null;',
+    'domain:__kpSafeDomain(e.domain),erid:typeof e.erid=="string"&&e.erid.length<=80?e.erid:""}:null;',
+    1,
+    'ERID объявления в UI Codex',
+  );
+  let compliantAdMessageRuntime = replaceExact(
+    adMessageRuntime,
+    'h=t.advertiserName+" · "',
+    'h="Реклама · "+t.advertiserName+" · "',
+    1,
+    'маркированный префикс Codex',
+  );
+  compliantAdMessageRuntime = replaceExact(
+    compliantAdMessageRuntime,
+    's=t.advertiserName+": "+u+(c?" · "+c:"")+". Нажмите, чтобы открыть."',
+    's="Реклама. Рекламодатель: "+t.advertiserName+(c?". Сайт: "+c:"")+(t.erid?". erid: "+t.erid:"")+". Нажмите, чтобы открыть."',
+    1,
+    'подсказка объявления Codex',
+  );
+  compliantAdMessageRuntime = replaceExact(
+    compliantAdMessageRuntime,
+    'children:t.advertiserName',
+    'children:"Реклама · "+t.advertiserName',
+    1,
+    'видимая маркировка premium Codex',
+  );
+  return `${compliantBaseRuntime}${compliantAdMessageRuntime}${UI_MARKER_END}`;
 }
 
 function validatePatchProfile(profile: CodexPatchProfile): void {
@@ -847,15 +953,14 @@ function validatePatchProfile(profile: CodexPatchProfile): void {
     profile.jsxIdentifier,
     profile.intlIdentifier,
     ...(profile.exploringChildrenIdentifier ? [profile.exploringChildrenIdentifier] : []),
-    ...(profile.thinkingDescriptorIdentifier ? [profile.thinkingDescriptorIdentifier] : [])
+    ...(profile.thinkingDescriptorIdentifier ? [profile.thinkingDescriptorIdentifier] : []),
   ];
   const reasoningCount = profile.reasoningCount ?? 1;
-  const hasReplacementTarget = (
+  const hasReplacementTarget =
     profile.thinkingCount > 0 ||
     reasoningCount > 0 ||
     Boolean(profile.thinkingDescriptorIdentifier) ||
-    Boolean(profile.exploringChildrenIdentifier)
-  );
+    Boolean(profile.exploringChildrenIdentifier);
   if (
     !profile.reactAnchor ||
     !profile.hostAnchor ||
@@ -866,11 +971,10 @@ function validatePatchProfile(profile: CodexPatchProfile): void {
     reasoningCount < 0 ||
     reasoningCount > 1 ||
     Boolean(profile.thinkingDescriptorIdentifier) !== Boolean(profile.thinkingDescriptorCount) ||
-    (profile.thinkingDescriptorCount !== undefined && (
-      !Number.isInteger(profile.thinkingDescriptorCount) ||
-      profile.thinkingDescriptorCount < 1 ||
-      profile.thinkingDescriptorCount > 32
-    )) ||
+    (profile.thinkingDescriptorCount !== undefined &&
+      (!Number.isInteger(profile.thinkingDescriptorCount) ||
+        profile.thinkingDescriptorCount < 1 ||
+        profile.thinkingDescriptorCount > 32)) ||
     !hasReplacementTarget ||
     !identifiers.every((identifier) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(identifier))
   ) {
@@ -881,8 +985,9 @@ function validatePatchProfile(profile: CodexPatchProfile): void {
 function validateShimmerPatchProfile(profile: CodexShimmerPatchProfile): void {
   if (
     !profile.reactAnchor ||
-    ![profile.reactIdentifier, profile.jsxIdentifier, profile.intlIdentifier]
-      .every((identifier) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(identifier))
+    ![profile.reactIdentifier, profile.jsxIdentifier, profile.intlIdentifier].every((identifier) =>
+      /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(identifier),
+    )
   ) {
     throw new Error('Некорректный профиль патча строки ожидания Codex.');
   }
@@ -899,7 +1004,7 @@ function replaceExact(
   search: string,
   replacement: string,
   expectedCount: number,
-  label: string
+  label: string,
 ): string {
   const count = source.split(search).length - 1;
   if (count !== expectedCount) {
@@ -912,18 +1017,25 @@ function extractToken(source: string): string | undefined {
   return source.match(/\/\*__KODPAUZA_UI_START__:([a-f0-9]{64})__\*\//)?.[1];
 }
 
-function backupRecord(rootPath: string, targetPath: string, backupPath: string, source: string): PatchFileRecord {
+function backupRecord(
+  rootPath: string,
+  targetPath: string,
+  backupPath: string,
+  source: string,
+): PatchFileRecord {
   return {
     relativePath: path.relative(rootPath, targetPath),
     backupPath,
-    originalSha256: sha256(source)
+    originalSha256: sha256(source),
   };
 }
 
 function assertOriginalHash(filePath: string, source: string, expected: string): void {
   const actual = sha256(source);
   if (actual !== expected) {
-    throw new Error(`Файл Codex ${path.basename(filePath)} отличается от проверенной сборки. Патч не применен.`);
+    throw new Error(
+      `Файл Codex ${path.basename(filePath)} отличается от проверенной сборки. Патч не применен.`,
+    );
   }
 }
 
@@ -937,7 +1049,7 @@ function uniqueCodexProfiles(builds: readonly CodexSupportedBuild[]): CodexCompa
   for (const build of builds) {
     const profile: CodexCompatibilityProfile = {
       patchProfile: build.patchProfile ?? LEGACY_CODEX_PATCH_PROFILE,
-      ...(build.shimmerPatchProfile ? { shimmerPatchProfile: build.shimmerPatchProfile } : {})
+      ...(build.shimmerPatchProfile ? { shimmerPatchProfile: build.shimmerPatchProfile } : {}),
     };
     unique.set(JSON.stringify(profile), profile);
   }
@@ -945,7 +1057,7 @@ function uniqueCodexProfiles(builds: readonly CodexSupportedBuild[]): CodexCompa
 }
 
 function uniqueCompatibilityProfiles(
-  profiles: readonly CodexCompatibilityProfile[]
+  profiles: readonly CodexCompatibilityProfile[],
 ): CodexCompatibilityProfile[] {
   const unique = new Map<string, CodexCompatibilityProfile>();
   for (const profile of profiles) {
@@ -955,7 +1067,7 @@ function uniqueCompatibilityProfiles(
 }
 
 function inferCodexCompatibilityProfile(
-  candidates: CodexSourceCandidates
+  candidates: CodexSourceCandidates,
 ): CodexCompatibilityProfile | undefined {
   try {
     const patchProfile = inferCodexPatchProfile(candidates.webviewSource, candidates.hostSource);
@@ -967,7 +1079,7 @@ function inferCodexCompatibilityProfile(
     }
     return {
       patchProfile,
-      shimmerPatchProfile: inferCodexShimmerPatchProfile(candidates.shimmerSource)
+      shimmerPatchProfile: inferCodexShimmerPatchProfile(candidates.shimmerSource),
     };
   } catch {
     return undefined;
@@ -978,7 +1090,7 @@ function inferCodexPatchProfile(webviewSource: string, hostSource: string): Code
   const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
   const thinkingPattern = new RegExp(
     `\\(0,(${identifier})\\.jsx\\)\\((${identifier}),\\{id:\\x60thinkingShimmer\\.default\\x60,defaultMessage:\\x60Thinking\\x60,description:\\x60Default placeholder shown while the assistant is thinking\\x60\\}\\)`,
-    'g'
+    'g',
   );
   const thinkingMatches = [...webviewSource.matchAll(thinkingPattern)];
   const thinkingPairs = new Set(thinkingMatches.map((match) => `${match[1]}:${match[2]}`));
@@ -989,7 +1101,7 @@ function inferCodexPatchProfile(webviewSource: string, hostSource: string): Code
   const intlIdentifier = requiredCapture(thinkingMatches[0], 2);
   const reasoningPattern = new RegExp(
     `\\(0,${escapeRegExp(jsxIdentifier)}\\.jsx\\)\\(${escapeRegExp(intlIdentifier)},\\{id:\\x60reasoningItem\\.thinking\\x60,defaultMessage:\\x60Thinking\\x60,description:\\x60Message shown when AI is currently thinking\\x60\\}\\)`,
-    'g'
+    'g',
   );
   if ([...webviewSource.matchAll(reasoningPattern)].length !== 1) {
     throw new Error('Неоднозначная строка reasoning Codex.');
@@ -997,16 +1109,16 @@ function inferCodexPatchProfile(webviewSource: string, hostSource: string): Code
 
   const exploringPattern = new RegExp(
     `\\(0,${escapeRegExp(jsxIdentifier)}\\.jsx\\)\\(${escapeRegExp(intlIdentifier)},\\{id:\\x60localConversationTurn\\.exploration\\.accordion\\.header\\.active\\x60,defaultMessage:\\x60Exploring\\x60,description:\\x60Header for the exploration accordion while Codex is listing or reading files\\x60,children:(${identifier})\\}\\)`,
-    'g'
+    'g',
   );
   const exploringMatches = [...webviewSource.matchAll(exploringPattern)];
   if (exploringMatches.length !== 1) {
     throw new Error('Неоднозначная строка Exploring Codex.');
   }
 
-  const reactMatches = [...webviewSource.matchAll(
-    new RegExp(`\\(0,(${identifier})\\.useSyncExternalStore\\)`, 'g')
-  )];
+  const reactMatches = [
+    ...webviewSource.matchAll(new RegExp(`\\(0,(${identifier})\\.useSyncExternalStore\\)`, 'g')),
+  ];
   if (reactMatches.length !== 1) {
     throw new Error('Неоднозначный React runtime Codex.');
   }
@@ -1022,7 +1134,7 @@ function inferCodexPatchProfile(webviewSource: string, hostSource: string): Code
 
   const descriptorPattern = new RegExp(
     `\\(0,${escapeRegExp(jsxIdentifier)}\\.jsx\\)\\(${escapeRegExp(intlIdentifier)},\\{\\.\\.\\.(${identifier})\\.thinking\\}\\)`,
-    'g'
+    'g',
   );
   const descriptorMatches = [...webviewSource.matchAll(descriptorPattern)];
   const descriptorIdentifiers = new Set(descriptorMatches.map((match) => match[1]));
@@ -1039,11 +1151,11 @@ function inferCodexPatchProfile(webviewSource: string, hostSource: string): Code
     ...(descriptorMatches.length > 0
       ? {
           thinkingDescriptorIdentifier: requiredCapture(descriptorMatches[0], 1),
-          thinkingDescriptorCount: descriptorMatches.length
+          thinkingDescriptorCount: descriptorMatches.length,
         }
       : {}),
     exploringChildrenIdentifier: requiredCapture(exploringMatches[0], 1),
-    hostAnchor
+    hostAnchor,
   };
 }
 
@@ -1051,17 +1163,21 @@ function inferCodexShimmerPatchProfile(source: string): CodexShimmerPatchProfile
   const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
   const thinkingPattern = new RegExp(
     `\\(0,(${identifier})\\.jsx\\)\\((${identifier}),\\{id:\\x60thinkingShimmer\\.default\\x60,defaultMessage:\\x60Thinking\\x60,description:\\x60Default placeholder shown while the assistant is thinking\\x60\\}\\)`,
-    'g'
+    'g',
   );
   const thinkingMatches = [...source.matchAll(thinkingPattern)];
   if (thinkingMatches.length !== 1) {
     throw new Error('Неоднозначная строка Thinking в shimmer Codex.');
   }
   const refIdentifiers = new Set(
-    [...source.matchAll(new RegExp(`\\(0,(${identifier})\\.useRef\\)`, 'g'))].map((match) => match[1])
+    [...source.matchAll(new RegExp(`\\(0,(${identifier})\\.useRef\\)`, 'g'))].map(
+      (match) => match[1],
+    ),
   );
   const effectIdentifiers = new Set(
-    [...source.matchAll(new RegExp(`\\(0,(${identifier})\\.useEffect\\)`, 'g'))].map((match) => match[1])
+    [...source.matchAll(new RegExp(`\\(0,(${identifier})\\.useEffect\\)`, 'g'))].map(
+      (match) => match[1],
+    ),
   );
   const reactIdentifiers = [...refIdentifiers].filter((value) => effectIdentifiers.has(value));
   if (reactIdentifiers.length !== 1) {
@@ -1072,7 +1188,7 @@ function inferCodexShimmerPatchProfile(source: string): CodexShimmerPatchProfile
     reactAnchor: inferReactAnchor(source, reactIdentifier),
     reactIdentifier,
     jsxIdentifier: requiredCapture(thinkingMatches[0], 1),
-    intlIdentifier: requiredCapture(thinkingMatches[0], 2)
+    intlIdentifier: requiredCapture(thinkingMatches[0], 2),
   };
 }
 
@@ -1080,7 +1196,7 @@ function inferReactAnchor(source: string, reactIdentifier: string): string {
   const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
   const pattern = new RegExp(
     `var ${escapeRegExp(reactIdentifier)}=${identifier}\\(${identifier}\\(\\)(?:,1)?\\),${identifier}=`,
-    'g'
+    'g',
   );
   const matches = [...source.matchAll(pattern)];
   if (matches.length !== 1) {
@@ -1093,7 +1209,7 @@ function inferHostAnchor(source: string): string {
   const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
   const pattern = new RegExp(
     `function ${identifier}\\(\\{cspSource:(${identifier}),devOrigin:(${identifier}),extensionSentryOrigin:(${identifier})\\}\\)\\{(let (${identifier})=\\[\\1,\\3,\\.\\.\\.${identifier},\\.\\.\\.${identifier}\\];)`,
-    'g'
+    'g',
   );
   const matches = [...source.matchAll(pattern)].filter((match) => {
     const index = match.index ?? -1;
@@ -1107,7 +1223,7 @@ function inferHostAnchor(source: string): string {
       '`img-src ',
       '`script-src ',
       '`connect-src ',
-      `${listIdentifier}.join(" ")`
+      `${listIdentifier}.join(" ")`,
     ].every((anchor) => contract.includes(anchor));
   });
   if (matches.length !== 1) {
@@ -1128,7 +1244,10 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function codexBuildHashesMatch(build: CodexSupportedBuild, candidates: CodexSourceCandidates): boolean {
+function codexBuildHashesMatch(
+  build: CodexSupportedBuild,
+  candidates: CodexSourceCandidates,
+): boolean {
   if (
     sha256(candidates.hostSource) !== build.hostSha256 ||
     sha256(candidates.webviewSource) !== build.webviewSha256
@@ -1139,14 +1258,14 @@ function codexBuildHashesMatch(build: CodexSupportedBuild, candidates: CodexSour
     return Boolean(
       candidates.shimmerSource &&
       build.shimmerSha256 &&
-      sha256(candidates.shimmerSource) === build.shimmerSha256
+      sha256(candidates.shimmerSource) === build.shimmerSha256,
     );
   }
   return !candidates.shimmerSource?.includes('thinkingShimmer.default');
 }
 
 async function assertPatchedFiles(
-  files: readonly { filePath: string; expectedSource: string; label: string }[]
+  files: readonly { filePath: string; expectedSource: string; label: string }[],
 ): Promise<void> {
   for (const file of files) {
     const current = await fs.readFile(file.filePath, 'utf8');
@@ -1246,5 +1365,7 @@ function isPatchFileRecord(value: unknown): value is PatchFileRecord {
 
 function isPathInside(rootPath: string, targetPath: string): boolean {
   const relativePath = path.relative(rootPath, targetPath);
-  return relativePath.length > 0 && !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+  return (
+    relativePath.length > 0 && !relativePath.startsWith('..') && !path.isAbsolute(relativePath)
+  );
 }

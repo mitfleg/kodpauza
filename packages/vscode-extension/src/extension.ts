@@ -195,9 +195,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         continue;
       }
       runtime.detection = detection;
-      runtime.patch = runtime.tool === 'codex'
-        ? createCodexPatchInstaller(detection)
-        : createClaudePatchInstaller(detection);
+      runtime.patch =
+        runtime.tool === 'codex'
+          ? createCodexPatchInstaller(detection)
+          : createClaudePatchInstaller(detection);
       runtime.patchToken = undefined;
       runtime.compatible = undefined;
       runtime.compatibilityMode = undefined;
@@ -213,9 +214,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       continue;
     }
     try {
-      const ensured = state.integrationEnabled && canPatchRuntime(runtime)
-        ? await runtime.patch.ensureInstalled()
-        : undefined;
+      const ensured =
+        state.integrationEnabled && canPatchRuntime(runtime)
+          ? await runtime.patch.ensureInstalled()
+          : undefined;
       const status = ensured ?? (await runtime.patch.inspect());
       runtime.compatible = status.compatible;
       runtime.compatibilityMode = status.compatibilityMode;
@@ -401,11 +403,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return runtimeWatchdog;
     }
     const operation = (async () => {
-      if (
-        !state.adsEnabled ||
-        !state.integrationEnabled ||
-        !vscode.window.state.focused
-      ) {
+      if (!state.adsEnabled || !state.integrationEnabled || !vscode.window.state.focused) {
         return;
       }
 
@@ -421,9 +419,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
           continue;
         }
         missingUiHeartbeats[runtime.tool] += 1;
-        if (
-          missingUiHeartbeats[runtime.tool] >= RUNTIME_WATCHDOG_MISSING_UI_THRESHOLD
-        ) {
+        if (missingUiHeartbeats[runtime.tool] >= RUNTIME_WATCHDOG_MISSING_UI_THRESHOLD) {
           activeTurnMissingUi = true;
         }
       }
@@ -841,12 +837,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   const authenticatedAtStartup = Boolean(await state.accessToken());
-  if (shouldAutomaticallyConnectIntegrations({
-    trigger: 'startup',
-    authenticated: authenticatedAtStartup,
-    autoConnectEnabled: state.autoConnectIntegrations,
-    integrationEnabled: state.integrationEnabled,
-  })) {
+  if (
+    shouldAutomaticallyConnectIntegrations({
+      trigger: 'startup',
+      authenticated: authenticatedAtStartup,
+      autoConnectEnabled: state.autoConnectIntegrations,
+      integrationEnabled: state.integrationEnabled,
+    })
+  ) {
     const startupConnection = await connectIntegrations('startup');
     autoReloadRequired ||= startupConnection.changed;
   }
@@ -938,9 +936,9 @@ function createUiAdapter(runtime: IntegrationRuntime): {
       return {
         active: true,
         adId: ad.adId,
-        text: adPresentationText(ad.campaignName, ad.text),
+        text: adPresentationText(ad.advertiserName, ad.text),
         format: ad.format,
-        advertiserName: ad.campaignName,
+        advertiserName: ad.advertiserName,
         erid: ad.erid ?? '',
         iconUrl: canary ? KODPAUZA_FALLBACK_ICON : undefined,
         domain,
@@ -980,9 +978,7 @@ function extensionPatchStatus(runtime: IntegrationRuntime): ExtensionPatchStatus
   if (!runtime.patchToken) {
     return runtime.compatible === true ? 'not_installed' : 'unknown';
   }
-  return runtime.compatibilityMode === 'structural'
-    ? 'installed_structural'
-    : 'installed_exact';
+  return runtime.compatibilityMode === 'structural' ? 'installed_structural' : 'installed_exact';
 }
 
 function patchErrorCategory(error: unknown): ExtensionPatchErrorCategory {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { Loader2, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuthState } from '@/lib/auth-state';
@@ -11,6 +11,14 @@ type DeletionRequest = {
   type: 'deletion';
   status: 'requested' | 'processing' | 'completed' | 'rejected' | 'canceled';
   createdAt: string;
+};
+
+type AdvertiserProfile = {
+  companyName: string;
+  publicName: string;
+  advertiserInfoUrl: string | null;
+  inn: string | null;
+  ordOrganizationId: string | null;
 };
 
 const statusLabels: Record<DeletionRequest['status'], string> = {
@@ -28,6 +36,8 @@ export function AccountSettings() {
   const [confirmed, setConfirmed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [profile, setProfile] = useState<AdvertiserProfile | null>(null);
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -50,6 +60,48 @@ export function AccountSettings() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (user?.role !== 'advertiser') return;
+    let active = true;
+    api<{ profile: AdvertiserProfile }>('/v1/advertiser/profile')
+      .then(({ profile: nextProfile }) => {
+        if (active) setProfile(nextProfile);
+      })
+      .catch((error) => {
+        if (active) {
+          setMessage(error instanceof Error ? error.message : 'Не удалось загрузить профиль.');
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [user?.role]);
+
+  async function saveAdvertiserProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setProfileSubmitting(true);
+    setMessage('');
+    const form = new FormData(event.currentTarget);
+    try {
+      const response = await api<{ profile: AdvertiserProfile }>('/v1/advertiser/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: String(form.get('companyName') ?? ''),
+          publicName: String(form.get('publicName') ?? ''),
+          advertiserInfoUrl: String(form.get('advertiserInfoUrl') ?? ''),
+          inn: String(form.get('inn') ?? ''),
+        }),
+      });
+      setProfile(response.profile);
+      setMessage('Данные рекламодателя сохранены.');
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Не удалось сохранить профиль.');
+    } finally {
+      setProfileSubmitting(false);
+    }
+  }
 
   async function requestDeletion() {
     setSubmitting(true);
@@ -87,6 +139,71 @@ export function AccountSettings() {
         </dl>
       </section>
 
+      {user?.role === 'advertiser' && profile ? (
+        <section className="rounded-md border border-line bg-white p-5 shadow-panel">
+          <h2 className="font-semibold text-ink">Данные рекламодателя</h2>
+          <p className="mt-1 text-sm leading-6 text-slate-600">
+            В объявлении показывается только публичный бренд. Юридическое имя и ИНН используются для
+            модерации и передачи сведений в ОРД.
+          </p>
+          <form className="mt-4 grid gap-4" onSubmit={(event) => void saveAdvertiserProfile(event)}>
+            <label className="grid gap-1.5 text-sm font-medium text-ink">
+              Публичный бренд
+              <input
+                className="focus-ring h-11 rounded-md border border-line px-3 font-normal"
+                name="publicName"
+                defaultValue={profile.publicName}
+                minLength={2}
+                maxLength={80}
+                required
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-ink">
+              Юридическое имя
+              <input
+                className="focus-ring h-11 rounded-md border border-line px-3 font-normal"
+                name="companyName"
+                defaultValue={profile.companyName}
+                minLength={2}
+                maxLength={160}
+                required
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-ink">
+              ИНН
+              <input
+                className="focus-ring h-11 rounded-md border border-line px-3 font-normal"
+                name="inn"
+                defaultValue={profile.inn ?? ''}
+                inputMode="numeric"
+                pattern="(?:\d{10}|\d{12})"
+                required
+              />
+            </label>
+            <label className="grid gap-1.5 text-sm font-medium text-ink">
+              Публичная страница со сведениями о рекламодателе
+              <input
+                className="focus-ring h-11 rounded-md border border-line px-3 font-normal"
+                name="advertiserInfoUrl"
+                defaultValue={profile.advertiserInfoUrl ?? ''}
+                type="url"
+                pattern="https://.*"
+                placeholder="https://example.ru/advertiser"
+                required
+              />
+            </label>
+            <button
+              type="submit"
+              disabled={profileSubmitting}
+              className="focus-ring inline-flex h-10 w-fit items-center gap-2 rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {profileSubmitting ? <Loader2 aria-hidden className="h-4 w-4 animate-spin" /> : null}
+              Сохранить данные
+            </button>
+          </form>
+        </section>
+      ) : null}
+
       <section className="rounded-md border border-red-200 bg-white p-5 shadow-panel">
         <div className="flex items-start gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-red-50 text-red-700">
@@ -118,7 +235,9 @@ export function AccountSettings() {
                     onChange={(event) => setConfirmed(event.target.checked)}
                     className="mt-1 h-4 w-4 accent-red-700"
                   />
-                  <span>Я понимаю, что после выполнения заявки аккаунт нельзя будет восстановить.</span>
+                  <span>
+                    Я понимаю, что после выполнения заявки аккаунт нельзя будет восстановить.
+                  </span>
                 </label>
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button

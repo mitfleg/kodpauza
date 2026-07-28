@@ -4,6 +4,7 @@ import {
   createCampaignSchema,
   impressionCostKopecks,
   surfaces as supportedSurfaces,
+  updateAdvertiserProfileSchema,
   updateCampaignSchema,
 } from '@kodpauza/shared';
 import { requireRole } from '../auth.js';
@@ -15,6 +16,50 @@ async function advertiserProfile(userId: string) {
 }
 
 export function registerAdvertiserRoutes(app: FastifyInstance) {
+  app.get(
+    '/v1/advertiser/profile',
+    { preHandler: requireRole('advertiser') },
+    async (request, reply) => {
+      const advertiser = await advertiserProfile(request.authUser!.id);
+      if (!advertiser) return reply.code(404).send({ error: 'Профиль рекламодателя не найден.' });
+      return {
+        profile: {
+          companyName: advertiser.companyName,
+          publicName: advertiser.publicName,
+          advertiserInfoUrl: advertiser.advertiserInfoUrl,
+          inn: advertiser.inn,
+          ordOrganizationId: advertiser.ordOrganizationId,
+        },
+      };
+    },
+  );
+
+  app.patch(
+    '/v1/advertiser/profile',
+    { preHandler: requireRole('advertiser') },
+    async (request, reply) => {
+      const parsed = updateAdvertiserProfileSchema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.code(400).send({ error: 'Неверные данные рекламодателя.' });
+      }
+      const existing = await advertiserProfile(request.authUser!.id);
+      if (!existing) return reply.code(404).send({ error: 'Профиль рекламодателя не найден.' });
+      const profile = await prisma.advertiserProfile.update({
+        where: { id: existing.id },
+        data: parsed.data,
+      });
+      return {
+        profile: {
+          companyName: profile.companyName,
+          publicName: profile.publicName,
+          advertiserInfoUrl: profile.advertiserInfoUrl,
+          inn: profile.inn,
+          ordOrganizationId: profile.ordOrganizationId,
+        },
+      };
+    },
+  );
+
   app.post(
     '/v1/advertiser/campaigns',
     { preHandler: requireRole('advertiser') },
@@ -70,13 +115,19 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
       ) {
         return reply.code(400).send({ error: 'Дата завершения должна быть позже даты начала.' });
       }
-      const creativeInputs = parsed.data.creatives ?? [
-        {
-          label: 'Основной',
-          text: parsed.data.text,
-          url: parsed.data.url,
-        },
-      ];
+      const creativeInputs = (
+        parsed.data.creatives ?? [
+          {
+            label: 'Основной',
+            text: parsed.data.text,
+            url: parsed.data.url,
+            erid: parsed.data.erid ?? null,
+          },
+        ]
+      ).map((creative) => ({
+        ...creative,
+        erid: creative.erid ?? parsed.data.erid ?? null,
+      }));
       const primaryCreative = creativeInputs[0]!;
 
       const campaign = await prisma.campaign.create({
@@ -87,7 +138,9 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
           // always describe the first creative that moderation and delivery see.
           text: primaryCreative.text,
           url: primaryCreative.url,
-          erid: parsed.data.erid ?? null,
+          erid: primaryCreative.erid,
+          selfPromotion: parsed.data.selfPromotion,
+          ordPlatformId: parsed.data.ordPlatformId ?? null,
           status: 'pending',
           cpmKopecks: parsed.data.cpmKopecks,
           billableCpmKopecks: campaignBillableCpmKopecks,
@@ -204,11 +257,9 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
         }
       }
       if (parsed.data.status && !['paused', 'pending'].includes(parsed.data.status)) {
-        return reply
-          .code(400)
-          .send({
-            error: 'Рекламодатель может только приостановить или повторно отправить кампанию.',
-          });
+        return reply.code(400).send({
+          error: 'Рекламодатель может только приостановить или повторно отправить кампанию.',
+        });
       }
       if (parsed.data.status === 'paused' && existing.status !== 'active') {
         return reply.code(409).send({ error: 'Приостановить можно только активную кампанию.' });
@@ -301,6 +352,12 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
             ...(parsed.data.text !== undefined ? { text: parsed.data.text } : {}),
             ...(parsed.data.url !== undefined ? { url: parsed.data.url } : {}),
             ...(parsed.data.erid !== undefined ? { erid: parsed.data.erid } : {}),
+            ...(parsed.data.selfPromotion !== undefined
+              ? { selfPromotion: parsed.data.selfPromotion }
+              : {}),
+            ...(parsed.data.ordPlatformId !== undefined
+              ? { ordPlatformId: parsed.data.ordPlatformId }
+              : {}),
             ...(parsed.data.budgetKopecks !== undefined
               ? { budgetKopecks: parsed.data.budgetKopecks }
               : {}),
@@ -318,7 +375,13 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
               : {}),
             ...(parsed.data.startsAt !== undefined ? { startsAt: parsed.data.startsAt } : {}),
             ...(parsed.data.endsAt !== undefined ? { endsAt: parsed.data.endsAt } : {}),
-            ...(primaryCreative ? { text: primaryCreative.text, url: primaryCreative.url } : {}),
+            ...(primaryCreative
+              ? {
+                  text: primaryCreative.text,
+                  url: primaryCreative.url,
+                  erid: primaryCreative.erid ?? parsed.data.erid ?? null,
+                }
+              : {}),
             cpmKopecks: nextCpmKopecks,
             billableCpmKopecks: nextBillableCpmKopecks,
             format: nextFormat,
@@ -356,9 +419,17 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
             data: { enabled: false },
           });
           await tx.campaignCreative.createMany({
-            data: creativeChanges.map((creative) => ({ campaignId: id, ...creative })),
+            data: creativeChanges.map((creative) => ({
+              campaignId: id,
+              ...creative,
+              erid: creative.erid ?? parsed.data.erid ?? null,
+            })),
           });
-        } else if (parsed.data.text !== undefined || parsed.data.url !== undefined) {
+        } else if (
+          parsed.data.text !== undefined ||
+          parsed.data.url !== undefined ||
+          parsed.data.erid !== undefined
+        ) {
           const primaryCreative = existing.creatives[0];
           if (primaryCreative) {
             await tx.campaignCreative.update({
@@ -366,6 +437,7 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
               data: {
                 ...(parsed.data.text !== undefined ? { text: parsed.data.text } : {}),
                 ...(parsed.data.url !== undefined ? { url: parsed.data.url } : {}),
+                ...(parsed.data.erid !== undefined ? { erid: parsed.data.erid } : {}),
               },
             });
           } else {
@@ -375,6 +447,7 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
                 label: 'Основной',
                 text: parsed.data.text ?? existing.text,
                 url: parsed.data.url ?? existing.url,
+                erid: parsed.data.erid ?? existing.erid,
               },
             });
           }
@@ -416,6 +489,7 @@ export function registerAdvertiserRoutes(app: FastifyInstance) {
       : [];
     return {
       companyName: advertiser?.companyName ?? null,
+      publicName: advertiser?.publicName ?? null,
       campaigns,
       balanceKopecks: advertiser?.balanceKopecks ?? 0,
       totals: campaigns.reduce(

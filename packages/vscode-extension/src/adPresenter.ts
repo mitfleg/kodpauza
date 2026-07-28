@@ -56,10 +56,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     prefetchSize = DEFAULT_AD_RING_SIZE,
   ) {
     this.adRing = new AdRing(prefetchSize);
-    this.rotationClock = new PausableCountdown(
-      rotationIntervalMs,
-      () => void this.rotateAd()
-    );
+    this.rotationClock = new PausableCountdown(rotationIntervalMs, () => void this.rotateAd());
     this.item = vscode.window.createStatusBarItem(itemId, vscode.StatusBarAlignment.Right, 97);
     this.item.name = 'Kodpauza';
     this.item.tooltip = 'Kodpauza: ожидание запуска';
@@ -84,7 +81,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
         } else {
           this.pauseVisibility();
         }
-      })
+      }),
     );
   }
 
@@ -185,11 +182,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     this.sessionStartedAtValue = new Date().toISOString();
     this.confirmingCanary = false;
 
-    if (
-      !this.state.adsEnabled ||
-      !this.state.integrationEnabled ||
-      !this.policyAllows(placement)
-    ) {
+    if (!this.state.adsEnabled || !this.state.integrationEnabled || !this.policyAllows(placement)) {
       this.running = false;
       this.placement = undefined;
       this.clearSession();
@@ -459,7 +452,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
   }
 
   private forPresentation(ad: KodpauzaAd): KodpauzaAd {
-    return { ...ad, text: adPresentationText(ad.campaignName, ad.text) };
+    return { ...ad, text: adPresentationText(ad.advertiserName, ad.text) };
   }
 
   private resumeEmptyAdRetry(): void {
@@ -565,12 +558,16 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     } catch {
       this.impressionQueued = false;
       this.clearImpressionTimer();
-      this.impressionTimer = setTimeout(() => void this.maybeQueueImpression(), LOCAL_QUEUE_RETRY_MS);
+      this.impressionTimer = setTimeout(
+        () => void this.maybeQueueImpression(),
+        LOCAL_QUEUE_RETRY_MS,
+      );
     }
   }
 
   private currentVisibilityMs(): number {
-    const activeSlice = this.visibleStartedAt === undefined ? 0 : Date.now() - this.visibleStartedAt;
+    const activeSlice =
+      this.visibleStartedAt === undefined ? 0 : Date.now() - this.visibleStartedAt;
     return this.accumulatedVisibleMs + activeSlice;
   }
 
@@ -578,7 +575,11 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     return Math.max(IMPRESSION_THRESHOLD_MS, (this.currentAd?.durationSec ?? 5) * 1000);
   }
 
-  private async queueEvent(type: KodpauzaEventType, ad: KodpauzaAd, visibleMs?: number): Promise<void> {
+  private async queueEvent(
+    type: KodpauzaEventType,
+    ad: KodpauzaAd,
+    visibleMs?: number,
+  ): Promise<void> {
     if (ad.trackable === false || ad.campaignId === 'house') {
       return;
     }
@@ -600,7 +601,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
       visibleMs,
       clientVersion: this.clientVersion,
       toolName: placement.toolName,
-      toolVersion: placement.toolVersion
+      toolVersion: placement.toolVersion,
     };
 
     await this.outbox.enqueue(type, event);
@@ -644,7 +645,7 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     if (Number.isFinite(nextExpiry)) {
       this.patchedUiVisibilityTimer = setTimeout(
         () => this.refreshPatchedUiVisibility(),
-        Math.max(1, nextExpiry - now + 10)
+        Math.max(1, nextExpiry - now + 10),
       );
       this.patchedUiVisibilityTimer.unref();
     }
@@ -660,9 +661,26 @@ export class StatusBarAdPresenter implements vscode.Disposable {
     if (!ad) {
       return;
     }
-    this.item.text = `$(megaphone) ${ad.text}`;
-    this.item.tooltip = `${ad.text}${ad.erid ? ` · erid: ${ad.erid}` : ''}. Нажмите, чтобы открыть.`;
+    const text = adPresentationText(ad.advertiserName, ad.text);
+    const domain = safeHostname(ad.url);
+    this.item.text = `$(megaphone) ${text}`;
+    this.item.tooltip = [
+      'Реклама',
+      `Рекламодатель: ${ad.advertiserName}`,
+      ...(domain ? [`Сайт: ${domain}`] : []),
+      ...(ad.erid ? [`erid: ${ad.erid}`] : []),
+      'Нажмите, чтобы открыть',
+    ].join('\n');
     this.item.command = 'kodpauza.openAd';
     this.item.show();
+  }
+}
+
+function safeHostname(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url.hostname : undefined;
+  } catch {
+    return undefined;
   }
 }

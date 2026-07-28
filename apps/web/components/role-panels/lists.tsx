@@ -204,10 +204,19 @@ function CampaignModerationDetails({
   showAdvertiserContact?: boolean;
 }) {
   const companyName = campaign.advertiser?.companyName ?? 'Компания не указана';
+  const publicName = campaign.advertiser?.publicName ?? companyName;
   const creatives = campaign.creatives?.filter((creative) => creative.enabled) ?? [];
   const visibleCreatives = creatives.length
     ? creatives
-    : [{ id: `${campaign.id}-legacy`, label: 'Вариант 1', text: campaign.text, url: campaign.url }];
+    : [
+        {
+          id: `${campaign.id}-legacy`,
+          label: 'Вариант 1',
+          text: campaign.text,
+          url: campaign.url,
+          erid: campaign.erid,
+        },
+      ];
   const surfaces = campaign.surfaces?.filter((surface) => surface.enabled) ?? [];
 
   return (
@@ -215,11 +224,13 @@ function CampaignModerationDetails({
       <section className="rounded-md border border-line bg-slate-50 p-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <div className="text-xs text-slate-500">Рекламодатель</div>
-            <div className="mt-1 text-sm font-semibold text-ink">{companyName}</div>
+            <div className="text-xs text-slate-500">Публичный бренд</div>
+            <div className="mt-1 text-sm font-semibold text-ink">{publicName}</div>
             {showAdvertiserContact ? (
-              <div className="mt-0.5 break-all text-xs text-slate-500">
-                {campaign.advertiser?.user?.email ?? 'Email не указан'}
+              <div className="mt-0.5 grid gap-0.5 break-all text-xs text-slate-500">
+                <span>Юридическое имя: {companyName}</span>
+                <span>ИНН: {campaign.advertiser?.inn ?? 'не указан'}</span>
+                <span>{campaign.advertiser?.user?.email ?? 'Email не указан'}</span>
               </div>
             ) : null}
           </div>
@@ -234,10 +245,13 @@ function CampaignModerationDetails({
                 {creative.label || `Вариант ${index + 1}`}
               </div>
               <p className="mt-1 text-sm leading-6 text-ink">
-                <span className="font-semibold">{campaign.name}</span>
+                <span className="font-semibold">Реклама · {publicName}</span>
                 <span className="text-slate-400"> · </span>
                 {creative.text}
               </p>
+              <div className="mt-1 break-all text-xs text-slate-500">
+                erid: {creative.erid || campaign.erid || 'не указан'}
+              </div>
               <a
                 href={creative.url}
                 target="_blank"

@@ -61,7 +61,8 @@ export const config = {
   runtimePolicyVersion: process.env.KODPAUZA_RUNTIME_POLICY_VERSION?.trim() || '1',
   runtimePolicyTtlMs: numberFromEnv('KODPAUZA_RUNTIME_POLICY_TTL_MS', 15 * 60 * 1000),
   runtimePolicyEnabled: booleanFromEnv('KODPAUZA_RUNTIME_POLICY_ENABLED', true),
-  runtimePolicyKeyId: process.env.KODPAUZA_RUNTIME_POLICY_KEY_ID?.trim() || 'kodpauza-runtime-2026-01',
+  runtimePolicyKeyId:
+    process.env.KODPAUZA_RUNTIME_POLICY_KEY_ID?.trim() || 'kodpauza-runtime-2026-01',
   runtimePolicyPrivateKeyBase64:
     process.env.KODPAUZA_RUNTIME_POLICY_PRIVATE_KEY_BASE64?.trim() ?? '',
   runtimePolicyBlockedTools: csvFromEnv(process.env.KODPAUZA_RUNTIME_POLICY_BLOCKED_TOOLS),
@@ -120,10 +121,7 @@ export const config = {
   smtpFrom: process.env.KODPAUZA_SMTP_FROM?.trim() || 'Kodpauza <noreply@localhost>',
   telegramBotToken: process.env.KODPAUZA_TELEGRAM_BOT_TOKEN?.trim() ?? '',
   telegramAdminChatId: process.env.KODPAUZA_TELEGRAM_ADMIN_CHAT_ID?.trim() ?? '',
-  telegramNotificationTimeoutMs: numberFromEnv(
-    'KODPAUZA_TELEGRAM_NOTIFICATION_TIMEOUT_MS',
-    8_000,
-  ),
+  telegramNotificationTimeoutMs: numberFromEnv('KODPAUZA_TELEGRAM_NOTIFICATION_TIMEOUT_MS', 8_000),
   telegramProxyHost:
     process.env.KODPAUZA_TELEGRAM_PROXY_HOST?.trim() || process.env.PROXY_HOST?.trim() || '',
   telegramProxyUser:
@@ -137,6 +135,10 @@ export const config = {
   yooKassaApiBaseUrl: process.env.YOOKASSA_API_BASE_URL?.trim() || 'https://api.yookassa.ru/v3',
   yooKassaTimeoutMs: numberFromEnv('YOOKASSA_TIMEOUT_MS', 12_000),
   yooKassaReceiptVatCode: optionalIntegerFromEnv('YOOKASSA_RECEIPT_VAT_CODE'),
+  yandexOrdApiToken: process.env.KODPAUZA_YANDEX_ORD_API_TOKEN?.trim() ?? '',
+  yandexOrdApiBaseUrl:
+    process.env.KODPAUZA_YANDEX_ORD_API_BASE_URL?.trim() || 'https://ord.yandex.ru',
+  yandexOrdTimeoutMs: numberFromEnv('KODPAUZA_YANDEX_ORD_TIMEOUT_MS', 12_000),
 };
 
 export function validateRuntimeConfig() {
@@ -202,9 +204,7 @@ export function validateRuntimeConfig() {
     config.telegramProxyPassword,
   ];
   if (telegramProxyParts.some(Boolean) && !telegramProxyParts.every(Boolean)) {
-    throw new Error(
-      'Telegram proxy host, user and password must be configured together.',
-    );
+    throw new Error('Telegram proxy host, user and password must be configured together.');
   }
   if (config.telegramProxyHost) {
     const proxyUrl = new URL(
@@ -235,6 +235,18 @@ export function validateRuntimeConfig() {
   const yooKassaApiUrl = new URL(config.yooKassaApiBaseUrl);
   if (yooKassaApiUrl.protocol !== 'https:' || yooKassaApiUrl.username || yooKassaApiUrl.password) {
     throw new Error('YOOKASSA_API_BASE_URL must use HTTPS and must not contain credentials.');
+  }
+  const yandexOrdApiUrl = new URL(config.yandexOrdApiBaseUrl);
+  if (
+    yandexOrdApiUrl.protocol !== 'https:' ||
+    yandexOrdApiUrl.username ||
+    yandexOrdApiUrl.password ||
+    yandexOrdApiUrl.search ||
+    yandexOrdApiUrl.hash
+  ) {
+    throw new Error(
+      'KODPAUZA_YANDEX_ORD_API_BASE_URL must use HTTPS and must not contain credentials.',
+    );
   }
   const captchaVerifyUrl = new URL(config.captchaVerifyUrl);
   if (

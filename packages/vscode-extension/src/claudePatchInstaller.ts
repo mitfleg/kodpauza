@@ -7,7 +7,7 @@ import { defaultKodpauzaHome } from './codexHookInstaller';
 import {
   assertFilesUnchanged,
   assertJavaScriptParses,
-  PatchCompatibilityMode
+  PatchCompatibilityMode,
 } from './patchSafety';
 import { webviewVisibilityRuntime } from './uiVisibilityRuntime';
 
@@ -56,7 +56,7 @@ export const CLAUDE_2_1_207_PROFILE: ClaudePatchProfile = {
   schedulerIdentifier: '$me',
   animateIdentifier: 'z8t',
   stylesIdentifier: 'Hj',
-  spinnerFramesIdentifier: 'rQe'
+  spinnerFramesIdentifier: 'rQe',
 };
 
 export const CLAUDE_2_1_209_PROFILE: ClaudePatchProfile = {
@@ -67,16 +67,16 @@ export const CLAUDE_2_1_209_PROFILE: ClaudePatchProfile = {
   schedulerIdentifier: 'Vme',
   animateIdentifier: 'A8t',
   stylesIdentifier: 'Fj',
-  spinnerFramesIdentifier: 'iQe'
+  spinnerFramesIdentifier: 'iQe',
 };
 
 export const CLAUDE_2_1_212_PROFILE: ClaudePatchProfile = {
   ...CLAUDE_2_1_209_PROFILE,
-  cspFinalIdentifier: 'h'
+  cspFinalIdentifier: 'h',
 };
 
 export const CLAUDE_2_1_214_PROFILE: ClaudePatchProfile = {
-  ...CLAUDE_2_1_212_PROFILE
+  ...CLAUDE_2_1_212_PROFILE,
 };
 
 const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
@@ -84,26 +84,26 @@ const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
     version: '2.1.207',
     hostSha256: 'c826e0fb877a54c595a27e2fe67da5bcf258cc08709783b7fda1b366f25b9980',
     webviewSha256: '67c105ac80d10834618c1d8fb8ed28c99df70167ffd38f52ac3420bdfc2aff67',
-    profile: CLAUDE_2_1_207_PROFILE
+    profile: CLAUDE_2_1_207_PROFILE,
   },
   {
     version: '2.1.209',
     hostSha256: '74fd568a28ccd54ec3902ed47ea8b33781325c4862c541613648684694ef072e',
     webviewSha256: '6cca18ca9b6952a0d737d7ab024fed1625dcdcd057a484fdc19e1fa019e62bc9',
-    profile: CLAUDE_2_1_209_PROFILE
+    profile: CLAUDE_2_1_209_PROFILE,
   },
   {
     version: '2.1.212',
     hostSha256: '4bf69e72516593859ceb3f520aa510918ea71bc63dec3a2f81816ccda28567d1',
     webviewSha256: 'd02e1ffdb066a69458759262433fc9c972b773e56f99f36c3bf2605749959a76',
-    profile: CLAUDE_2_1_212_PROFILE
+    profile: CLAUDE_2_1_212_PROFILE,
   },
   {
     version: '2.1.214',
     hostSha256: '267cbd2f3cea2b5d13a36a70f34c1e0def2c6638e3960c1bdd29e6ec9ce118b3',
     webviewSha256: '83579b34af4114e1a124cf72c5845205ff49fc52862aec767f1e4bdf920b371e',
-    profile: CLAUDE_2_1_214_PROFILE
-  }
+    profile: CLAUDE_2_1_214_PROFILE,
+  },
 ] as const;
 
 type PatchFileRecord = {
@@ -162,11 +162,11 @@ export class ClaudePatchInstaller {
     private readonly extensionPath: string,
     private readonly claudeVersion: string,
     private readonly kodpauzaHome = defaultKodpauzaHome(),
-    supportedBuild?: ClaudeSupportedBuild
+    supportedBuild?: ClaudeSupportedBuild,
   ) {
     this.statePath = path.join(kodpauzaHome, PATCH_STATE_FILE);
-    this.supportedBuild = supportedBuild
-      ?? SUPPORTED_BUILDS.find((build) => build.version === claudeVersion);
+    this.supportedBuild =
+      supportedBuild ?? SUPPORTED_BUILDS.find((build) => build.version === claudeVersion);
     this.compatibilityMode = this.supportedBuild ? 'exact' : 'unsupported';
   }
 
@@ -177,15 +177,16 @@ export class ClaudePatchInstaller {
         installed: false,
         compatible: false,
         compatibilityMode: 'unsupported',
-        claudeVersion: this.claudeVersion
+        claudeVersion: this.claudeVersion,
       };
     }
     const [hostSource, webviewSource] = await Promise.all([
       readTextFile(paths.hostPath),
-      readTextFile(paths.webviewPath)
+      readTextFile(paths.webviewPath),
     ]);
     const token = extractToken(webviewSource);
-    const hostPatched = hostSource.includes(CSP_MARKER_START) && hostSource.includes(CSP_MARKER_END);
+    const hostPatched =
+      hostSource.includes(CSP_MARKER_START) && hostSource.includes(CSP_MARKER_END);
     const webviewPatched = Boolean(token) && webviewSource.includes(UI_MARKER_END);
     if (hostPatched !== webviewPatched) {
       throw new PartialPatchError();
@@ -209,7 +210,7 @@ export class ClaudePatchInstaller {
         compatibilityMode: this.compatibilityMode,
         claudeVersion: this.claudeVersion,
         token,
-        ...paths
+        ...paths,
       };
     }
 
@@ -219,7 +220,7 @@ export class ClaudePatchInstaller {
       compatible: Boolean(this.supportedBuild),
       compatibilityMode: this.compatibilityMode,
       claudeVersion: this.claudeVersion,
-      ...paths
+      ...paths,
     };
   }
 
@@ -230,18 +231,22 @@ export class ClaudePatchInstaller {
     }
     const build = this.supportedBuild;
     if (!build) {
-      throw new Error(`Версия Claude Code ${this.claudeVersion} пока не поддерживается патчем Kodpauza.`);
+      throw new Error(
+        `Версия Claude Code ${this.claudeVersion} пока не поддерживается патчем Kodpauza.`,
+      );
     }
 
     const paths = await this.resolvePatchPaths(true);
     const [hostSource, webviewSource] = await Promise.all([
       readTextFile(paths.hostPath),
-      readTextFile(paths.webviewPath)
+      readTextFile(paths.webviewPath),
     ]);
     this.resolveCompatibleBuild(hostSource, webviewSource);
     const resolvedBuild = this.supportedBuild;
     if (!resolvedBuild) {
-      throw new Error(`Версия Claude Code ${this.claudeVersion} изменила структуру UI. Реклама безопасно отключена.`);
+      throw new Error(
+        `Версия Claude Code ${this.claudeVersion} изменила структуру UI. Реклама безопасно отключена.`,
+      );
     }
     assertOriginalHash(paths.hostPath, hostSource, resolvedBuild.hostSha256);
     assertOriginalHash(paths.webviewPath, webviewSource, resolvedBuild.webviewSha256);
@@ -263,9 +268,19 @@ export class ClaudePatchInstaller {
       port: CODEX_UI_BRIDGE_PORT,
       createdAt: new Date().toISOString(),
       files: [
-        backupRecord(this.extensionPath, paths.hostPath, path.join(backupDirectory, 'extension.js'), hostSource),
-        backupRecord(this.extensionPath, paths.webviewPath, path.join(backupDirectory, 'index.js'), webviewSource)
-      ]
+        backupRecord(
+          this.extensionPath,
+          paths.hostPath,
+          path.join(backupDirectory, 'extension.js'),
+          hostSource,
+        ),
+        backupRecord(
+          this.extensionPath,
+          paths.webviewPath,
+          path.join(backupDirectory, 'index.js'),
+          webviewSource,
+        ),
+      ],
     };
 
     await fs.mkdir(this.kodpauzaHome, { recursive: true, mode: 0o700 });
@@ -273,13 +288,25 @@ export class ClaudePatchInstaller {
     try {
       await assertFilesUnchanged([
         { filePath: paths.hostPath, expectedSource: hostSource, label: 'Claude Code extension.js' },
-        { filePath: paths.webviewPath, expectedSource: webviewSource, label: 'Claude Code webview/index.js' }
+        {
+          filePath: paths.webviewPath,
+          expectedSource: webviewSource,
+          label: 'Claude Code webview/index.js',
+        },
       ]);
       await atomicWritePreservingMode(paths.webviewPath, patchedWebview);
       await atomicWritePreservingMode(paths.hostPath, patchedHost);
       await assertPatchedFiles([
-        { filePath: paths.hostPath, expectedSource: patchedHost, label: 'Claude Code extension.js' },
-        { filePath: paths.webviewPath, expectedSource: patchedWebview, label: 'Claude Code webview/index.js' }
+        {
+          filePath: paths.hostPath,
+          expectedSource: patchedHost,
+          label: 'Claude Code extension.js',
+        },
+        {
+          filePath: paths.webviewPath,
+          expectedSource: patchedWebview,
+          label: 'Claude Code webview/index.js',
+        },
       ]);
     } catch (error) {
       await this.restoreFromManifest(manifest).catch(() => undefined);
@@ -293,7 +320,7 @@ export class ClaudePatchInstaller {
       token,
       ...paths,
       changed: true,
-      backupDirectory
+      backupDirectory,
     };
   }
 
@@ -335,12 +362,12 @@ export class ClaudePatchInstaller {
     await this.assertManifestCanBeRestored(manifest);
     await this.restoreFromManifest(manifest);
     await fs.rm(this.statePath, { force: true });
-      return {
-        installed: false,
-        compatible: Boolean(this.supportedBuild),
-        compatibilityMode: this.compatibilityMode,
-        claudeVersion: this.claudeVersion,
-        changed: true
+    return {
+      installed: false,
+      compatible: Boolean(this.supportedBuild),
+      compatibilityMode: this.compatibilityMode,
+      claudeVersion: this.claudeVersion,
+      changed: true,
     };
   }
 
@@ -359,7 +386,7 @@ export class ClaudePatchInstaller {
 
     const knownProfiles = uniqueClaudeProfiles([
       ...(currentBuild ? [currentBuild.profile] : []),
-      ...SUPPORTED_BUILDS.map((build) => build.profile)
+      ...SUPPORTED_BUILDS.map((build) => build.profile),
     ]);
     let matches = compatibleClaudeProfiles(hostSource, webviewSource, knownProfiles);
     if (matches.length === 0) {
@@ -377,17 +404,23 @@ export class ClaudePatchInstaller {
       version: this.claudeVersion,
       hostSha256: sha256(hostSource),
       webviewSha256: sha256(webviewSource),
-      profile: matches[0]
+      profile: matches[0],
     };
     this.compatibilityMode = 'structural';
   }
 
-  private async resolvePatchPaths(required: true): Promise<{ hostPath: string; webviewPath: string }>;
-  private async resolvePatchPaths(required: false): Promise<{ hostPath: string; webviewPath: string } | undefined>;
-  private async resolvePatchPaths(required: boolean): Promise<{ hostPath: string; webviewPath: string } | undefined> {
+  private async resolvePatchPaths(
+    required: true,
+  ): Promise<{ hostPath: string; webviewPath: string }>;
+  private async resolvePatchPaths(
+    required: false,
+  ): Promise<{ hostPath: string; webviewPath: string } | undefined>;
+  private async resolvePatchPaths(
+    required: boolean,
+  ): Promise<{ hostPath: string; webviewPath: string } | undefined> {
     const paths = {
       hostPath: path.join(this.extensionPath, 'extension.js'),
-      webviewPath: path.join(this.extensionPath, 'webview', 'index.js')
+      webviewPath: path.join(this.extensionPath, 'webview', 'index.js'),
     };
     if (!(await fileExists(paths.hostPath)) || !(await fileExists(paths.webviewPath))) {
       if (required) {
@@ -403,12 +436,12 @@ export class ClaudePatchInstaller {
     const directory = path.join(
       this.kodpauzaHome,
       'backups',
-      `claude-ui-${this.claudeVersion}-${timestamp}`
+      `claude-ui-${this.claudeVersion}-${timestamp}`,
     );
     await fs.mkdir(directory, { recursive: true, mode: 0o700 });
     await Promise.all([
       fs.copyFile(paths.hostPath, path.join(directory, 'extension.js')),
-      fs.copyFile(paths.webviewPath, path.join(directory, 'index.js'))
+      fs.copyFile(paths.webviewPath, path.join(directory, 'index.js')),
     ]);
     return directory;
   }
@@ -418,7 +451,9 @@ export class ClaudePatchInstaller {
     if (!manifest || path.resolve(manifest.extensionPath) === path.resolve(this.extensionPath)) {
       return;
     }
-    const targets = manifest.files.map((file) => path.resolve(manifest.extensionPath, file.relativePath));
+    const targets = manifest.files.map((file) =>
+      path.resolve(manifest.extensionPath, file.relativePath),
+    );
     const exists = await Promise.all(targets.map(fileExists));
     if (exists.every((value) => !value)) {
       await fs.rm(this.statePath, { force: true });
@@ -442,9 +477,10 @@ export class ClaudePatchInstaller {
       const current = await fs.readFile(targetPath);
       const source = current.toString('utf8');
       const original = sha256(current) === file.originalSha256;
-      const patched = path.basename(targetPath) === 'extension.js'
-        ? source.includes(CSP_MARKER_START) && source.includes(CSP_MARKER_END)
-        : source.includes(UI_MARKER_PREFIX) && source.includes(UI_MARKER_END);
+      const patched =
+        path.basename(targetPath) === 'extension.js'
+          ? source.includes(CSP_MARKER_START) && source.includes(CSP_MARKER_END)
+          : source.includes(UI_MARKER_PREFIX) && source.includes(UI_MARKER_END);
       if (!original && !patched) {
         throw new Error(`Файл Claude Code ${path.basename(targetPath)} изменен после установки.`);
       }
@@ -472,21 +508,21 @@ export class ClaudePatchInstaller {
 function compatibleClaudeProfiles(
   hostSource: string,
   webviewSource: string,
-  profiles: readonly ClaudePatchProfile[]
+  profiles: readonly ClaudePatchProfile[],
 ): ClaudePatchProfile[] {
   return profiles.filter((profile) => {
-      try {
-        const token = '0'.repeat(64);
-        const patchedHost = patchClaudeHostSource(hostSource, profile);
-        const patchedWebview = patchClaudeWebviewSource(webviewSource, token, profile);
-        assertJavaScriptParses(patchedHost, 'Claude Code extension.js');
-        assertJavaScriptParses(patchedWebview, 'Claude Code webview/index.js');
-        assertClaudePatchedContract(patchedHost, patchedWebview, token);
-        return true;
-      } catch {
-        return false;
-      }
-    });
+    try {
+      const token = '0'.repeat(64);
+      const patchedHost = patchClaudeHostSource(hostSource, profile);
+      const patchedWebview = patchClaudeWebviewSource(webviewSource, token, profile);
+      assertJavaScriptParses(patchedHost, 'Claude Code extension.js');
+      assertJavaScriptParses(patchedWebview, 'Claude Code webview/index.js');
+      assertClaudePatchedContract(patchedHost, patchedWebview, token);
+      return true;
+    } catch {
+      return false;
+    }
+  });
 }
 
 type AstNode = {
@@ -498,7 +534,7 @@ type AstNode = {
 
 function deriveClaudePatchProfiles(
   hostSource: string,
-  webviewSource: string
+  webviewSource: string,
 ): ClaudePatchProfile[] {
   const csp = deriveClaudeCspIdentifiers(hostSource);
   if (!csp) {
@@ -512,24 +548,36 @@ function deriveClaudePatchProfiles(
 }
 
 function deriveClaudeCspIdentifiers(
-  source: string
-): Pick<
-  ClaudePatchProfile,
-  | 'cspFirstIdentifier'
-  | 'cspSecondIdentifier'
-  | 'cspThirdIdentifier'
-  | 'cspNonceIdentifier'
-  | 'cspFinalIdentifier'
-> | undefined {
+  source: string,
+):
+  | Pick<
+      ClaudePatchProfile,
+      | 'cspFirstIdentifier'
+      | 'cspSecondIdentifier'
+      | 'cspThirdIdentifier'
+      | 'cspNonceIdentifier'
+      | 'cspFinalIdentifier'
+    >
+  | undefined {
   const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
   const pattern = new RegExp(
-    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; '
-      + '\\$\\{(?<first>' + identifier + ')\\}; '
-      + '\\$\\{(?<second>' + identifier + ')\\}; '
-      + '\\$\\{(?<third>' + identifier + ')\\}; '
-      + 'script-src \'nonce-\\$\\{(?<nonce>' + identifier + ')\\}\'; '
-      + '\\$\\{(?<final>' + identifier + ')\\};">',
-    'g'
+    '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; ' +
+      '\\$\\{(?<first>' +
+      identifier +
+      ')\\}; ' +
+      '\\$\\{(?<second>' +
+      identifier +
+      ')\\}; ' +
+      '\\$\\{(?<third>' +
+      identifier +
+      ')\\}; ' +
+      "script-src 'nonce-\\$\\{(?<nonce>" +
+      identifier +
+      ")\\}'; " +
+      '\\$\\{(?<final>' +
+      identifier +
+      ')\\};">',
+    'g',
   );
   const matches = [...source.matchAll(pattern)];
   if (matches.length !== 1 || !matches[0].groups) {
@@ -540,7 +588,7 @@ function deriveClaudeCspIdentifiers(
     cspSecondIdentifier: matches[0].groups.second,
     cspThirdIdentifier: matches[0].groups.third,
     cspNonceIdentifier: matches[0].groups.nonce,
-    cspFinalIdentifier: matches[0].groups.final
+    cspFinalIdentifier: matches[0].groups.final,
   };
 }
 
@@ -571,55 +619,141 @@ function deriveClaudeSpinnerProfiles(source: string): ClaudePatchProfile[] {
 
 function deriveClaudeSpinnerProfile(source: string): ClaudePatchProfile | undefined {
   const identifier = '[A-Za-z_$][A-Za-z0-9_$]*';
-  const signature = source.match(new RegExp(
-    '^function (?<component>' + identifier + ')\\(\\{size:(?<size>' + identifier
-      + ')=16,permissionMode:(?<permission>' + identifier + '),status:(?<status>' + identifier
-      + '),spinnerVerbsConfig:(?<config>' + identifier + ')\\}\\)\\{'
-  ));
-  const setup = source.match(new RegExp(
-    '\\{let (?<verbsList>' + identifier + ')=(?<memo>' + identifier + ')\\(\\(\\)=>(?<verbs>'
-      + identifier + ')\\((?<config>' + identifier + ')\\),\\[\\k<config>\\]\\),(?<width>'
-      + identifier + ')=\\k<memo>\\(\\(\\)=>Math\\.max\\(\\.\\.\\.\\k<verbsList>\\.map\\(\\((?<mapValue>'
-      + identifier + ')\\)=>\\k<mapValue>\\.length\\)\\),\\[\\k<verbsList>\\]\\),\\[(?<frameIndex>'
-      + identifier + '),(?<setFrame>' + identifier + ')\\]=(?<state>' + identifier
-      + ')\\(0\\),\\[(?<phrase>' + identifier + '),(?<setPhrase>' + identifier
-      + ')\\]=\\k<state>\\(\\(\\)=>(?<random>' + identifier + ')\\(\\k<verbsList>\\)\\);'
-  ));
-  const animation = source.match(new RegExp(
-    '(?<effect>' + identifier + ')\\(\\(\\)=>\\{let (?<timer>' + identifier
-      + ')=setInterval\\(\\(\\)=>\\{(?<setFrame>' + identifier + ')\\(\\((?<frame>'
-      + identifier + ')\\)=>\\(\\k<frame>\\+1\\)%(?<frames>' + identifier
-      + ')\\.length\\)\\},120\\);return\\(\\)=>clearInterval\\(\\k<timer>\\)\\},\\[\\]\\)'
-  ));
+  const signature = source.match(
+    new RegExp(
+      '^function (?<component>' +
+        identifier +
+        ')\\(\\{size:(?<size>' +
+        identifier +
+        ')=16,permissionMode:(?<permission>' +
+        identifier +
+        '),status:(?<status>' +
+        identifier +
+        '),spinnerVerbsConfig:(?<config>' +
+        identifier +
+        ')\\}\\)\\{',
+    ),
+  );
+  const setup = source.match(
+    new RegExp(
+      '\\{let (?<verbsList>' +
+        identifier +
+        ')=(?<memo>' +
+        identifier +
+        ')\\(\\(\\)=>(?<verbs>' +
+        identifier +
+        ')\\((?<config>' +
+        identifier +
+        ')\\),\\[\\k<config>\\]\\),(?<width>' +
+        identifier +
+        ')=\\k<memo>\\(\\(\\)=>Math\\.max\\(\\.\\.\\.\\k<verbsList>\\.map\\(\\((?<mapValue>' +
+        identifier +
+        ')\\)=>\\k<mapValue>\\.length\\)\\),\\[\\k<verbsList>\\]\\),\\[(?<frameIndex>' +
+        identifier +
+        '),(?<setFrame>' +
+        identifier +
+        ')\\]=(?<state>' +
+        identifier +
+        ')\\(0\\),\\[(?<phrase>' +
+        identifier +
+        '),(?<setPhrase>' +
+        identifier +
+        ')\\]=\\k<state>\\(\\(\\)=>(?<random>' +
+        identifier +
+        ')\\(\\k<verbsList>\\)\\);',
+    ),
+  );
+  const animation = source.match(
+    new RegExp(
+      '(?<effect>' +
+        identifier +
+        ')\\(\\(\\)=>\\{let (?<timer>' +
+        identifier +
+        ')=setInterval\\(\\(\\)=>\\{(?<setFrame>' +
+        identifier +
+        ')\\(\\((?<frame>' +
+        identifier +
+        ')\\)=>\\(\\k<frame>\\+1\\)%(?<frames>' +
+        identifier +
+        ')\\.length\\)\\},120\\);return\\(\\)=>clearInterval\\(\\k<timer>\\)\\},\\[\\]\\)',
+    ),
+  );
   const schedulerPattern = new RegExp(
-    '(?<scheduler>' + identifier + ')\\(\\(\\)=>\\{(?<setPhrase>' + identifier
-      + ')\\((?<random>' + identifier + ')\\((?<verbsList>' + identifier
-      + ')\\)\\)\\},\\((?<attempt>' + identifier + ')\\)=>\\{let (?<delays>'
-      + identifier + ')=\\[2000,3000,5000\\];return (?<returnAttempt>' + identifier
-      + ')<(?<returnDelays>' + identifier + ')\\.length\\?(?<indexDelays>' + identifier
-      + ')\\[(?<indexAttempt>' + identifier + ')\\]:5000\\}\\)'
+    '(?<scheduler>' +
+      identifier +
+      ')\\(\\(\\)=>\\{(?<setPhrase>' +
+      identifier +
+      ')\\((?<random>' +
+      identifier +
+      ')\\((?<verbsList>' +
+      identifier +
+      ')\\)\\)\\},\\((?<attempt>' +
+      identifier +
+      ')\\)=>\\{let (?<delays>' +
+      identifier +
+      ')=\\[2000,3000,5000\\];return (?<returnAttempt>' +
+      identifier +
+      ')<(?<returnDelays>' +
+      identifier +
+      ')\\.length\\?(?<indexDelays>' +
+      identifier +
+      ')\\[(?<indexAttempt>' +
+      identifier +
+      ')\\]:5000\\}\\)',
   );
   const scheduler = source.match(schedulerPattern);
-  const status = source.match(new RegExp(
-    'let (?<current>' + identifier + ')=(?<phrase>' + identifier + ');if\\((?<status>'
-      + identifier + ')==="compacting"\\)\\k<current>="Compacting";let (?<animated>'
-      + identifier + ')=(?<animate>' + identifier + ')\\(\\k<current>\\+"\\.\\.\\.",(?<width>'
-      + identifier + ')\\+3\\);'
-  ));
-  const output = source.match(new RegExp(
-    'return (?<container>' + identifier + ')\\("div",\\{className:(?<styles>' + identifier
-      + ')\\.container,"data-permission-mode":(?<permission>' + identifier
-      + '),children:\\[(?<child>' + identifier + ')\\("span",\\{className:\\k<styles>\\.icon,style:\\{fontSize:`\\$\\{(?<size>'
-      + identifier + ')\\}px`\\},children:(?<frames>' + identifier + ')\\[(?<frameIndex>'
-      + identifier + ')\\]\\}\\),\\k<child>\\("span",\\{className:\\k<styles>\\.text,children:(?<animated>'
-      + identifier + ')\\}\\)\\]\\}\\)\\}$'
-  ));
-  const groups = [signature, setup, animation, scheduler, status, output]
-    .map((match) => match?.groups);
+  const status = source.match(
+    new RegExp(
+      'let (?<current>' +
+        identifier +
+        ')=(?<phrase>' +
+        identifier +
+        ');if\\((?<status>' +
+        identifier +
+        ')==="compacting"\\)\\k<current>="Compacting";let (?<animated>' +
+        identifier +
+        ')=(?<animate>' +
+        identifier +
+        ')\\(\\k<current>\\+"\\.\\.\\.",(?<width>' +
+        identifier +
+        ')\\+3\\);',
+    ),
+  );
+  const output = source.match(
+    new RegExp(
+      'return (?<container>' +
+        identifier +
+        ')\\("div",\\{className:(?<styles>' +
+        identifier +
+        ')\\.container,"data-permission-mode":(?<permission>' +
+        identifier +
+        '),children:\\[(?<child>' +
+        identifier +
+        ')\\("span",\\{className:\\k<styles>\\.icon,style:\\{fontSize:`\\$\\{(?<size>' +
+        identifier +
+        ')\\}px`\\},children:(?<frames>' +
+        identifier +
+        ')\\[(?<frameIndex>' +
+        identifier +
+        ')\\]\\}\\),\\k<child>\\("span",\\{className:\\k<styles>\\.text,children:(?<animated>' +
+        identifier +
+        ')\\}\\)\\]\\}\\)\\}$',
+    ),
+  );
+  const groups = [signature, setup, animation, scheduler, status, output].map(
+    (match) => match?.groups,
+  );
   if (groups.some((value) => !value)) {
     return undefined;
   }
-  const [signatureGroups, setupGroups, animationGroups, schedulerGroups, statusGroups, outputGroups] = groups as RegExpGroups[];
+  const [
+    signatureGroups,
+    setupGroups,
+    animationGroups,
+    schedulerGroups,
+    statusGroups,
+    outputGroups,
+  ] = groups as RegExpGroups[];
   if (
     setupGroups.config !== signatureGroups.config ||
     animationGroups.setFrame !== setupGroups.setFrame ||
@@ -657,7 +791,7 @@ function deriveClaudeSpinnerProfile(source: string): ClaudePatchProfile | undefi
     containerElementIdentifier: outputGroups.container,
     childElementIdentifier: outputGroups.child,
     statusLocalIdentifier: signatureGroups.status,
-    animatedLocalIdentifier: statusGroups.animated
+    animatedLocalIdentifier: statusGroups.animated,
   };
 }
 
@@ -692,27 +826,49 @@ function walkAst(value: unknown, visitor: (node: AstNode) => void): void {
   }
 }
 
-function assertClaudePatchedContract(hostSource: string, webviewSource: string, token: string): void {
+function assertClaudePatchedContract(
+  hostSource: string,
+  webviewSource: string,
+  token: string,
+): void {
   assertOccurrenceCount(hostSource, CSP_MARKER_START, 1, 'начало CSP-маркера Claude Code');
   assertOccurrenceCount(hostSource, CSP_MARKER_END, 1, 'конец CSP-маркера Claude Code');
   assertOccurrenceCount(
     hostSource,
     `connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};`,
     1,
-    'локальный bridge в CSP Claude Code'
+    'локальный bridge в CSP Claude Code',
   );
-  assertOccurrenceCount(webviewSource, `${UI_MARKER_PREFIX}${token}__*/`, 1, 'начало UI-маркера Claude Code');
+  assertOccurrenceCount(
+    webviewSource,
+    `${UI_MARKER_PREFIX}${token}__*/`,
+    1,
+    'начало UI-маркера Claude Code',
+  );
   assertOccurrenceCount(webviewSource, UI_MARKER_END, 1, 'конец UI-маркера Claude Code');
-  assertOccurrenceCount(webviewSource, '"data-kodpauza-ad":""', 2, 'варианты рекламного элемента Claude Code');
+  assertOccurrenceCount(
+    webviewSource,
+    '"data-kodpauza-ad":""',
+    2,
+    'варианты рекламного элемента Claude Code',
+  );
   if (webviewSource.includes('Спонсорское предложение')) {
     throw new Error('UI-патч Claude Code содержит лишнюю видимую подпись.');
   }
-  if (webviewSource.includes('children:"Реклама"') || webviewSource.includes('Премиальная реклама Kodpauza')) {
+  if (
+    webviewSource.includes('children:"Реклама"') ||
+    webviewSource.includes('Премиальная реклама Kodpauza')
+  ) {
     throw new Error('UI-патч Claude Code содержит устаревшую видимую маркировку.');
   }
 }
 
-function assertOccurrenceCount(source: string, search: string, expected: number, label: string): void {
+function assertOccurrenceCount(
+  source: string,
+  search: string,
+  expected: number,
+  label: string,
+): void {
   const actual = source.split(search).length - 1;
   if (actual !== expected) {
     throw new Error(`Claude Code несовместим с патчем: ${label} (${actual} вместо ${expected}).`);
@@ -721,7 +877,7 @@ function assertOccurrenceCount(source: string, search: string, expected: number,
 
 export function patchClaudeHostSource(
   source: string,
-  profile: ClaudePatchProfile = CLAUDE_2_1_209_PROFILE
+  profile: ClaudePatchProfile = CLAUDE_2_1_209_PROFILE,
 ): string {
   validateProfile(profile);
   if (source.includes(CSP_MARKER_START)) {
@@ -734,14 +890,12 @@ export function patchClaudeHostSource(
     anchor,
     `${CSP_MARKER_START}${patchedAnchor}${CSP_MARKER_END}`,
     1,
-    'Content Security Policy Claude Code'
+    'Content Security Policy Claude Code',
   );
 }
 
 function claudeCspAnchor(profile: ClaudePatchProfile, patched = false): string {
-  const connectSource = patched
-    ? ` connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};`
-    : '';
+  const connectSource = patched ? ` connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};` : '';
   const first = profile.cspFirstIdentifier ?? 'p';
   const second = profile.cspSecondIdentifier ?? 'f';
   const third = profile.cspThirdIdentifier ?? 'm';
@@ -752,7 +906,7 @@ function claudeCspAnchor(profile: ClaudePatchProfile, patched = false): string {
 export function patchClaudeWebviewSource(
   source: string,
   token: string,
-  profile: ClaudePatchProfile
+  profile: ClaudePatchProfile,
 ): string {
   validateToken(token);
   validateProfile(profile);
@@ -760,8 +914,33 @@ export function patchClaudeWebviewSource(
     throw new Error('UI-патч Kodpauza уже присутствует в Claude Code.');
   }
   const original = spinnerComponentSource(profile, false);
-  const patched = `${claudeUiRuntime(token, profile)}${spinnerComponentSource(profile, true)}`;
+  const patched = `${compliantClaudeUiRuntime(claudeUiRuntime(token, profile))}${spinnerComponentSource(profile, true)}`;
   return replaceExact(source, original, patched, 1, 'активный spinner Claude Code');
+}
+
+function compliantClaudeUiRuntime(runtime: string): string {
+  let result = replaceExact(
+    runtime,
+    'f=l+" · "',
+    'f="Реклама · "+l+" · "',
+    1,
+    'маркированный префикс Claude Code',
+  );
+  result = replaceExact(
+    result,
+    'p=e.text+(d?" · "+d:"")+". Нажмите, чтобы открыть."',
+    'p="Реклама. Рекламодатель: "+l+(d?". Сайт: "+d:"")+(e.erid?". erid: "+e.erid:"")+". Нажмите, чтобы открыть."',
+    1,
+    'подсказка объявления Claude Code',
+  );
+  result = replaceExact(
+    result,
+    'children:l}),d?',
+    'children:"Реклама · "+l}),d?',
+    1,
+    'видимая маркировка premium Claude Code',
+  );
+  return result;
 }
 
 function spinnerComponentSource(profile: ClaudePatchProfile, patched: boolean): string {
@@ -777,9 +956,15 @@ function spinnerComponentSource(profile: ClaudePatchProfile, patched: boolean): 
 }
 
 function patchStructuralSpinnerComponent(source: string, profile: ClaudePatchProfile): string {
-  const childElement = requiredStructuralIdentifier(profile.childElementIdentifier, 'дочерний JSX-элемент');
+  const childElement = requiredStructuralIdentifier(
+    profile.childElementIdentifier,
+    'дочерний JSX-элемент',
+  );
   const status = requiredStructuralIdentifier(profile.statusLocalIdentifier, 'статус spinner');
-  const animated = requiredStructuralIdentifier(profile.animatedLocalIdentifier, 'анимированный текст spinner');
+  const animated = requiredStructuralIdentifier(
+    profile.animatedLocalIdentifier,
+    'анимированный текст spinner',
+  );
   if (source.includes('__kpClaudeAd')) {
     throw new Error('Структурная цель Claude Code уже содержит идентификатор Kodpauza.');
   }
@@ -788,7 +973,7 @@ function patchStructuralSpinnerComponent(source: string, profile: ClaudePatchPro
     '){let ',
     '){let __kpClaudeAd=__kpClaudeUseAd(),',
     1,
-    'начало spinner-компонента Claude Code'
+    'начало spinner-компонента Claude Code',
   );
   const textAnchor = `${childElement}("span",{className:${profile.stylesIdentifier}.text,children:${animated}})`;
   patched = replaceExact(
@@ -796,7 +981,7 @@ function patchStructuralSpinnerComponent(source: string, profile: ClaudePatchPro
     textAnchor,
     `${childElement}("span",{className:${profile.stylesIdentifier}.text,children:__kpClaudeAd&&${status}!=="compacting"?${childElement}(__kpClaudeAdLink,{ad:__kpClaudeAd}):${animated}})`,
     1,
-    'текст spinner-компонента Claude Code'
+    'текст spinner-компонента Claude Code',
   );
   return patched;
 }
@@ -833,19 +1018,19 @@ function validateProfile(profile: ClaudePatchProfile): void {
           profile.containerElementIdentifier,
           profile.childElementIdentifier,
           profile.statusLocalIdentifier,
-          profile.animatedLocalIdentifier
+          profile.animatedLocalIdentifier,
         ]
-      : [])
+      : []),
   ];
   if (
-    !identifiers.every((identifier) =>
-      typeof identifier === 'string' && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(identifier)
+    !identifiers.every(
+      (identifier) =>
+        typeof identifier === 'string' && /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(identifier),
     ) ||
-    (profile.structuralSpinnerAnchor !== undefined && (
-      profile.structuralSpinnerAnchor.length === 0 ||
-      profile.structuralSpinnerAnchor.length > 100_000 ||
-      !profile.structuralSpinnerAnchor.startsWith(`function ${profile.componentIdentifier}(`)
-    ))
+    (profile.structuralSpinnerAnchor !== undefined &&
+      (profile.structuralSpinnerAnchor.length === 0 ||
+        profile.structuralSpinnerAnchor.length > 100_000 ||
+        !profile.structuralSpinnerAnchor.startsWith(`function ${profile.componentIdentifier}(`)))
   ) {
     throw new Error('Некорректный профиль UI-патча Claude Code.');
   }
@@ -864,7 +1049,13 @@ function validateToken(token: string): void {
   }
 }
 
-function replaceExact(source: string, search: string, replacement: string, count: number, label: string): string {
+function replaceExact(
+  source: string,
+  search: string,
+  replacement: string,
+  count: number,
+  label: string,
+): string {
   const actual = source.split(search).length - 1;
   if (actual !== count) {
     throw new Error(`Claude Code несовместим с патчем: ${label} (${actual} вместо ${count}).`);
@@ -876,18 +1067,29 @@ function extractToken(source: string): string | undefined {
   return source.match(/\/\*__KODPAUZA_CLAUDE_UI_START__:([a-f0-9]{64})__\*\//)?.[1];
 }
 
-function backupRecord(root: string, target: string, backup: string, source: string): PatchFileRecord {
-  return { relativePath: path.relative(root, target), backupPath: backup, originalSha256: sha256(source) };
+function backupRecord(
+  root: string,
+  target: string,
+  backup: string,
+  source: string,
+): PatchFileRecord {
+  return {
+    relativePath: path.relative(root, target),
+    backupPath: backup,
+    originalSha256: sha256(source),
+  };
 }
 
 function assertOriginalHash(filePath: string, source: string, expected: string): void {
   if (sha256(source) !== expected) {
-    throw new Error(`Файл Claude Code ${path.basename(filePath)} отличается от проверенной сборки.`);
+    throw new Error(
+      `Файл Claude Code ${path.basename(filePath)} отличается от проверенной сборки.`,
+    );
   }
 }
 
 async function assertPatchedFiles(
-  files: readonly { filePath: string; expectedSource: string; label: string }[]
+  files: readonly { filePath: string; expectedSource: string; label: string }[],
 ): Promise<void> {
   for (const file of files) {
     const current = await fs.readFile(file.filePath, 'utf8');
@@ -960,7 +1162,10 @@ async function atomicWrite(filePath: string, data: string | Buffer, mode: number
 }
 
 async function fileExists(filePath: string): Promise<boolean> {
-  return fs.access(filePath).then(() => true, () => false);
+  return fs.access(filePath).then(
+    () => true,
+    () => false,
+  );
 }
 
 function sha256(value: string | Buffer): string {

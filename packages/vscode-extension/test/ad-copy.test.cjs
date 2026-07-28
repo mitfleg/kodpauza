@@ -10,13 +10,20 @@ test('убирает дублирующую маркировку рекламы 
   assert.equal(adDisplayText('Advertisement:'), 'Узнать подробнее');
 });
 
-test('показывает название кампании перед оффером без служебного ярлыка', () => {
+test('показывает обязательную маркировку, публичный бренд и оффер без дублей', () => {
   assert.equal(
     adPresentationText('Acme', 'Реклама: Быстрые серверы'),
-    'Acme · Быстрые серверы',
+    'Реклама · Acme · Быстрые серверы',
   );
-  assert.equal(adPresentationText('Acme', 'Acme · Быстрые серверы'), 'Acme · Быстрые серверы');
-  assert.equal(adPresentationText('Acme', 'Реклама:'), 'Acme · Узнать подробнее');
-  assert.doesNotMatch(adPresentationText('Acme', 'Реклама:'), /Реклама/);
+  assert.equal(
+    adPresentationText('Acme', 'Acme · Быстрые серверы'),
+    'Реклама · Acme · Быстрые серверы',
+  );
+  assert.equal(
+    adPresentationText('Acme', 'Реклама · Acme · Быстрые серверы'),
+    'Реклама · Acme · Быстрые серверы',
+  );
+  assert.equal(adPresentationText('Acme', 'Реклама:'), 'Реклама · Acme · Узнать подробнее');
+  assert.match(adPresentationText('Acme', 'Быстрые серверы'), /^Реклама · Acme · /);
   assert.doesNotMatch(adPresentationText('Acme', 'Быстрые серверы'), /Спонсорское предложение/);
 });

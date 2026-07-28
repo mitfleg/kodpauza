@@ -78,12 +78,12 @@ test('в одной активной сессии запрашивает нов�
   assert.equal(requests, 0);
   assert.equal(presenter.ad.campaignId, 'house');
   assert.equal(presenter.ad.trackable, false);
-  assert.equal(presenter.ad.text, 'Kodpauza · Зарабатывайте, пока AI работает');
+  assert.equal(presenter.ad.text, 'Реклама · Kodpauza · Зарабатывайте, пока AI работает');
 
   presenter.markPatchedUiVisibility(presenter.ad.adId, 'canary-view-1', true);
   await waitFor(() => presenter.ad?.adId === 'ad-1', 500);
   assert.equal(presenter.ad.adId, 'ad-1');
-  assert.equal(presenter.ad.text, 'KodPauza · Объявление 1');
+  assert.equal(presenter.ad.text, 'Реклама · ООО Тест · Объявление 1');
   assert.equal(requests, 6);
 
   presenter.markPatchedUiVisibility('ad-1', 'rotation-view-1', true);
