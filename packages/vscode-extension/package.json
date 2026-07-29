@@ -1,12 +1,37 @@
 {
   "name": "kodpauza-vscode",
   "displayName": "Kodpauza",
-  "description": "Зарабатывайте во время работы Codex и Claude Code: Kodpauza показывает короткую рекламу, пока AI выполняет запрос.",
-  "version": "0.7.25",
+  "description": "Доход во время ожидания Codex и Claude Code в VS Code и Cursor — без доступа к коду, промптам и ответам AI.",
+  "version": "0.7.26",
   "publisher": "kodpauza",
   "icon": "resources/icon.png",
-  "homepage": "https://kodpauza.ru",
+  "homepage": "https://kodpauza.ru/for-developers",
+  "bugs": {
+    "url": "https://kodpauza.ru/support"
+  },
   "license": "UNLICENSED",
+  "pricing": "Free",
+  "galleryBanner": {
+    "color": "#111827",
+    "theme": "dark"
+  },
+  "keywords": [
+    "codex",
+    "openai codex",
+    "claude code",
+    "anthropic",
+    "cursor",
+    "vscode",
+    "vscodium",
+    "ai coding",
+    "coding agent",
+    "developer tools",
+    "productivity",
+    "monetization",
+    "developer income",
+    "реклама",
+    "доход разработчика"
+  ],
   "extensionKind": [
     "ui"
   ],
@@ -22,6 +47,7 @@
     "vscode": "^1.90.0"
   },
   "categories": [
+    "Machine Learning",
     "Other"
   ],
   "activationEvents": [

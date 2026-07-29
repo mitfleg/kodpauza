@@ -2,7 +2,11 @@
 
 Вы уже ждете, пока Codex или Claude Code анализирует проект и выполняет запрос. Kodpauza превращает это время в дополнительный доход: расширение показывает короткое объявление в активном статусе AI-помощника и начисляет вознаграждение за подтвержденный просмотр.
 
-[Открыть кабинет](https://kodpauza.ru) · [Условия начислений](https://kodpauza.ru/docs#delivery-rules) · [Политика конфиденциальности](https://kodpauza.ru/privacy)
+[Установить](https://kodpauza.ru/install) · [Для разработчиков](https://kodpauza.ru/for-developers) · [Условия начислений](https://kodpauza.ru/docs#delivery-rules) · [Поддержка](https://kodpauza.ru/support) · [Политика конфиденциальности](https://kodpauza.ru/privacy)
+
+![Рекламная строка Kodpauza во время ожидания ответа AI](https://kodpauza.ru/images/kodpauza-ad-preview.png)
+
+Объявление появляется внутри естественной паузы AI и исчезает после завершения ответа. Внешний вид Codex и Claude Code остается прежним: без дополнительных таймеров, подписей и рекламных панелей.
 
 ## Как начать зарабатывать
 
@@ -33,6 +37,10 @@
 Kodpauza не отправляет рекламной платформе текст запросов, ответы AI, исходный код или содержимое файлов. Локальный bridge принимает только событие начала или завершения работы и путь рабочей папки; в API уходят только идентификаторы рекламного события, версия инструмента и доказательство видимости.
 
 Access token, сессия устройства и ключ подписи хранятся в VS Code `SecretStorage`. Неуспешные события остаются в локальной очереди и повторно отправляются с тем же `eventId`, поэтому временная ошибка сети не создает двойное начисление.
+
+## English summary
+
+Kodpauza is a free extension for developers who use Codex or Claude Code in VS Code, Cursor, or VSCodium. It displays a short native ad only while the AI is working and credits 50% of each verified impression to the developer. Kodpauza does not read or transmit source code, files, terminal contents, prompts, or AI responses.
 
 ## Безопасность интеграции
 
