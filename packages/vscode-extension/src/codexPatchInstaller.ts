@@ -120,6 +120,25 @@ export const CODEX_26_721_41059_PATCH_PROFILE: CodexPatchProfile = {
   hostAnchor: 'let n=[t,r,...zst,...jst];',
 };
 
+export const CODEX_26_727_40816_PATCH_PROFILE: CodexPatchProfile = {
+  reactAnchor: 'var Oo,Q,$,ko,Ao,jo,Mo,No,Po,Fo,Io=e((()=>{',
+  reactIdentifier: 'Q',
+  jsxIdentifier: '$',
+  intlIdentifier: 'B',
+  thinkingCount: 0,
+  reasoningCount: 0,
+  thinkingDescriptorIdentifier: 'Po',
+  thinkingDescriptorCount: 1,
+  hostAnchor: 'let n=[t,r,...lut,...cut];',
+};
+
+export const CODEX_26_727_40816_SHIMMER_PATCH_PROFILE: CodexShimmerPatchProfile = {
+  reactAnchor: 'var E,D,O,k,A,j,M,N=e((()=>{',
+  reactIdentifier: 'D',
+  jsxIdentifier: 'O',
+  intlIdentifier: 'i',
+};
+
 const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
   {
     version: '26.623.141536',
@@ -162,6 +181,14 @@ const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
     hostSha256: '7408425e3fe73d0443ea1cba3a0ffb6de2ed7426ecec8372b8746cf440227ddd',
     webviewSha256: 'b30c8571171acd122bcad8304fa98215fa23e7a852bc051ac61bfc3e275d219b',
     patchProfile: CODEX_26_721_41059_PATCH_PROFILE,
+  },
+  {
+    version: '26.727.40816',
+    hostSha256: 'b0b1f3bbd6266e63c40b32cdb31a8fd9cca37cfb157bbf72653fc3964747e354',
+    webviewSha256: 'f79167332a57da597a16874102a4f38ecd45c4e52a3352e340cb4cec3a9c66b3',
+    patchProfile: CODEX_26_727_40816_PATCH_PROFILE,
+    shimmerSha256: 'a0fd63304966f1ce597859df4419c13bd4225ffb0c34093e2b6b13d3f4ddcc25',
+    shimmerPatchProfile: CODEX_26_727_40816_SHIMMER_PATCH_PROFILE,
   },
 ] as const;
 
