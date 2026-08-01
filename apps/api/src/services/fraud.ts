@@ -26,8 +26,6 @@ export async function assessImpression(
   }
 
   const now = new Date();
-  const hourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-  const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const minimumIntervalAgo = new Date(
     now.getTime() - adPolicy.minimumSecondsBetweenPaidImpressions * 1000,
   );
@@ -37,13 +35,7 @@ export async function assessImpression(
   // transaction commits, the next one can see its paid event in the same display window.
   if (ipHash) await lockIncomeIp(prisma, ipHash);
 
-  const [hourCount, dayCount, recentCount, concurrentAccount] = await Promise.all([
-    prisma.adEvent.count({
-      where: { userId, type: 'impression', fraudStatus: 'clean', createdAt: { gte: hourAgo } },
-    }),
-    prisma.adEvent.count({
-      where: { userId, type: 'impression', fraudStatus: 'clean', createdAt: { gte: dayAgo } },
-    }),
+  const [recentCount, concurrentAccount] = await Promise.all([
     prisma.adEvent.count({
       where: { userId, type: 'impression', createdAt: { gte: minimumIntervalAgo } },
     }),
@@ -64,8 +56,6 @@ export async function assessImpression(
   ]);
 
   const reasons: string[] = [];
-  if (hourCount >= adPolicy.hourlyPaidImpressionLimit) reasons.push('hour_limit_exceeded');
-  if (dayCount >= adPolicy.rollingDayPaidImpressionLimit) reasons.push('day_limit_exceeded');
   if (recentCount > 0) reasons.push('too_frequent');
   if (visibleMs > 60000) reasons.push('visible_ms_too_large');
   if (concurrentAccount) reasons.push(concurrentSharedIpIncomeReason);

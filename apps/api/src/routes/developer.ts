@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
 import type { AdminNotifier } from '../services/adminNotifier.js';
+import { getImpressionQuotaSnapshot } from '../services/impressionQuota.js';
 import { classifyUnsupportedIntegrationVersion } from '../services/integrationVersionPolicy.js';
 
 export const patchStatusSchema = z.enum([
@@ -149,12 +150,16 @@ export function registerDeveloperRoutes(app: FastifyInstance, adminNotifier: Adm
     },
   );
   app.get('/v1/developer/balance', { preHandler: requireRole('developer') }, async (request) => {
-    const profile = await prisma.developerProfile.findUnique({ where: { userId: request.authUser!.id } });
+    const [profile, quota] = await Promise.all([
+      prisma.developerProfile.findUnique({ where: { userId: request.authUser!.id } }),
+      getImpressionQuotaSnapshot(prisma, request.authUser!.id),
+    ]);
     return {
       balanceKopecks: profile?.balanceKopecks ?? 0,
       totalImpressions: profile?.totalImpressions ?? 0,
       totalClicks: profile?.totalClicks ?? 0,
       payoutStatus: profile?.payoutStatus ?? 'mock',
+      quota,
     };
   });
 
@@ -232,7 +237,6 @@ export function registerDeveloperRoutes(app: FastifyInstance, adminNotifier: Adm
     return saveIntegrationVersionReport(tool, payload, request, reply, adminNotifier);
   });
 }
-
 async function saveIntegrationVersionReport(
   tool: 'codex' | 'claude',
   data: VersionReportPayload,

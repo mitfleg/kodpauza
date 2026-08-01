@@ -112,6 +112,8 @@ export function DeveloperPanel() {
 
       <Message message={message} tone="error" />
 
+      {balance?.quota ? <QuotaOverview quota={balance.quota} /> : null}
+
       <WorkSurface
         title="Доход и показы за 14 дней"
         description="Данные по реально засчитанным событиям. Наведите на столбец, чтобы увидеть сумму за день."
@@ -197,6 +199,88 @@ export function DeveloperPanel() {
           />
         )}
       </WorkSurface>
+    </div>
+  );
+}
+
+function QuotaOverview({ quota }: { quota: DeveloperBalance['quota'] }) {
+  const tierLabel = {
+    starter: 'Начальный',
+    trusted: 'Проверенный',
+    mature: 'Расширенный',
+  }[quota.tier];
+
+  return (
+    <WorkSurface
+      title="Доступные оплачиваемые показы"
+      description={`Уровень «${tierLabel}». Квота общая для Codex и Claude Code и обновляется автоматически.`}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <QuotaMeter
+          label="За скользящий час"
+          used={quota.hour.used}
+          limit={quota.hour.limit}
+          remaining={quota.hour.remaining}
+          capped={quota.exhausted === 'hour'}
+        />
+        <QuotaMeter
+          label="За скользящие 24 часа"
+          used={quota.rollingDay.used}
+          limit={quota.rollingDay.limit}
+          remaining={quota.rollingDay.remaining}
+          capped={quota.exhausted === 'rolling_day'}
+        />
+      </div>
+      <p className="mt-3 text-xs leading-5 text-slate-500">
+        Лимит повышается до 450 и затем до 600 показов после формирования стабильной истории
+        подтверждённых событий.
+      </p>
+    </WorkSurface>
+  );
+}
+
+function QuotaMeter({
+  label,
+  used,
+  limit,
+  remaining,
+  capped,
+}: {
+  label: string;
+  used: number;
+  limit: number;
+  remaining: number;
+  capped: boolean;
+}) {
+  const progress = Math.min(100, Math.max(0, (used / Math.max(1, limit)) * 100));
+
+  return (
+    <div className="rounded-lg border border-line bg-slate-50 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+            {label}
+          </p>
+          <p className="mt-2 text-xl font-bold tracking-[-0.03em] text-ink">
+            {integer(remaining)} осталось
+          </p>
+        </div>
+        <span
+          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+            capped ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-700'
+          }`}
+        >
+          {integer(used)} / {integer(limit)}
+        </span>
+      </div>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200" aria-hidden>
+        <div
+          className={`h-full rounded-full transition-[width] ${
+            capped ? 'bg-amber-500' : 'bg-emerald-600'
+          }`}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
     </div>
   );
 }

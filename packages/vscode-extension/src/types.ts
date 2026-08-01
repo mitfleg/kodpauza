@@ -49,6 +49,13 @@ export interface Balance {
   totalImpressions: number;
   totalClicks: number;
   payoutStatus: string;
+  quota?: {
+    tier: 'starter' | 'trusted' | 'mature';
+    hour: { used: number; limit: number; remaining: number };
+    rollingDay: { used: number; limit: number; remaining: number };
+    capped: boolean;
+    exhausted: 'hour' | 'rolling_day' | null;
+  };
 }
 
 export type Surface = 'claude_code_vscode' | 'codex_vscode';

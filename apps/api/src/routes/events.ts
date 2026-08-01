@@ -16,6 +16,7 @@ import { config } from '../config.js';
 import { getClientIp, hashNullable } from '../http.js';
 import { prisma } from '../prisma.js';
 import { assessClick, assessImpression, type FraudDecision } from '../services/fraud.js';
+import { getImpressionQuotaSnapshot } from '../services/impressionQuota.js';
 import { deliveryEligibility, moscowDeliveryDay } from '../services/campaignDelivery.js';
 
 type ImpressionEvent = z.infer<typeof impressionEventSchema>;
@@ -83,7 +84,6 @@ export function registerEventRoutes(app: FastifyInstance) {
     }
   });
 }
-
 async function developerEventProfile(userId: string) {
   return prisma.developerProfile.findUnique({
     where: { userId },
@@ -138,6 +138,17 @@ async function recordImpression(input: {
       throw new EventDomainError(
         409,
         'Поверхность, формат или стоимость кампании изменились. Запросите новое объявление.',
+      );
+    }
+
+    const quota = await getImpressionQuotaSnapshot(tx, input.userId, input.observedAt);
+    if (quota.capped) {
+      throw new EventDomainError(
+        409,
+        quota.exhausted === 'hour'
+          ? 'Квота оплачиваемых показов за скользящий час исчерпана.'
+          : 'Квота оплачиваемых показов за скользящие 24 часа исчерпана.',
+        [quota.exhausted === 'hour' ? 'hourly_quota_exhausted' : 'rolling_day_quota_exhausted'],
       );
     }
 

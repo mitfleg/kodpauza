@@ -19,14 +19,39 @@ export const advertiserTopUpLimits = {
 } as const;
 
 export const adPolicy = {
-  version: '1.0',
+  version: '1.1',
   impressionVisibleMs: 5_000,
   minimumSecondsBetweenPaidImpressions: 10,
   hourlyPaidImpressionLimit: 60,
+  // Kept as the public baseline for backwards compatibility. Eligible
+  // developers receive a higher rolling limit from impressionQuotaTiers.
   rollingDayPaidImpressionLimit: 300,
+  impressionQuotaTiers: {
+    starter: {
+      rollingDayPaidImpressionLimit: 300,
+      minimumAccountAgeDays: 0,
+      minimumCleanImpressions: 0,
+      maximumRecentSuspiciousRatioBps: 10_000,
+    },
+    trusted: {
+      rollingDayPaidImpressionLimit: 450,
+      minimumAccountAgeDays: 14,
+      minimumCleanImpressions: 500,
+      maximumRecentSuspiciousRatioBps: 100,
+    },
+    mature: {
+      rollingDayPaidImpressionLimit: 600,
+      minimumAccountAgeDays: 30,
+      minimumCleanImpressions: 2_500,
+      maximumRecentSuspiciousRatioBps: 50,
+    },
+  },
+  quotaRiskWindowDays: 30,
   developerShareBps: 5_000,
   premiumMarkupBps: 5_000,
 } as const;
+
+export type ImpressionQuotaTier = keyof typeof adPolicy.impressionQuotaTiers;
 
 /**
  * CPM is expressed in kopecks per one thousand impressions.  A single

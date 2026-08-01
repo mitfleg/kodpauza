@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import crypto from 'node:crypto';
 import {
   accrueDeveloperReward,
@@ -17,6 +17,10 @@ import {
   moscowDeliveryDay,
 } from '../services/campaignDelivery.js';
 import { selectCampaignCreative } from '../services/creativeRotation.js';
+import {
+  getImpressionQuotaSnapshot,
+  type ImpressionQuotaSnapshot,
+} from '../services/impressionQuota.js';
 import {
   createRuntimePolicyPayload,
   runtimePolicyAllows,
@@ -45,6 +49,10 @@ export function registerAdsRoutes(app: FastifyInstance) {
     if (!developer) return reply.code(403).send({ error: 'Показы доступны только разработчику.' });
 
     const now = new Date();
+    const quota = await getImpressionQuotaSnapshot(prisma, request.authUser!.id, now);
+    applyQuotaHeaders(reply, quota);
+    if (quota.capped) return reply.code(204).send();
+
     const { start: deliveryDay } = moscowDeliveryDay(now);
     const placements = await prisma.campaignSurface.findMany({
       where: {
@@ -267,6 +275,15 @@ export function registerAdsRoutes(app: FastifyInstance) {
       format: campaign.format,
       trackable: true,
       expiresAt: expiresAt.toISOString(),
+      quota,
     };
   });
+}
+
+function applyQuotaHeaders(reply: FastifyReply, quota: ImpressionQuotaSnapshot) {
+  reply.header('X-Kodpauza-Quota-Tier', quota.tier);
+  reply.header('X-Kodpauza-Quota-Hour-Used', String(quota.hour.used));
+  reply.header('X-Kodpauza-Quota-Hour-Limit', String(quota.hour.limit));
+  reply.header('X-Kodpauza-Quota-Day-Used', String(quota.rollingDay.used));
+  reply.header('X-Kodpauza-Quota-Day-Limit', String(quota.rollingDay.limit));
 }

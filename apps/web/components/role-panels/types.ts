@@ -11,6 +11,13 @@ export type DeveloperBalance = {
   totalImpressions: number;
   totalClicks: number;
   payoutStatus: string;
+  quota: {
+    tier: 'starter' | 'trusted' | 'mature';
+    hour: { used: number; limit: number; remaining: number };
+    rollingDay: { used: number; limit: number; remaining: number };
+    capped: boolean;
+    exhausted: 'hour' | 'rolling_day' | null;
+  };
 };
 
 export type DeveloperPayoutStatus = 'requested' | 'paid' | 'rejected' | 'canceled';

@@ -152,6 +152,28 @@ async function registerDeveloper(): Promise<Login> {
   return registerAndVerifyDeveloper(`dev-${randomUUID()}@kodpauza.local`);
 }
 
+async function createVerifiedDeveloperDirect(): Promise<Login> {
+  const email = `dev-direct-${randomUUID()}@kodpauza.local`;
+  const eventSecret = createHash('sha256').update(randomUUID()).digest('hex');
+  const user = await prisma.user.create({
+    data: {
+      email,
+      passwordHash: await bcrypt.hash('password123', config.passwordSaltRounds),
+      role: 'developer',
+      emailVerifiedAt: new Date(),
+      developerProfile: {
+        create: {
+          installId: randomUUID(),
+          eventSecret,
+        },
+      },
+    },
+  });
+  const token = signToken({ id: user.id, email, role: 'developer' });
+  rememberTokenIp(token);
+  return { token, eventSecret, user: { id: user.id } };
+}
+
 async function registerAndVerifyDeveloper(email: string, password = 'password123'): Promise<Login> {
   const response = await app.inject({
     method: 'POST',
@@ -1356,6 +1378,124 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     expect(shortResponse.statusCode).toBe(422);
     expect(unsigned.statusCode).toBe(401);
     expect(noServe.statusCode).toBe(404);
+  });
+
+  it('останавливает платную выдачу на суточной квоте без FraudFlag', async () => {
+    const developer = await createVerifiedDeveloperDirect();
+    const ad = await nextAd(developer.token);
+    const quotaEventAt = new Date(Date.now() - 2 * 60 * 60 * 1_000);
+    await prisma.adEvent.createMany({
+      data: Array.from({ length: 300 }, () => ({
+        eventId: randomUUID(),
+        userId: developer.user.id,
+        campaignId: ad.campaignId,
+        creativeId: ad.creativeId,
+        adId: randomUUID(),
+        type: 'impression' as const,
+        surface: ad.surface,
+        visibleMs: 5_200,
+        rewardKopecks: 0,
+        clientVersion: '0.1.0',
+        toolName: 'codex',
+        toolVersion: '0.1.0',
+        fraudStatus: 'clean' as const,
+        createdAt: quotaEventAt,
+      })),
+    });
+
+    const servesBefore = await prisma.adServe.count({ where: { userId: developer.user.id } });
+    const capped = await app.inject({
+      method: 'GET',
+      url: '/v1/ads/next?surface=codex_vscode',
+      headers: auth(developer.token),
+    });
+    expect(capped.statusCode).toBe(204);
+    expect(capped.headers['x-kodpauza-quota-tier']).toBe('starter');
+    expect(capped.headers['x-kodpauza-quota-day-used']).toBe('300');
+    expect(capped.headers['x-kodpauza-quota-day-limit']).toBe('300');
+    expect(await prisma.adServe.count({ where: { userId: developer.user.id } })).toBe(servesBefore);
+
+    const payload = impression(ad);
+    const lateConfirmation = await app.inject({
+      method: 'POST',
+      url: '/v1/events/impression',
+      headers: signedHeaders(developer.token, developer.eventSecret!, 'impression', payload),
+      payload,
+    });
+    expect(lateConfirmation.statusCode).toBe(409);
+    expect(lateConfirmation.json()).toMatchObject({
+      reasons: ['rolling_day_quota_exhausted'],
+    });
+    expect(await prisma.adEvent.findUnique({ where: { eventId: payload.eventId } })).toBeNull();
+    expect(await prisma.fraudFlag.count({ where: { userId: developer.user.id } })).toBe(0);
+
+    const balance = await app.inject({
+      method: 'GET',
+      url: '/v1/developer/balance',
+      headers: auth(developer.token),
+    });
+    expect(balance.statusCode).toBe(200);
+    expect(balance.json()).toMatchObject({
+      quota: {
+        tier: 'starter',
+        rollingDay: { used: 300, limit: 300, remaining: 0 },
+        capped: true,
+        exhausted: 'rolling_day',
+      },
+    });
+  });
+
+  it('не снижает уровень из-за старого quota-сигнала, ошибочно записанного как fraud', async () => {
+    const developer = await createVerifiedDeveloperDirect();
+    await Promise.all([
+      prisma.user.update({
+        where: { id: developer.user.id },
+        data: { createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1_000) },
+      }),
+      prisma.developerProfile.update({
+        where: { userId: developer.user.id },
+        data: { totalImpressions: 500 },
+      }),
+    ]);
+    const ad = await nextAd(developer.token);
+    const legacyEvent = await prisma.adEvent.create({
+      data: {
+        eventId: randomUUID(),
+        userId: developer.user.id,
+        campaignId: ad.campaignId,
+        creativeId: ad.creativeId,
+        adId: randomUUID(),
+        type: 'impression',
+        surface: ad.surface,
+        visibleMs: 5_200,
+        rewardKopecks: 0,
+        clientVersion: '0.1.0',
+        toolName: 'codex',
+        toolVersion: '0.1.0',
+        fraudStatus: 'suspicious',
+      },
+    });
+    await prisma.fraudFlag.create({
+      data: {
+        userId: developer.user.id,
+        eventId: legacyEvent.id,
+        reason: 'hour_limit_exceeded,day_limit_exceeded',
+        severity: 'medium',
+      },
+    });
+
+    const balance = await app.inject({
+      method: 'GET',
+      url: '/v1/developer/balance',
+      headers: auth(developer.token),
+    });
+    expect(balance.statusCode).toBe(200);
+    expect(balance.json()).toMatchObject({
+      quota: {
+        tier: 'trusted',
+        rollingDay: { limit: 450 },
+      },
+    });
   });
 
   it('не оплачивает подозрительный показ и создает сигнал', async () => {
