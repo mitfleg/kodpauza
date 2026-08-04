@@ -5,7 +5,7 @@ describe('classifyUnsupportedIntegrationVersion', () => {
   it('не требует новый патч для старых версий Codex и Claude Code', () => {
     expect(classifyUnsupportedIntegrationVersion('codex', '26.616.71553')).toEqual({
       attention: 'outdated_tool',
-      latestExactVersion: '26.727.40816',
+      latestExactVersion: '26.5727.51351',
     });
     expect(classifyUnsupportedIntegrationVersion('claude', '2.1.173')).toEqual({
       attention: 'outdated_tool',
@@ -14,9 +14,9 @@ describe('classifyUnsupportedIntegrationVersion', () => {
   });
 
   it('требует новый патч только для версии новее последней проверенной', () => {
-    expect(classifyUnsupportedIntegrationVersion('codex', '26.728.1')).toEqual({
+    expect(classifyUnsupportedIntegrationVersion('codex', '26.5728.1')).toEqual({
       attention: 'new_patch',
-      latestExactVersion: '26.727.40816',
+      latestExactVersion: '26.5727.51351',
     });
     expect(classifyUnsupportedIntegrationVersion('claude', '2.1.215')).toEqual({
       attention: 'new_patch',

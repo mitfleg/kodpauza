@@ -15,6 +15,8 @@ const {
   CODEX_26_721_41059_PATCH_PROFILE,
   CODEX_26_727_40816_PATCH_PROFILE,
   CODEX_26_727_40816_SHIMMER_PATCH_PROFILE,
+  CODEX_26_5727_51351_PATCH_PROFILE,
+  CODEX_26_5727_51351_SHIMMER_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -153,6 +155,10 @@ function codex2727FixtureWebview() {
 
 function codex2727FixtureHost() {
   return 'prefix;let n=[t,r,...lut,...cut];suffix';
+}
+
+function codex265727FixtureHost() {
+  return 'prefix;let n=[t,r,...uut,...lut];suffix';
 }
 
 function codex2727FixtureShimmer() {
@@ -696,6 +702,40 @@ test('профиль Codex 26.727.40816 fail-closed при измененном 
   assert.throws(
     () => patchWebviewSource(changed, token, CODEX_26_727_40816_PATCH_PROFILE),
     /видимый placeholder Thinking/,
+  );
+});
+
+test('профиль Codex 26.5727.51351 патчит exact CSP, descriptor и shimmer', () => {
+  const token = 'c'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2727FixtureWebview(),
+    token,
+    CODEX_26_5727_51351_PATCH_PROFILE,
+  );
+  const host = patchHostSource(codex265727FixtureHost(), CODEX_26_5727_51351_PATCH_PROFILE);
+  const shimmer = patchThinkingShimmerSource(
+    codex2727FixtureShimmer(),
+    token,
+    CODEX_26_5727_51351_SHIMMER_PATCH_PROFILE,
+  );
+
+  assert.match(webview, /__KODPAUZA_UI_START__/);
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 2);
+  assert.match(
+    webview,
+    /\$\.jsx\)\(__kpAdMessage,\{fallback:\(0,\$\.jsx\)\(B,\{\.\.\.Po\.thinking\}\)\}/,
+  );
+  assert.match(host, /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/);
+  assert.match(shimmer, /__KODPAUZA_UI_START__/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+  assert.doesNotThrow(() => new vm.Script(shimmer));
+});
+
+test('профиль Codex 26.5727.51351 fail-closed при старом CSP-якоре', () => {
+  assert.throws(
+    () => patchHostSource(codex2727FixtureHost(), CODEX_26_5727_51351_PATCH_PROFILE),
+    /политика подключения webview/,
   );
 });
 
