@@ -82,10 +82,11 @@ HMAC строится из общего `eventSignaturePayload(type, event, time
 
 ## Администратор
 
-- `GET /v1/admin/users`, `/campaigns`, `/payments`, `/payouts`, `/events`, `/fraud-flags`, `/audit-log`, `/finance`;
+- `GET /v1/admin/users`, `/campaigns`, `/payments`, `/payouts`, `/events`, `/fraud-flags`, `/audit-log`, `/privacy-requests` - списки с `page` и `pageSize` (от 5 до 50) и объектом `pagination` в ответе;
+- `GET /v1/admin/finance` - сводное движение средств без постраничного списка;
 - `POST /v1/admin/payouts/:id/paid` с уникальным номером фактически выполненного перевода;
 - `POST /v1/admin/payouts/:id/reject` с обязательной причиной и автоматическим возвратом резерва;
-- `GET /v1/admin/integration-versions` - обнаруженные версии Codex и Claude Code, неподдерживаемые выводятся первыми;
+- `GET /v1/admin/integration-versions?page=1&pageSize=10` - обнаруженные версии Codex и Claude Code: сначала новые неподдерживаемые, затем устаревшие требующие внимания, совместимые по свежести сигнала и обработанный архив;
 - `POST /v1/admin/integration-versions/:id/acknowledge` - принять новую версию в работу;
 - `POST /v1/admin/campaigns/:id/approve`;
 - `POST /v1/admin/campaigns/:id/pause`;

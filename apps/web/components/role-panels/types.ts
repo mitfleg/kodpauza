@@ -307,15 +307,27 @@ export type AdminData = {
     stages: Array<{ id: string; label: string; value: number }>;
     days: Array<{ date: string; registrations: number; installs: number; impressions: number }>;
   };
-  users?: { users: AdminUser[] };
-  campaigns?: { campaigns: Campaign[] };
-  events?: { events: AdminEvent[] };
-  fraud?: { fraudFlags: FraudFlag[] };
-  audit?: { auditLog: AdminAuditLog[] };
-  integrationVersions?: { reports: IntegrationVersionReport[] };
+  users?: {
+    users: AdminUser[];
+    pagination: Pagination;
+    summary: { total: number; developers: number; advertisers: number };
+  };
+  campaigns?: {
+    campaigns: Campaign[];
+    pagination: Pagination;
+    summary: { total: number; delivering: number; statuses: Record<string, number> };
+  };
+  events?: { events: AdminEvent[]; pagination: Pagination };
+  fraud?: { fraudFlags: FraudFlag[]; pagination: Pagination; summary: { total: number } };
+  audit?: { auditLog: AdminAuditLog[]; pagination: Pagination };
+  integrationVersions?: {
+    reports: IntegrationVersionReport[];
+    pagination: Pagination;
+    summary: { pending: number };
+  };
   fleet?: ExtensionFleet;
-  privacyRequests?: { requests: AdminPrivacyRequest[] };
-  payments?: { payments: AdminPayment[] };
+  privacyRequests?: { requests: AdminPrivacyRequest[]; pagination: Pagination };
+  payments?: { payments: AdminPayment[]; pagination: Pagination };
   payouts?: AdminDeveloperPayoutsResponse;
   finance?: {
     chargedKopecks: number;
@@ -344,6 +356,7 @@ export type AdminDeveloperPayout = DeveloperPayout & {
 export type AdminDeveloperPayoutsResponse = {
   payouts: AdminDeveloperPayout[];
   pagination: Pagination;
+  summary: { total: number; requested: number };
 };
 
 export type AdminPayment = Pick<

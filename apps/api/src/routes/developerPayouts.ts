@@ -141,7 +141,7 @@ export function registerDeveloperPayoutRoutes(app: FastifyInstance) {
     const parsed = paginationSchema.safeParse(request.query);
     if (!parsed.success) return reply.code(400).send({ error: 'Некорректная страница выплат.' });
     const { page, pageSize } = parsed.data;
-    const [payouts, total] = await prisma.$transaction([
+    const [payouts, total, requested] = await prisma.$transaction([
       prisma.developerPayout.findMany({
         orderBy: [{ status: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
         skip: (page - 1) * pageSize,
@@ -156,8 +156,13 @@ export function registerDeveloperPayoutRoutes(app: FastifyInstance) {
         },
       }),
       prisma.developerPayout.count(),
+      prisma.developerPayout.count({ where: { status: 'requested' } }),
     ]);
-    return { payouts, pagination: pagination(total, page, pageSize) };
+    return {
+      payouts,
+      pagination: pagination(total, page, pageSize),
+      summary: { total, requested },
+    };
   });
 
   app.post(

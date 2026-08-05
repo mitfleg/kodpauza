@@ -1014,12 +1014,27 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
     const admin = await login('admin@kodpauza.local', 'admin123456');
     const adminEvents = await app.inject({
       method: 'GET',
-      url: '/v1/admin/events',
+      url: '/v1/admin/events?page=1&pageSize=5',
       headers: auth(admin.token),
     });
     expect(adminEvents.statusCode).toBe(200);
+    expect(adminEvents.json()).toMatchObject({
+      pagination: {
+        page: 1,
+        pageSize: 5,
+        total: expect.any(Number),
+        totalPages: expect.any(Number),
+      },
+    });
     expect(adminEvents.body).not.toContain('ipHash');
     expect(adminEvents.body).not.toContain('userAgentHash');
+
+    const invalidAdminPage = await app.inject({
+      method: 'GET',
+      url: '/v1/admin/events?page=0&pageSize=5',
+      headers: auth(admin.token),
+    });
+    expect(invalidAdminPage.statusCode).toBe(400);
   });
 
   it('переносит дробные копейки CPM и доли разработчика между показами', async () => {
@@ -1911,7 +1926,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
 
     const reports = await app.inject({
       method: 'GET',
-      url: '/v1/admin/integration-versions',
+      url: '/v1/admin/integration-versions?page=1&pageSize=50',
       headers: auth(admin.token),
     });
     const report = reports
@@ -1921,6 +1936,10 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
           item.tool === 'claude' && item.version === version,
       );
     expect(reports.statusCode).toBe(200);
+    expect(reports.json()).toMatchObject({
+      pagination: { page: 1, pageSize: 50, total: expect.any(Number), totalPages: 1 },
+      summary: { pending: expect.any(Number) },
+    });
     expect(report).toMatchObject({
       tool: 'claude',
       version,

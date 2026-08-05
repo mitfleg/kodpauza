@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import {
   Activity,
   AlertTriangle,
@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import { counted, integer, isCampaignDelivering, money } from './format';
+import { counted, integer, money } from './format';
 import {
   AdminCampaignList,
   AdminEventList,
@@ -36,11 +36,20 @@ import {
   type PayoutReview,
 } from './admin-developer-payouts';
 import type { AdminData, ApiError } from './types';
-import { LoadingBlock, Message, PrimaryButton, SecondaryButton, WorkSurface } from './ui';
+import {
+  LoadingBlock,
+  Message,
+  PaginationControls,
+  PrimaryButton,
+  SecondaryButton,
+  WorkSurface,
+} from './ui';
 
 export type AdminSection = 'overview' | 'campaigns' | 'users' | 'finance' | 'security';
 type SecurityTab = 'events' | 'fraud' | 'versions' | 'privacy' | 'audit';
+type AdminPageKey = 'campaigns' | 'users' | 'payments' | 'payouts' | SecurityTab;
 type Notice = { text: string; tone: 'success' | 'error' | 'info' };
+const PAGE_SIZE = 10;
 
 const securityTabs = [
   { id: 'events' as const, label: 'События', icon: Activity },
@@ -53,7 +62,19 @@ const securityTabs = [
 export function AdminPanel({ section = 'overview' }: { section?: AdminSection }) {
   const [data, setData] = useState<AdminData>({});
   const [notice, setNotice] = useState<Notice>({ text: '', tone: 'info' });
-  const [activeSecurityTab, setActiveSecurityTab] = useState<SecurityTab>('fraud');
+  const [activeSecurityTab, setActiveSecurityTab] = useState<SecurityTab>('events');
+  const securityTabListRef = useRef<HTMLDivElement>(null);
+  const [pages, setPages] = useState<Record<AdminPageKey, number>>({
+    campaigns: 1,
+    users: 1,
+    payments: 1,
+    payouts: 1,
+    events: 1,
+    fraud: 1,
+    versions: 1,
+    privacy: 1,
+    audit: 1,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [rejectId, setRejectId] = useState('');
@@ -63,44 +84,80 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
     setIsLoading(true);
     try {
       if (section === 'overview') {
-        const [users, campaigns, payouts, fraud, integrationVersions, finance, funnel, fleet] = await Promise.all([
-          api<AdminData['users']>('/v1/admin/users'),
-          api<AdminData['campaigns']>('/v1/admin/campaigns'),
-          api<AdminData['payouts']>('/v1/admin/payouts?page=1&pageSize=50'),
-          api<AdminData['fraud']>('/v1/admin/fraud-flags'),
-          api<AdminData['integrationVersions']>('/v1/admin/integration-versions'),
-          api<AdminData['finance']>('/v1/admin/finance'),
-          api<AdminData['funnel']>('/v1/admin/funnel'),
-          api<AdminData['fleet']>('/v1/admin/extension-fleet'),
-        ]);
+        const [users, campaigns, payouts, fraud, integrationVersions, finance, funnel, fleet] =
+          await Promise.all([
+            api<AdminData['users']>('/v1/admin/users?page=1&pageSize=5'),
+            api<AdminData['campaigns']>('/v1/admin/campaigns?page=1&pageSize=5'),
+            api<AdminData['payouts']>('/v1/admin/payouts?page=1&pageSize=50'),
+            api<AdminData['fraud']>('/v1/admin/fraud-flags?page=1&pageSize=5'),
+            api<AdminData['integrationVersions']>(
+              '/v1/admin/integration-versions?page=1&pageSize=50',
+            ),
+            api<AdminData['finance']>('/v1/admin/finance'),
+            api<AdminData['funnel']>('/v1/admin/funnel'),
+            api<AdminData['fleet']>('/v1/admin/extension-fleet'),
+          ]);
         setData({ users, campaigns, payouts, fraud, integrationVersions, finance, funnel, fleet });
       } else if (section === 'campaigns') {
-        setData({ campaigns: await api<AdminData['campaigns']>('/v1/admin/campaigns') });
+        setData({
+          campaigns: await api<AdminData['campaigns']>(
+            `/v1/admin/campaigns?page=${pages.campaigns}&pageSize=${PAGE_SIZE}`,
+          ),
+        });
       } else if (section === 'users') {
-        setData({ users: await api<AdminData['users']>('/v1/admin/users') });
+        setData({
+          users: await api<AdminData['users']>(
+            `/v1/admin/users?page=${pages.users}&pageSize=${PAGE_SIZE}`,
+          ),
+        });
       } else if (section === 'finance') {
         const [payments, payouts, finance] = await Promise.all([
-          api<AdminData['payments']>('/v1/admin/payments'),
-          api<AdminData['payouts']>('/v1/admin/payouts?page=1&pageSize=50'),
+          api<AdminData['payments']>(
+            `/v1/admin/payments?page=${pages.payments}&pageSize=${PAGE_SIZE}`,
+          ),
+          api<AdminData['payouts']>(
+            `/v1/admin/payouts?page=${pages.payouts}&pageSize=${PAGE_SIZE}`,
+          ),
           api<AdminData['finance']>('/v1/admin/finance'),
         ]);
         setData({ payments, payouts, finance });
+      } else if (activeSecurityTab === 'events') {
+        setData({
+          events: await api<AdminData['events']>(
+            `/v1/admin/events?page=${pages.events}&pageSize=${PAGE_SIZE}`,
+          ),
+        });
+      } else if (activeSecurityTab === 'fraud') {
+        setData({
+          fraud: await api<AdminData['fraud']>(
+            `/v1/admin/fraud-flags?page=${pages.fraud}&pageSize=${PAGE_SIZE}`,
+          ),
+        });
+      } else if (activeSecurityTab === 'versions') {
+        setData({
+          integrationVersions: await api<AdminData['integrationVersions']>(
+            `/v1/admin/integration-versions?page=${pages.versions}&pageSize=${PAGE_SIZE}`,
+          ),
+        });
+      } else if (activeSecurityTab === 'privacy') {
+        setData({
+          privacyRequests: await api<AdminData['privacyRequests']>(
+            `/v1/admin/privacy-requests?page=${pages.privacy}&pageSize=${PAGE_SIZE}`,
+          ),
+        });
       } else {
-        const [events, fraud, audit, integrationVersions, privacyRequests] = await Promise.all([
-          api<AdminData['events']>('/v1/admin/events'),
-          api<AdminData['fraud']>('/v1/admin/fraud-flags'),
-          api<AdminData['audit']>('/v1/admin/audit-log'),
-          api<AdminData['integrationVersions']>('/v1/admin/integration-versions'),
-          api<AdminData['privacyRequests']>('/v1/admin/privacy-requests'),
-        ]);
-        setData({ events, fraud, audit, integrationVersions, privacyRequests });
+        setData({
+          audit: await api<AdminData['audit']>(
+            `/v1/admin/audit-log?page=${pages.audit}&pageSize=${PAGE_SIZE}`,
+          ),
+        });
       }
     } catch (error) {
       setNotice({ text: (error as ApiError).message, tone: 'error' });
     } finally {
       setIsLoading(false);
     }
-  }, [section]);
+  }, [activeSecurityTab, pages, section]);
 
   async function action(id: string, kind: 'approve' | 'pause' | 'reject') {
     if (kind === 'reject') {
@@ -115,9 +172,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
       }
       await api(`/v1/admin/campaigns/${id}/${kind}`, {
         method: 'POST',
-        ...(kind === 'approve'
-          ? { body: JSON.stringify({ reviewedUpdatedAt }) }
-          : {}),
+        ...(kind === 'approve' ? { body: JSON.stringify({ reviewedUpdatedAt }) } : {}),
       });
       await load();
       setNotice({
@@ -193,6 +248,30 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
     void load();
   }, [load]);
 
+  useEffect(() => {
+    if (section !== 'security') return;
+    const requestedTab = new URLSearchParams(window.location.search).get('tab');
+    if (securityTabs.some((tab) => tab.id === requestedTab)) {
+      setActiveSecurityTab(requestedTab as SecurityTab);
+    }
+  }, [section]);
+
+  useEffect(() => {
+    if (section !== 'security') return;
+    securityTabListRef.current
+      ?.querySelector<HTMLElement>(`[data-security-tab="${activeSecurityTab}"]`)
+      ?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [activeSecurityTab, section]);
+
+  function selectSecurityTab(tab: SecurityTab) {
+    setActiveSecurityTab(tab);
+    window.history.replaceState(null, '', `/admin/security?tab=${tab}`);
+  }
+
+  function changePage(key: AdminPageKey, page: number) {
+    setPages((current) => ({ ...current, [key]: Math.max(1, page) }));
+  }
+
   const users = data.users?.users ?? [];
   const campaigns = data.campaigns?.campaigns ?? [];
   const events = data.events?.events ?? [];
@@ -205,22 +284,27 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
   const pendingVersions = integrationVersions.filter(
     (report) => !report.supported && !report.acknowledgedAt,
   );
-  const pendingCampaigns = campaigns.filter((campaign) => campaign.status === 'pending');
-  const pendingPayouts = developerPayouts.filter((payout) => payout.status === 'requested');
-  const activeCampaigns = campaigns.filter(isCampaignDelivering);
-  const developers = users.filter((user) => user.developerProfile).length;
-  const advertisers = users.filter((user) => user.advertiserProfile).length;
+  const pendingVersionCount = data.integrationVersions?.summary.pending ?? pendingVersions.length;
+  const campaignSummary = data.campaigns?.summary;
+  const pendingCampaigns = campaignSummary?.statuses.pending ?? 0;
+  const pendingPayouts = data.payouts?.summary.requested ?? 0;
+  const activeCampaigns = campaignSummary?.delivering ?? 0;
+  const developers = data.users?.summary.developers ?? 0;
+  const advertisers = data.users?.summary.advertisers ?? 0;
+  const totalCampaigns = campaignSummary?.total ?? campaigns.length;
+  const totalUsers = data.users?.summary.total ?? users.length;
+  const fraudCount = data.fraud?.summary.total ?? fraudFlags.length;
   const campaignStatuses = [
-    { label: 'Активные', value: activeCampaigns.length, color: 'bg-emerald-500' },
-    { label: 'На модерации', value: pendingCampaigns.length, color: 'bg-amber-500' },
+    { label: 'Активные', value: activeCampaigns, color: 'bg-emerald-500' },
+    { label: 'На модерации', value: pendingCampaigns, color: 'bg-amber-500' },
     {
       label: 'Приостановлены',
-      value: campaigns.filter((campaign) => campaign.status === 'paused').length,
+      value: campaignSummary?.statuses.paused ?? 0,
       color: 'bg-slate-400',
     },
     {
       label: 'Отклонены',
-      value: campaigns.filter((campaign) => campaign.status === 'rejected').length,
+      value: campaignSummary?.statuses.rejected ?? 0,
       color: 'bg-red-400',
     },
   ];
@@ -267,7 +351,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                 <p className="mt-2 max-w-sm text-sm leading-5 text-slate-300">
                   {isLoading
                     ? 'Собираем данные платформы...'
-                    : `${counted(activeCampaigns.length, 'активная кампания', 'активные кампании', 'активных кампаний')} сейчас получает показы.`}
+                    : `${counted(activeCampaigns, 'активная кампания', 'активные кампании', 'активных кампаний')} сейчас получает показы.`}
                 </p>
                 <Link
                   href="/admin/campaigns"
@@ -280,7 +364,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                 <AdminOverviewMetric
                   icon={UsersRound}
                   label="Пользователи"
-                  value={isLoading ? '—' : integer(users.length)}
+                  value={isLoading ? '—' : integer(totalUsers)}
                   detail={`${developers} разработчиков · ${advertisers} рекламодателей`}
                 />
                 <AdminOverviewMetric
@@ -292,16 +376,16 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                 <AdminOverviewMetric
                   icon={Clock3}
                   label="Требует решения"
-                  value={isLoading ? '—' : integer(pendingCampaigns.length + pendingPayouts.length)}
-                  detail={`${pendingCampaigns.length} кампаний · ${pendingPayouts.length} выплат`}
+                  value={isLoading ? '—' : integer(pendingCampaigns + pendingPayouts)}
+                  detail={`${pendingCampaigns} кампаний · ${pendingPayouts} выплат`}
                 />
               </div>
             </div>
           </section>
 
-          {!isLoading && pendingVersions.length ? (
+          {!isLoading && pendingVersionCount ? (
             <Link
-              href="/admin/security"
+              href="/admin/security?tab=versions"
               className="focus-ring flex w-full flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 p-4 text-left sm:flex-row sm:items-center sm:justify-between"
             >
               <span className="flex min-w-0 items-start gap-3">
@@ -319,6 +403,9 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                           `${report.tool === 'claude' ? 'Claude Code' : 'Codex'} ${report.version}`,
                       )
                       .join(', ')}
+                    {pendingVersionCount > pendingVersions.length
+                      ? ` и ещё ${pendingVersionCount - pendingVersions.length}`
+                      : ''}
                     . Проверьте совместимость патча и выпустите обновление Kodpauza.
                   </span>
                 </span>
@@ -385,7 +472,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                   <div className="rounded-lg border border-line bg-slate-50 p-4">
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="text-sm font-semibold text-ink">Кампании</h3>
-                      <strong className="text-xl text-ink">{integer(campaigns.length)}</strong>
+                      <strong className="text-xl text-ink">{integer(totalCampaigns)}</strong>
                     </div>
                     <div className="mt-4 flex h-3 overflow-hidden rounded-full bg-slate-200">
                       {campaignStatuses.map((item) => (
@@ -393,7 +480,7 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                           key={item.label}
                           className={item.color}
                           style={{
-                            width: `${campaigns.length ? (item.value / campaigns.length) * 100 : 0}%`,
+                            width: `${totalCampaigns ? (item.value / totalCampaigns) * 100 : 0}%`,
                           }}
                           title={`${item.label}: ${item.value}`}
                         />
@@ -413,13 +500,13 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                     </div>
                   </div>
                   <Link
-                    href="/admin/security"
-                    className={`focus-ring flex items-center gap-3 rounded-lg border p-4 text-left ${fraudFlags.length ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}
+                    href={fraudCount ? '/admin/security?tab=fraud' : '/admin/security?tab=events'}
+                    className={`focus-ring flex items-center gap-3 rounded-lg border p-4 text-left ${fraudCount ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}
                   >
                     <span
-                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-md ${fraudFlags.length ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}
+                      className={`grid h-10 w-10 shrink-0 place-items-center rounded-md ${fraudCount ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}
                     >
-                      {fraudFlags.length ? (
+                      {fraudCount ? (
                         <AlertTriangle aria-hidden className="h-5 w-5" />
                       ) : (
                         <Gauge aria-hidden className="h-5 w-5" />
@@ -427,8 +514,8 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                     </span>
                     <span className="min-w-0">
                       <strong className="block text-sm text-ink">
-                        {fraudFlags.length
-                          ? `${integer(fraudFlags.length)} сигналов требуют проверки`
+                        {fraudCount
+                          ? `${integer(fraudCount)} сигналов требуют проверки`
                           : 'Критичных сигналов нет'}
                       </strong>
                       <span className="mt-1 block text-xs text-slate-600">
@@ -444,10 +531,11 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
       ) : null}
 
       {section !== 'overview' ? (
-        <div className="flex min-w-0 flex-col items-stretch gap-3 border-b border-line sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2 overflow-hidden rounded-lg border border-line bg-white p-2 shadow-sm">
           {section === 'security' ? (
             <div
-              className="flex w-full min-w-0 max-w-full gap-1 overflow-x-auto sm:w-auto"
+              ref={securityTabListRef}
+              className="flex min-w-0 flex-1 snap-x snap-proximity items-center gap-1.5 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               role="tablist"
               aria-label="Разделы безопасности"
             >
@@ -460,21 +548,29 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
                     type="button"
                     role="tab"
                     aria-selected={active}
-                    onClick={() => setActiveSecurityTab(item.id)}
-                    className={`focus-ring inline-flex h-11 shrink-0 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition ${active ? 'border-mint text-mint' : 'border-transparent text-slate-500 hover:text-ink'}`}
+                    aria-controls={`security-panel-${item.id}`}
+                    id={`security-tab-${item.id}`}
+                    data-security-tab={item.id}
+                    onClick={() => selectSecurityTab(item.id)}
+                    className={`focus-ring inline-flex h-10 shrink-0 snap-start items-center justify-center gap-2 whitespace-nowrap rounded-md border px-3 text-sm font-semibold transition ${active ? 'border-ink bg-ink text-white shadow-sm' : 'border-transparent bg-slate-50 text-slate-600 hover:border-line hover:bg-white hover:text-ink'}`}
                   >
-                    <Icon aria-hidden className="h-4 w-4" /> {item.label}
+                    <Icon aria-hidden className="h-4 w-4 shrink-0" />
+                    <span>{item.label}</span>
                   </button>
                 );
               })}
             </div>
           ) : (
-            <span className="text-sm font-semibold text-slate-600">Рабочие данные раздела</span>
+            <span className="min-w-0 flex-1 text-sm font-semibold text-slate-600">
+              Рабочие данные раздела
+            </span>
           )}
-          <SecondaryButton onClick={() => void load()} disabled={isLoading}>
-            <RefreshCw aria-hidden className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />{' '}
-            Обновить
-          </SecondaryButton>
+          <div className="shrink-0 sm:pr-1">
+            <SecondaryButton onClick={() => void load()} disabled={isLoading}>
+              <RefreshCw aria-hidden className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+              <span className="sr-only sm:not-sr-only">Обновить</span>
+            </SecondaryButton>
+          </div>
         </div>
       ) : null}
 
@@ -489,13 +585,22 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
           description="Проверьте текст, ссылку, цену и бюджет перед запуском."
         >
           <AdminCampaignList campaigns={campaigns} onAction={action} busyId={busyId} />
+          <PaginationControls
+            pagination={data.campaigns?.pagination}
+            onPageChange={(page) => changePage('campaigns', page)}
+          />
         </WorkSurface>
       ) : null}
       {!isLoading && section === 'users' ? (
-        <WorkSurface title="Пользователи" description="Роли, компании и текущие внутренние балансы.">
-          <div className="max-h-[680px] overflow-auto">
-            <UserList users={users} />
-          </div>
+        <WorkSurface
+          title="Пользователи"
+          description="Роли, компании и текущие внутренние балансы."
+        >
+          <UserList users={users} />
+          <PaginationControls
+            pagination={data.users?.pagination}
+            onPageChange={(page) => changePage('users', page)}
+          />
         </WorkSurface>
       ) : null}
       {!isLoading && section === 'finance' ? (
@@ -515,65 +620,106 @@ export function AdminPanel({ section = 'overview' }: { section?: AdminSection })
           <div className="grid gap-4 xl:grid-cols-2">
             <WorkSurface
               title="Пополнения через ЮKassa"
-              description="Последние 100 операций и ошибки проверки."
+              description="Операции пополнения и ошибки проверки платежей."
             >
-              <div className="max-h-[620px] overflow-auto">
-                <AdminPaymentList payments={payments} />
-              </div>
+              <AdminPaymentList payments={payments} />
+              <PaginationControls
+                pagination={data.payments?.pagination}
+                onPageChange={(page) => changePage('payments', page)}
+              />
             </WorkSurface>
             <WorkSurface
               title="Выплаты разработчикам"
               description="Заявки, резервы и подтвержденные переводы."
             >
               <AdminDeveloperPayoutList payouts={developerPayouts} onReview={setPayoutReview} />
+              <PaginationControls
+                pagination={data.payouts?.pagination}
+                onPageChange={(page) => changePage('payouts', page)}
+              />
             </WorkSurface>
           </div>
         </div>
       ) : null}
       {!isLoading && section === 'security' && activeSecurityTab === 'events' ? (
-        <WorkSurface title="События" description="Последние показы, клики и результат проверки.">
-          <div className="max-h-[680px] overflow-auto">
+        <div id="security-panel-events" role="tabpanel" aria-labelledby="security-tab-events">
+          <WorkSurface
+            title="События"
+            description="Показы, клики и результат автоматической проверки."
+          >
             <AdminEventList events={events} />
-          </div>
-        </WorkSurface>
+            <PaginationControls
+              pagination={data.events?.pagination}
+              onPageChange={(page) => changePage('events', page)}
+            />
+          </WorkSurface>
+        </div>
       ) : null}
       {!isLoading && section === 'security' && activeSecurityTab === 'fraud' ? (
-        <WorkSurface
-          title="Сигналы накрутки"
-          description="События, которые не были оплачены или требуют проверки."
-        >
-          <div className="max-h-[680px] overflow-auto">
+        <div id="security-panel-fraud" role="tabpanel" aria-labelledby="security-tab-fraud">
+          <WorkSurface
+            title="Сигналы накрутки"
+            description="События, которые не были оплачены или требуют проверки."
+          >
             <FraudList flags={fraudFlags} />
-          </div>
-        </WorkSurface>
+            <PaginationControls
+              pagination={data.fraud?.pagination}
+              onPageChange={(page) => changePage('fraud', page)}
+            />
+          </WorkSurface>
+        </div>
       ) : null}
       {!isLoading && section === 'security' && activeSecurityTab === 'versions' ? (
-        <WorkSurface
-          title="Версии интеграций"
-          description="Kodpauza автоматически отслеживает сборки Codex и Claude Code. Неподдерживаемые версии требуют проверки патча."
-        >
-          <IntegrationVersionReportList
-            reports={integrationVersions}
-            busyId={busyId}
-            onAcknowledge={(id) => void acknowledgeVersion(id)}
-          />
-        </WorkSurface>
+        <div id="security-panel-versions" role="tabpanel" aria-labelledby="security-tab-versions">
+          <WorkSurface
+            title="Версии интеграций"
+            description="Сначала показаны версии, требующие решения, затем совместимые по свежести сигнала и обработанный архив."
+          >
+            <IntegrationVersionReportList
+              reports={integrationVersions}
+              busyId={busyId}
+              onAcknowledge={(id) => void acknowledgeVersion(id)}
+            />
+            <PaginationControls
+              pagination={data.integrationVersions?.pagination}
+              onPageChange={(page) => changePage('versions', page)}
+            />
+          </WorkSurface>
+        </div>
       ) : null}
       {!isLoading && section === 'security' && activeSecurityTab === 'audit' ? (
-        <WorkSurface title="Журнал администрирования" description="История решений по кампаниям.">
-          <div className="max-h-[680px] overflow-auto">
+        <div id="security-panel-audit" role="tabpanel" aria-labelledby="security-tab-audit">
+          <WorkSurface
+            title="Журнал администрирования"
+            description="История решений и действий администраторов."
+          >
             <AuditLogList auditLog={auditLog} />
-          </div>
-        </WorkSurface>
+            <PaginationControls
+              pagination={data.audit?.pagination}
+              onPageChange={(page) => changePage('audit', page)}
+            />
+          </WorkSurface>
+        </div>
       ) : null}
       {!isLoading && section === 'security' && activeSecurityTab === 'privacy' ? (
-        <WorkSurface title="Обращения по персональным данным" description="Запросы пользователей на доступ, исправление, удаление и отзыв согласия.">
-          <AdminPrivacyRequests
-            requests={privacyRequests}
-            busyId={busyId}
-            onResolve={(id, status, resolution) => void resolvePrivacyRequest(id, status, resolution)}
-          />
-        </WorkSurface>
+        <div id="security-panel-privacy" role="tabpanel" aria-labelledby="security-tab-privacy">
+          <WorkSurface
+            title="Обращения по персональным данным"
+            description="Запросы на доступ, исправление, удаление и отзыв согласия."
+          >
+            <AdminPrivacyRequests
+              requests={privacyRequests}
+              busyId={busyId}
+              onResolve={(id, status, resolution) =>
+                void resolvePrivacyRequest(id, status, resolution)
+              }
+            />
+            <PaginationControls
+              pagination={data.privacyRequests?.pagination}
+              onPageChange={(page) => changePage('privacy', page)}
+            />
+          </WorkSurface>
+        </div>
       ) : null}
 
       {rejectId ? (
@@ -674,7 +820,11 @@ function FleetSummary({ fleet }: { fleet: AdminData['fleet'] }) {
   const cards = [
     { label: 'Активные', value: fleet.counts.active, tone: 'text-emerald-700 bg-emerald-50' },
     { label: 'Требуют внимания', value: fleet.counts.degraded, tone: 'text-amber-800 bg-amber-50' },
-    { label: 'Неактивны более суток', value: fleet.counts.stale, tone: 'text-slate-600 bg-slate-100' },
+    {
+      label: 'Неактивны более суток',
+      value: fleet.counts.stale,
+      tone: 'text-slate-600 bg-slate-100',
+    },
   ];
   return (
     <div className="grid gap-4">
@@ -700,7 +850,10 @@ function FleetSummary({ fleet }: { fleet: AdminData['fleet'] }) {
       <div className="grid gap-3 sm:grid-cols-3">
         <FleetCounter label="Нет heartbeat более часа" value={fleet.missingHeartbeat.overOneHour} />
         <FleetCounter label="Нет heartbeat более суток" value={fleet.missingHeartbeat.overOneDay} />
-        <FleetCounter label="Нет heartbeat более недели" value={fleet.missingHeartbeat.overSevenDays} />
+        <FleetCounter
+          label="Нет heartbeat более недели"
+          value={fleet.missingHeartbeat.overSevenDays}
+        />
       </div>
       {Object.keys(fleet.patchStatuses).length ? (
         <FleetBreakdown
@@ -727,8 +880,14 @@ function FleetSummary({ fleet }: { fleet: AdminData['fleet'] }) {
             {fleet.installs.slice(0, 8).map((install, index) => (
               <tr key={`${install.lastSeenAt}-${index}`}>
                 <td className="px-3 py-2">
-                  <span className={`font-semibold ${install.health === 'active' ? 'text-emerald-700' : install.health === 'degraded' ? 'text-amber-700' : 'text-slate-500'}`}>
-                    {install.health === 'active' ? 'Активна' : install.health === 'degraded' ? 'Нужна проверка' : 'Неактивна'}
+                  <span
+                    className={`font-semibold ${install.health === 'active' ? 'text-emerald-700' : install.health === 'degraded' ? 'text-amber-700' : 'text-slate-500'}`}
+                  >
+                    {install.health === 'active'
+                      ? 'Активна'
+                      : install.health === 'degraded'
+                        ? 'Нужна проверка'
+                        : 'Неактивна'}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-ink">{install.extensionVersion || 'не передана'}</td>
@@ -739,7 +898,12 @@ function FleetSummary({ fleet }: { fleet: AdminData['fleet'] }) {
                 </td>
                 <td className="px-3 py-2 text-slate-600">{toolVersions(install)}</td>
                 <td className="px-3 py-2 text-slate-600">{installPatchSummary(install)}</td>
-                <td className="px-3 py-2 text-slate-600" title={new Date(install.lastSeenAt).toLocaleString('ru-RU')}>{heartbeatAge(install.lastSeenAt)}</td>
+                <td
+                  className="px-3 py-2 text-slate-600"
+                  title={new Date(install.lastSeenAt).toLocaleString('ru-RU')}
+                >
+                  {heartbeatAge(install.lastSeenAt)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -760,7 +924,13 @@ function heartbeatAge(value: string) {
   return `${Math.round(hours / 24)} дн. назад`;
 }
 
-function FleetBreakdown({ title, rows }: { title: string; rows: Array<{ name: string; count: number }> }) {
+function FleetBreakdown({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: Array<{ name: string; count: number }>;
+}) {
   return (
     <div className="rounded-md border border-line bg-slate-50 p-4">
       <h3 className="text-sm font-semibold text-ink">{title}</h3>
@@ -828,20 +998,19 @@ function patchErrorLabel(category: string) {
   return labels[category] ?? category;
 }
 
-function AdminFunnel({
-  stages,
-}: {
-  stages: Array<{ id: string; label: string; value: number }>;
-}) {
+function AdminFunnel({ stages }: { stages: Array<{ id: string; label: string; value: number }> }) {
   const start = Math.max(stages[0]?.value ?? 0, 1);
   return (
     <div className="grid gap-3">
       {stages.map((stage, index) => {
-        const previous = index === 0 ? stage.value : stages[index - 1]?.value ?? 0;
+        const previous = index === 0 ? stage.value : (stages[index - 1]?.value ?? 0);
         const stepConversion = previous > 0 ? Math.round((stage.value / previous) * 100) : 0;
         const totalConversion = Math.round((stage.value / start) * 100);
         return (
-          <div key={stage.id} className="grid gap-2 sm:grid-cols-[190px_minmax(0,1fr)_110px] sm:items-center">
+          <div
+            key={stage.id}
+            className="grid gap-2 sm:grid-cols-[190px_minmax(0,1fr)_110px] sm:items-center"
+          >
             <div className="text-sm font-medium text-ink">{stage.label}</div>
             <div className="h-9 overflow-hidden rounded-md bg-slate-100">
               <div

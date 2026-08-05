@@ -128,12 +128,15 @@ export function IntegrationVersionReportList({
         {reports.map((report) => (
           <article
             key={report.id}
-            className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(180px,0.8fr)_minmax(220px,1fr)_150px_auto] lg:items-center"
+            className={`grid gap-3 border-l-4 px-4 py-4 lg:grid-cols-[minmax(210px,0.8fr)_minmax(240px,1fr)_130px_auto] lg:items-center ${integrationReportRail(report)}`}
           >
-            <div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                {integrationName(report.tool)}
+              </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold text-ink">
-                  {integrationName(report.tool)} {report.version}
+                <span className="font-mono text-base font-semibold tracking-[-0.02em] text-ink">
+                  {report.version}
                 </span>
                 <SoftBadge
                   tone={report.supported ? 'green' : report.acknowledgedAt ? 'slate' : 'amber'}
@@ -166,8 +169,13 @@ export function IntegrationVersionReportList({
                 </div>
               ) : null}
             </div>
-            <div className="text-sm text-slate-600">
-              {counted(report.reportCount, 'сообщение', 'сообщения', 'сообщений')}
+            <div className="text-sm text-slate-600 lg:text-right">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+                Сигналы
+              </div>
+              <div className="mt-1 font-semibold text-ink">
+                {counted(report.reportCount, 'сообщение', 'сообщения', 'сообщений')}
+              </div>
             </div>
             <div className="lg:justify-self-end">
               {!report.supported && !report.acknowledgedAt ? (
@@ -188,6 +196,12 @@ export function IntegrationVersionReportList({
 
 function integrationName(tool: IntegrationVersionReport['tool']): string {
   return tool === 'claude' ? 'Claude Code' : 'Codex';
+}
+
+function integrationReportRail(report: IntegrationVersionReport): string {
+  if (!report.supported && !report.acknowledgedAt) return 'border-l-amber-400 bg-amber-50/30';
+  if (report.supported) return 'border-l-emerald-400';
+  return 'border-l-slate-300 bg-slate-50/60';
 }
 
 const surfaceLabels: Record<string, string> = {

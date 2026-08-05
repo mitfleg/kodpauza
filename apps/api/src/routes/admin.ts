@@ -2,7 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { impressionCostKopecks } from '@kodpauza/shared';
-import { classifyUnsupportedIntegrationVersion } from '../services/integrationVersionPolicy.js';
+import {
+  classifyUnsupportedIntegrationVersion,
+  compareIntegrationVersionReports,
+} from '../services/integrationVersionPolicy.js';
 import { requireRole } from '../auth.js';
 import { prisma } from '../prisma.js';
 import { lockCampaignMutation, sameCampaignRevision } from '../services/campaignMutation.js';
@@ -28,6 +31,12 @@ const rejectedCampaignSchema = reviewedCampaignSchema.extend({
 });
 
 const ordMonthSchema = z.object({ month: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/) }).strict();
+const adminPaginationSchema = z
+  .object({
+    page: z.coerce.number().int().min(1).max(100_000).default(1),
+    pageSize: z.coerce.number().int().min(5).max(50).default(10),
+  })
+  .strict();
 const ordCampaignBindingSchema = z
   .object({
     organizationId: z
@@ -150,31 +159,75 @@ export function registerAdminRoutes(app: FastifyInstance, ordClient: YandexOrdCl
     });
     return { stages, days };
   });
-  app.get('/v1/admin/users', { preHandler: requireRole('admin') }, async () => ({
-    users: await prisma.user.findMany({
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        displayName: true,
-        createdAt: true,
-        developerProfile: { select: { balanceKopecks: true } },
-        advertiserProfile: { select: { companyName: true, balanceKopecks: true } },
-      },
-    }),
-  }));
+  app.get('/v1/admin/users', { preHandler: requireRole('admin') }, async (request, reply) => {
+    const parsed = adminPaginationSchema.safeParse(request.query);
+    if (!parsed.success)
+      return reply.code(400).send({ error: 'Некорректная страница пользователей.' });
+    const { page, pageSize } = parsed.data;
+    const [users, total, developers, advertisers] = await prisma.$transaction([
+      prisma.user.findMany({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          displayName: true,
+          createdAt: true,
+          developerProfile: { select: { balanceKopecks: true } },
+          advertiserProfile: { select: { companyName: true, balanceKopecks: true } },
+        },
+      }),
+      prisma.user.count(),
+      prisma.user.count({ where: { developerProfile: { isNot: null } } }),
+      prisma.user.count({ where: { advertiserProfile: { isNot: null } } }),
+    ]);
+    return {
+      users,
+      pagination: adminPagination(total, page, pageSize),
+      summary: { total, developers, advertisers },
+    };
+  });
 
-  app.get('/v1/admin/campaigns', { preHandler: requireRole('admin') }, async () => ({
-    campaigns: await prisma.campaign.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        advertiser: { include: { user: { select: { email: true } } } },
-        surfaces: { where: { enabled: true }, orderBy: { createdAt: 'asc' } },
-        creatives: { where: { enabled: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
-      },
-    }),
-  }));
+  app.get('/v1/admin/campaigns', { preHandler: requireRole('admin') }, async (request, reply) => {
+    const parsed = adminPaginationSchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: 'Некорректная страница кампаний.' });
+    const { page, pageSize } = parsed.data;
+    const [campaigns, total, pending, paused, rejected, activeCandidates] =
+      await prisma.$transaction([
+        prisma.campaign.findMany({
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: {
+            advertiser: { include: { user: { select: { email: true } } } },
+            surfaces: { where: { enabled: true }, orderBy: { createdAt: 'asc' } },
+            creatives: { where: { enabled: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
+          },
+        }),
+        prisma.campaign.count(),
+        prisma.campaign.count({ where: { status: 'pending' } }),
+        prisma.campaign.count({ where: { status: 'paused' } }),
+        prisma.campaign.count({ where: { status: 'rejected' } }),
+        prisma.campaign.findMany({
+          where: { status: 'active' },
+          select: { startsAt: true, endsAt: true, budgetKopecks: true, spentKopecks: true },
+        }),
+      ]);
+    const now = Date.now();
+    const delivering = activeCandidates.filter(
+      (campaign) =>
+        campaign.spentKopecks < campaign.budgetKopecks &&
+        (!campaign.startsAt || campaign.startsAt.getTime() <= now) &&
+        (!campaign.endsAt || campaign.endsAt.getTime() > now),
+    ).length;
+    return {
+      campaigns,
+      pagination: adminPagination(total, page, pageSize),
+      summary: { total, delivering, statuses: { pending, paused, rejected } },
+    };
+  });
 
   app.patch(
     '/v1/admin/campaigns/:id/ord',
@@ -302,54 +355,95 @@ export function registerAdminRoutes(app: FastifyInstance, ordClient: YandexOrdCl
     },
   );
 
-  app.get('/v1/admin/events', { preHandler: requireRole('admin') }, async () => ({
-    events: await prisma.adEvent.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      select: {
-        id: true,
-        eventId: true,
-        adId: true,
-        type: true,
-        createdAt: true,
-        rewardKopecks: true,
-        fraudStatus: true,
-        user: { select: { email: true } },
-        campaign: { select: { name: true } },
-      },
-    }),
-  }));
+  app.get('/v1/admin/events', { preHandler: requireRole('admin') }, async (request, reply) => {
+    const parsed = adminPaginationSchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: 'Некорректная страница событий.' });
+    const { page, pageSize } = parsed.data;
+    const [events, total] = await prisma.$transaction([
+      prisma.adEvent.findMany({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          eventId: true,
+          adId: true,
+          type: true,
+          createdAt: true,
+          rewardKopecks: true,
+          fraudStatus: true,
+          user: { select: { email: true } },
+          campaign: { select: { name: true } },
+        },
+      }),
+      prisma.adEvent.count(),
+    ]);
+    return { events, pagination: adminPagination(total, page, pageSize) };
+  });
 
-  app.get('/v1/admin/fraud-flags', { preHandler: requireRole('admin') }, async () => ({
-    fraudFlags: await prisma.fraudFlag.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      select: {
-        id: true,
-        reason: true,
-        severity: true,
-        createdAt: true,
-        user: { select: { email: true } },
-        event: { select: { eventId: true, adId: true, type: true, fraudStatus: true } },
-      },
-    }),
-  }));
+  app.get('/v1/admin/fraud-flags', { preHandler: requireRole('admin') }, async (request, reply) => {
+    const parsed = adminPaginationSchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: 'Некорректная страница сигналов.' });
+    const { page, pageSize } = parsed.data;
+    const [fraudFlags, total] = await prisma.$transaction([
+      prisma.fraudFlag.findMany({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          reason: true,
+          severity: true,
+          createdAt: true,
+          user: { select: { email: true } },
+          event: { select: { eventId: true, adId: true, type: true, fraudStatus: true } },
+        },
+      }),
+      prisma.fraudFlag.count(),
+    ]);
+    return {
+      fraudFlags,
+      pagination: adminPagination(total, page, pageSize),
+      summary: { total },
+    };
+  });
 
-  app.get('/v1/admin/audit-log', { preHandler: requireRole('admin') }, async () => ({
-    auditLog: await prisma.adminAuditLog.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: { admin: { select: { email: true } } },
-    }),
-  }));
+  app.get('/v1/admin/audit-log', { preHandler: requireRole('admin') }, async (request, reply) => {
+    const parsed = adminPaginationSchema.safeParse(request.query);
+    if (!parsed.success) return reply.code(400).send({ error: 'Некорректная страница журнала.' });
+    const { page, pageSize } = parsed.data;
+    const [auditLog, total] = await prisma.$transaction([
+      prisma.adminAuditLog.findMany({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { admin: { select: { email: true } } },
+      }),
+      prisma.adminAuditLog.count(),
+    ]);
+    return { auditLog, pagination: adminPagination(total, page, pageSize) };
+  });
 
-  app.get('/v1/admin/privacy-requests', { preHandler: requireRole('admin') }, async () => ({
-    requests: await prisma.privacyRequest.findMany({
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: 200,
-      include: { user: { select: { email: true, role: true, displayName: true } } },
-    }),
-  }));
+  app.get(
+    '/v1/admin/privacy-requests',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      const parsed = adminPaginationSchema.safeParse(request.query);
+      if (!parsed.success)
+        return reply.code(400).send({ error: 'Некорректная страница обращений.' });
+      const { page, pageSize } = parsed.data;
+      const [requests, total] = await prisma.$transaction([
+        prisma.privacyRequest.findMany({
+          orderBy: [{ status: 'asc' }, { createdAt: 'desc' }, { id: 'desc' }],
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          include: { user: { select: { email: true, role: true, displayName: true } } },
+        }),
+        prisma.privacyRequest.count(),
+      ]);
+      return { requests, pagination: adminPagination(total, page, pageSize) };
+    },
+  );
 
   app.post(
     '/v1/admin/privacy-requests/:id/status',
@@ -395,21 +489,34 @@ export function registerAdminRoutes(app: FastifyInstance, ordClient: YandexOrdCl
     },
   );
 
-  app.get('/v1/admin/integration-versions', { preHandler: requireRole('admin') }, async () => {
-    const reports = await prisma.integrationVersionReport.findMany({
-      orderBy: [{ acknowledgedAt: 'asc' }, { lastSeenAt: 'desc' }],
-      take: 100,
-    });
-    return {
-      reports: reports.map((report) => ({
-        ...report,
-        ...classifyUnsupportedIntegrationVersion(
-          report.tool === 'claude' ? 'claude' : 'codex',
-          report.version,
-        ),
-      })),
-    };
-  });
+  app.get(
+    '/v1/admin/integration-versions',
+    { preHandler: requireRole('admin') },
+    async (request, reply) => {
+      const parsed = adminPaginationSchema.safeParse(request.query);
+      if (!parsed.success) return reply.code(400).send({ error: 'Некорректная страница версий.' });
+      const { page, pageSize } = parsed.data;
+      const rawReports = await prisma.integrationVersionReport.findMany();
+      const classifiedReports = rawReports
+        .map((report) => ({
+          ...report,
+          ...classifyUnsupportedIntegrationVersion(
+            report.tool === 'claude' ? 'claude' : 'codex',
+            report.version,
+          ),
+        }))
+        .sort(compareIntegrationVersionReports);
+      const reports = classifiedReports.slice((page - 1) * pageSize, page * pageSize);
+      const pending = classifiedReports.filter(
+        (report) => !report.supported && !report.acknowledgedAt,
+      ).length;
+      return {
+        reports,
+        pagination: adminPagination(classifiedReports.length, page, pageSize),
+        summary: { pending },
+      };
+    },
+  );
 
   app.post(
     '/v1/admin/integration-versions/:id/acknowledge',
@@ -468,29 +575,38 @@ export function registerAdminRoutes(app: FastifyInstance, ordClient: YandexOrdCl
     };
   });
 
-  app.get('/v1/admin/payments', { preHandler: requireRole('admin') }, async () => ({
-    payments: await prisma.advertiserPayment.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      select: {
-        id: true,
-        providerPaymentId: true,
-        amountKopecks: true,
-        currency: true,
-        status: true,
-        providerTest: true,
-        failureCode: true,
-        paidAt: true,
-        createdAt: true,
-        advertiser: {
-          select: {
-            companyName: true,
-            user: { select: { email: true } },
+  app.get('/v1/admin/payments', { preHandler: requireRole('admin') }, async (request, reply) => {
+    const parsed = adminPaginationSchema.safeParse(request.query);
+    if (!parsed.success)
+      return reply.code(400).send({ error: 'Некорректная страница пополнений.' });
+    const { page, pageSize } = parsed.data;
+    const [payments, total] = await prisma.$transaction([
+      prisma.advertiserPayment.findMany({
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          providerPaymentId: true,
+          amountKopecks: true,
+          currency: true,
+          status: true,
+          providerTest: true,
+          failureCode: true,
+          paidAt: true,
+          createdAt: true,
+          advertiser: {
+            select: {
+              companyName: true,
+              user: { select: { email: true } },
+            },
           },
         },
-      },
-    }),
-  }));
+      }),
+      prisma.advertiserPayment.count(),
+    ]);
+    return { payments, pagination: adminPagination(total, page, pageSize) };
+  });
 
   app.post(
     '/v1/admin/campaigns/:id/approve',
@@ -640,4 +756,8 @@ async function writeAuditLog(
   await tx.adminAuditLog.create({
     data: { adminId, action, targetType, targetId, metadata: metadata as Prisma.InputJsonObject },
   });
+}
+
+function adminPagination(total: number, page: number, pageSize: number) {
+  return { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }
