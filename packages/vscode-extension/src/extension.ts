@@ -23,6 +23,7 @@ import { KodpauzaState } from './state';
 import { TelemetryOutbox } from './telemetryOutbox';
 import { normalizeAdClickUrl, normalizeExternalUrl } from './urls';
 import { shouldAutomaticallyConnectIntegrations } from './integrationAutoConnect';
+import { unsupportedIntegrationMessage } from './integrationCompatibilityMessage';
 import { findBundledCodexCli } from './codexCli';
 import {
   isLocalRuntimePolicyUrl,
@@ -309,10 +310,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         }
         await state.markUnsupportedIntegrationVersion(runtime.tool, version);
         const action = await vscode.window.showWarningMessage(
-          `${runtime.name} обновился. Kodpauza не смогла доказать совместимость новой структуры, поэтому реклама временно отключена. Версия отправлена в центр обновлений.`,
+          unsupportedIntegrationMessage(runtime.name, version),
+          'Обновить Kodpauza',
           'Открыть диагностику',
         );
-        if (action === 'Открыть диагностику') {
+        if (action === 'Обновить Kodpauza') {
+          await extensionUpdater.check(true);
+        } else if (action === 'Открыть диагностику') {
           await vscode.commands.executeCommand('kodpauza.runDiagnostics');
         }
       }),
@@ -562,9 +566,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         runtime.compatibilityMode = result.compatibilityMode;
         runtime.patchErrorCategory = undefined;
         if (!result.compatible) {
-          failures.push(
-            `${runtime.name} ${runtime.detection.version ?? ''}: версия пока не поддерживается.`,
-          );
+          failures.push(unsupportedIntegrationMessage(runtime.name, runtime.detection.version));
           continue;
         }
         runtime.patchToken = result.token;

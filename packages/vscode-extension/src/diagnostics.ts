@@ -154,7 +154,7 @@ function patchLabel(status: {
     return 'расширение не найдено';
   }
   if (!status.compatible) {
-    return 'структура изменилась, реклама отключена';
+    return 'версия не поддерживается; обновите AI-инструмент и Kodpauza, затем переподключите интеграции (реклама отключена)';
   }
   const compatibility = status.compatibilityMode === 'structural'
     ? 'структурно совместим'

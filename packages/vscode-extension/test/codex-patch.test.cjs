@@ -17,6 +17,8 @@ const {
   CODEX_26_727_40816_SHIMMER_PATCH_PROFILE,
   CODEX_26_5727_51351_PATCH_PROFILE,
   CODEX_26_5727_51351_SHIMMER_PATCH_PROFILE,
+  CODEX_26_803_41515_PATCH_PROFILE,
+  CODEX_26_803_41515_SHIMMER_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -167,6 +169,32 @@ function codex2727FixtureShimmer() {
   return [
     'var E,D,O,k,A,j,M,N=e((()=>{',
     'D=t(c(),1),O=s();',
+    'function x(){let r=(0,D.useRef)(null);(0,D.useEffect)(()=>{},[]);return ',
+    fallback,
+    '}}));',
+  ].join('');
+}
+
+function codex26803FixtureWebview() {
+  return [
+    'var Za,Q,$,Qa,$a,eo,to,no,ro,io=e((()=>{',
+    'Q=t(xe(),1),$=B(),no=me({thinking:{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`}});',
+    'function x(e){let r=e.message,d;r==null?d=(0,$.jsx)(R,{...no.thinking}):d=r;return d}',
+    'function y(e){return e??(0,$.jsx)(R,{...no.thinking})}',
+    '(0,Q.useEffect)(()=>{},[])}));',
+  ].join('');
+}
+
+function codex26803FixtureHost() {
+  return 'prefix;let n=[t,r,...eut,...Qlt];suffix';
+}
+
+function codex26803FixtureShimmer() {
+  const fallback =
+    '(0,O.jsx)(a,{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`})';
+  return [
+    'var E,D,O,k,A,j,M,N=e((()=>{',
+    'D=t(s(),1),O=o();',
     'function x(){let r=(0,D.useRef)(null);(0,D.useEffect)(()=>{},[]);return ',
     fallback,
     '}}));',
@@ -736,6 +764,50 @@ test('профиль Codex 26.5727.51351 fail-closed при старом CSP-я�
   assert.throws(
     () => patchHostSource(codex2727FixtureHost(), CODEX_26_5727_51351_PATCH_PROFILE),
     /политика подключения webview/,
+  );
+});
+
+test('профиль Codex 26.803.41515 патчит два descriptor placeholder, CSP и shimmer', () => {
+  const token = 'd'.repeat(64);
+  const webview = patchWebviewSource(
+    codex26803FixtureWebview(),
+    token,
+    CODEX_26_803_41515_PATCH_PROFILE,
+  );
+  const host = patchHostSource(codex26803FixtureHost(), CODEX_26_803_41515_PATCH_PROFILE);
+  const shimmer = patchThinkingShimmerSource(
+    codex26803FixtureShimmer(),
+    token,
+    CODEX_26_803_41515_SHIMMER_PATCH_PROFILE,
+  );
+
+  assert.match(webview, /__KODPAUZA_UI_START__/);
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 3);
+  assert.equal(
+    (webview.match(/__kpAdMessage,\{fallback:\(0,\$\.jsx\)\(R,\{\.\.\.no\.thinking\}\)\}/g) ?? [])
+      .length,
+    2,
+  );
+  assert.match(host, /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/);
+  assert.match(shimmer, /__KODPAUZA_UI_START__/);
+  assert.match(
+    shimmer,
+    /O\.jsx\)\(__kpAdMessage,\{fallback:\(0,O\.jsx\)\(a,\{id:`thinkingShimmer\.default`/,
+  );
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+  assert.doesNotThrow(() => new vm.Script(shimmer));
+});
+
+test('профиль Codex 26.803.41515 fail-closed при пропавшем descriptor', () => {
+  const changed = codex26803FixtureWebview().replace(
+    '(0,$.jsx)(R,{...no.thinking})',
+    '(0,$.jsx)(R,{...no.changed})',
+  );
+
+  assert.throws(
+    () => patchWebviewSource(changed, 'e'.repeat(64), CODEX_26_803_41515_PATCH_PROFILE),
+    /видимый placeholder Thinking/,
   );
 });
 
