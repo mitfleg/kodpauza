@@ -72,15 +72,24 @@ const RUNTIME_POLICY_CACHE_KEY = 'kodpauza.runtimePolicy.lastKnownGood.v1';
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const state = new KodpauzaState(context);
   await state.initialize();
+  let syncAuthenticationUi = async (_showPrompt: boolean): Promise<void> => undefined;
 
   const api = new KodpauzaApiClient(
     () => state.accessToken(),
     () => state.eventSecret(),
     {
       refreshTokenProvider: () => state.refreshToken(),
-      onSession: (session) =>
-        state.setAuthSession(session.token, session.refreshToken, session.eventSecret),
-      onSessionInvalid: () => state.clearAuthSession(),
+      onSession: async (session) => {
+        await state.setAuthSession(session.token, session.refreshToken, session.eventSecret);
+        await syncAuthenticationUi(false);
+      },
+      onSessionInvalid: async () => {
+        try {
+          await state.invalidateAuthSession();
+        } finally {
+          void syncAuthenticationUi(true);
+        }
+      },
     },
   );
   const runtimePolicy = new RuntimePolicyManager(
@@ -102,11 +111,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     try {
       await api.ensurePersistentSession();
     } catch {
-      if (!(await state.accessToken())) {
-        void vscode.window.showWarningMessage(
-          'Старая сессия Kodpauza истекла. Войдите один раз, последующие обновления сохранят авторизацию.',
-        );
-      }
+      // The persistent reauthentication state is rendered after commands are registered.
     }
   }
 
@@ -278,6 +283,51 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       };
     },
   );
+  const authenticationItem = vscode.window.createStatusBarItem(
+    'kodpauza.authentication',
+    vscode.StatusBarAlignment.Left,
+    100,
+  );
+  authenticationItem.name = 'Kodpauza: требуется вход';
+  authenticationItem.text = '$(warning) Kodpauza: войдите снова';
+  authenticationItem.tooltip = 'Авторизация Kodpauza сброшена. Нажмите, чтобы войти снова.';
+  authenticationItem.command = 'kodpauza.login';
+  authenticationItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+  let reauthenticationPromptShown = false;
+  const updateAuthenticationUi = async (showPrompt: boolean): Promise<void> => {
+    if (!state.requiresReauthentication) {
+      reauthenticationPromptShown = false;
+      authenticationItem.hide();
+      return;
+    }
+
+    authenticationItem.show();
+    for (const runtime of Object.values(integrations)) {
+      runtime.lifecycle.stopAll();
+    }
+    await bridge.stop().catch(() => undefined);
+    if (!showPrompt || reauthenticationPromptShown) {
+      return;
+    }
+
+    reauthenticationPromptShown = true;
+    const action = await vscode.window.showWarningMessage(
+      'Авторизация Kodpauza сброшена. Реклама остановлена — войдите снова, чтобы восстановить показы.',
+      {
+        modal: true,
+        detail:
+          'Сессия больше недействительна или данные входа исчезли из защищённого хранилища VS Code. До повторного входа объявления и начисления не работают.',
+      },
+      'Войти',
+      'Открыть диагностику',
+    );
+    if (action === 'Войти') {
+      await vscode.commands.executeCommand('kodpauza.login');
+    } else if (action === 'Открыть диагностику') {
+      await vscode.commands.executeCommand('kodpauza.runDiagnostics');
+    }
+  };
+  syncAuthenticationUi = updateAuthenticationUi;
 
   const reportDetectedVersions = async (): Promise<void> => {
     refreshIntegrationDetections();
@@ -355,7 +405,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       .catch(() => undefined)
       .then(async () => {
         refreshIntegrationDetections();
-        if (!state.adsEnabled || !state.integrationEnabled || !runtimePolicy.policy?.enabled) {
+        if (
+          state.requiresReauthentication ||
+          !state.adsEnabled ||
+          !state.integrationEnabled ||
+          !runtimePolicy.policy?.enabled
+        ) {
           for (const runtime of Object.values(integrations)) {
             runtime.lifecycle.stopAll();
           }
@@ -407,7 +462,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       return runtimeWatchdog;
     }
     const operation = (async () => {
-      if (!state.adsEnabled || !state.integrationEnabled || !vscode.window.state.focused) {
+      if (
+        state.requiresReauthentication ||
+        !state.adsEnabled ||
+        !state.integrationEnabled ||
+        !vscode.window.state.focused
+      ) {
         return;
       }
 
@@ -653,6 +713,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     bridge,
     outbox,
     diagnostics,
+    authenticationItem,
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (
         event.affectsConfiguration('kodpauza.adsEnabled') ||
@@ -729,6 +790,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         () => api.login(email, password),
       );
       await state.setAuthSession(login.token, login.refreshToken, login.eventSecret);
+      await updateAuthenticationUi(false);
       const connection = shouldAutomaticallyConnectIntegrations({
         trigger: 'login',
         authenticated: true,
@@ -768,6 +830,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       await reconcileIntegration();
       await api.logout().catch(() => undefined);
       await state.clearAuthSession();
+      await updateAuthenticationUi(false);
       await state.clearTelemetry();
       await vscode.window.showInformationMessage(
         'Вы вышли из Kodpauza. Локальная очередь событий очищена.',
@@ -837,6 +900,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       }
     }),
   );
+
+  void updateAuthenticationUi(true);
 
   const authenticatedAtStartup = Boolean(await state.accessToken());
   if (

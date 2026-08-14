@@ -49,6 +49,7 @@ export class DiagnosticsReporter {
       dashboardUrl: diagnosticValue(() => this.api.dashboardUrl),
       hasToken,
       hasEventSecret,
+      requiresReauthentication: this.state.requiresReauthentication,
       adsEnabled: this.state.adsEnabled,
       integrationEnabled: this.state.integrationEnabled,
       adPresenterRunning: this.presenters.codex.isRunning || this.presenters.claude.isRunning,
@@ -84,6 +85,7 @@ export class DiagnosticsReporter {
     this.output.appendLine(`API: ${snapshot.apiBaseUrl}`);
     this.output.appendLine(`Кабинет: ${snapshot.dashboardUrl}`);
     this.output.appendLine(`Авторизация: ${snapshot.hasToken ? 'есть' : 'нет'}`);
+    this.output.appendLine(`Повторный вход: ${snapshot.requiresReauthentication ? 'требуется' : 'нет'}`);
     this.output.appendLine(`Ключ подписи: ${snapshot.hasEventSecret ? 'есть' : 'нет'}`);
     this.output.appendLine(`Реклама: ${snapshot.adsEnabled ? 'включена' : 'выключена'}`);
     this.output.appendLine(`Интеграции: ${snapshot.integrationEnabled ? 'включены' : 'выключены'}`);

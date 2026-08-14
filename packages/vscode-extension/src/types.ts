@@ -73,6 +73,7 @@ export interface DiagnosticsSnapshot {
   dashboardUrl: string;
   hasToken: boolean;
   hasEventSecret: boolean;
+  requiresReauthentication: boolean;
   adsEnabled: boolean;
   integrationEnabled: boolean;
   adPresenterRunning: boolean;

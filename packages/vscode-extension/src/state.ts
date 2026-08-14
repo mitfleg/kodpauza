@@ -22,8 +22,10 @@ const TELEMETRY_OUTBOX_KEY = 'kodpauza.telemetryOutbox.v1';
 const LAST_UNSUPPORTED_CODEX_VERSION_KEY = 'kodpauza.lastUnsupportedCodexVersion';
 const LAST_UNSUPPORTED_INTEGRATION_VERSIONS_KEY = 'kodpauza.lastUnsupportedIntegrationVersions';
 const INSTALL_ID_KEY = 'kodpauza.installId';
+const AUTH_SESSION_STATUS_KEY = 'kodpauza.authSessionStatus.v1';
 
 export type IntegrationStateTool = 'codex' | 'claude';
+export type AuthSessionStatus = 'authenticated' | 'signed_out' | 'reauthentication_required';
 
 export class KodpauzaState {
   constructor(private readonly context: vscode.ExtensionContext) {}
@@ -32,6 +34,7 @@ export class KodpauzaState {
     await this.migrateLegacyFlag(ADS_ENABLED_KEY);
     await this.migrateLegacyIntegrationFlag();
     await this.migrateAutomaticIntegrationPreference();
+    await this.reconcileAuthSessionStatus();
   }
 
   get installId(): string {
@@ -123,20 +126,41 @@ export class KodpauzaState {
     await this.context.secrets.store(EVENT_SECRET_KEY, secret);
   }
 
-  async setAuthSession(accessToken: string, refreshToken: string, eventSecret: string): Promise<void> {
-    await Promise.all([
-      this.context.secrets.store(ACCESS_TOKEN_KEY, accessToken),
-      this.context.secrets.store(REFRESH_TOKEN_KEY, refreshToken),
-      this.context.secrets.store(EVENT_SECRET_KEY, eventSecret)
-    ]);
+  get authSessionStatus(): AuthSessionStatus {
+    return this.context.globalState.get<AuthSessionStatus>(AUTH_SESSION_STATUS_KEY, 'signed_out');
+  }
+
+  get requiresReauthentication(): boolean {
+    return this.authSessionStatus === 'reauthentication_required';
+  }
+
+  async setAuthSession(
+    accessToken: string,
+    refreshToken: string,
+    eventSecret: string,
+  ): Promise<void> {
+    await this.context.globalState.update(AUTH_SESSION_STATUS_KEY, 'authenticated');
+    try {
+      await Promise.all([
+        this.context.secrets.store(ACCESS_TOKEN_KEY, accessToken),
+        this.context.secrets.store(REFRESH_TOKEN_KEY, refreshToken),
+        this.context.secrets.store(EVENT_SECRET_KEY, eventSecret)
+      ]);
+    } catch (error) {
+      await this.context.globalState.update(AUTH_SESSION_STATUS_KEY, 'reauthentication_required');
+      await this.deleteAuthSecrets();
+      throw error;
+    }
   }
 
   async clearAuthSession(): Promise<void> {
-    await Promise.all([
-      this.context.secrets.delete(ACCESS_TOKEN_KEY),
-      this.context.secrets.delete(REFRESH_TOKEN_KEY),
-      this.context.secrets.delete(EVENT_SECRET_KEY)
-    ]);
+    await this.context.globalState.update(AUTH_SESSION_STATUS_KEY, 'signed_out');
+    await this.deleteAuthSecrets();
+  }
+
+  async invalidateAuthSession(): Promise<void> {
+    await this.context.globalState.update(AUTH_SESSION_STATUS_KEY, 'reauthentication_required');
+    await this.deleteAuthSecrets();
   }
 
   async clearAccessToken(): Promise<void> {
@@ -260,5 +284,48 @@ export class KodpauzaState {
     if (automatic === undefined && integration?.globalValue === false) {
       await this.setAutoConnectIntegrations(false);
     }
+  }
+
+  private async reconcileAuthSessionStatus(): Promise<void> {
+    const stored = this.context.globalState.get<AuthSessionStatus>(AUTH_SESSION_STATUS_KEY);
+    const credentials = await Promise.all([
+      this.accessToken(),
+      this.refreshToken(),
+      this.eventSecret()
+    ]);
+    const hasCompleteSession = credentials.every(Boolean);
+    const hasAnyCredential = credentials.some(Boolean);
+
+    if (stored === 'signed_out') {
+      if (hasAnyCredential) {
+        await this.deleteAuthSecrets();
+      }
+      return;
+    }
+
+    if (hasCompleteSession) {
+      await this.context.globalState.update(AUTH_SESSION_STATUS_KEY, 'authenticated');
+      return;
+    }
+
+    if (
+      stored === 'authenticated' ||
+      stored === 'reauthentication_required' ||
+      hasAnyCredential ||
+      (stored === undefined && this.adsEnabled)
+    ) {
+      await this.context.globalState.update(AUTH_SESSION_STATUS_KEY, 'reauthentication_required');
+      return;
+    }
+
+    await this.context.globalState.update(AUTH_SESSION_STATUS_KEY, 'signed_out');
+  }
+
+  private async deleteAuthSecrets(): Promise<void> {
+    await Promise.all([
+      this.context.secrets.delete(ACCESS_TOKEN_KEY),
+      this.context.secrets.delete(REFRESH_TOKEN_KEY),
+      this.context.secrets.delete(EVENT_SECRET_KEY)
+    ]);
   }
 }
