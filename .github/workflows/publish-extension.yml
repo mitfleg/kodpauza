@@ -56,7 +56,7 @@ jobs:
         run: pnpm --filter kodpauza-vscode test
 
       - name: Build VSIX
-        run: pnpm --filter kodpauza-vscode package:vsix
+        run: pnpm extension:package
 
       - name: Verify VSIX archive
         run: |
@@ -76,7 +76,7 @@ jobs:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: |
           test -n "$VSCE_PAT" || { echo "::error::Repository secret VSCE_PAT is required"; exit 1; }
-          pnpm dlx @vscode/vsce@3.6.2 publish --packagePath "$VSIX_PATH"
+          pnpm exec vsce publish --packagePath "$VSIX_PATH"
 
       - name: Attach VSIX to GitHub Release
         env:

@@ -16,7 +16,7 @@ COPY packages/shared packages/shared
 COPY packages/vscode-extension packages/vscode-extension
 RUN pnpm db:generate \
   && pnpm --filter @kodpauza/shared build \
-  && pnpm --filter kodpauza-vscode package:vsix \
+  && pnpm extension:package \
   && pnpm --filter @kodpauza/api build
 RUN pnpm --filter @kodpauza/api deploy --prod /prod/api \
   && cp -R prisma /prod/api/prisma \

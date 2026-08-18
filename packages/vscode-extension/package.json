@@ -76,7 +76,7 @@
     "typecheck": "tsc -p . --noEmit",
     "lint": "eslint src --ext .ts",
     "test": "pnpm build && node --test test/*.test.cjs",
-    "package:vsix": "pnpm build && pnpm exec vsce package --no-dependencies --allow-missing-repository --out dist/kodpauza.vsix",
+    "package:vsix": "pnpm build && pnpm dlx @vscode/vsce@3.6.2 package --no-dependencies --allow-missing-repository --out dist/kodpauza.vsix",
     "vscode:prepublish": "tsc -p . && node scripts/copy-runtime-deps.cjs"
   },
   "contributes": {
@@ -174,7 +174,6 @@
     "acorn": "8.17.0"
   },
   "devDependencies": {
-    "@vscode/vsce": "3.6.2",
     "@types/node": "^22.10.1",
     "@types/vscode": "^1.90.0",
     "typescript": "^5.7.2"
