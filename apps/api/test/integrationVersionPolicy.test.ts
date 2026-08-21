@@ -5,22 +5,22 @@ describe('classifyUnsupportedIntegrationVersion', () => {
   it('не требует новый патч для старых версий Codex и Claude Code', () => {
     expect(classifyUnsupportedIntegrationVersion('codex', '26.616.71553')).toEqual({
       attention: 'outdated_tool',
-      latestExactVersion: '26.814.41407',
+      latestExactVersion: '26.818.31338',
     });
     expect(classifyUnsupportedIntegrationVersion('claude', '2.1.173')).toEqual({
       attention: 'outdated_tool',
-      latestExactVersion: '2.1.214',
+      latestExactVersion: '2.1.238',
     });
   });
 
   it('требует новый патч только для версии новее последней проверенной', () => {
-    expect(classifyUnsupportedIntegrationVersion('codex', '26.815.1')).toEqual({
+    expect(classifyUnsupportedIntegrationVersion('codex', '26.819.1')).toEqual({
       attention: 'new_patch',
-      latestExactVersion: '26.814.41407',
+      latestExactVersion: '26.818.31338',
     });
-    expect(classifyUnsupportedIntegrationVersion('claude', '2.1.215')).toEqual({
+    expect(classifyUnsupportedIntegrationVersion('claude', '2.1.239')).toEqual({
       attention: 'new_patch',
-      latestExactVersion: '2.1.214',
+      latestExactVersion: '2.1.238',
     });
   });
 });

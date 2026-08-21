@@ -33,6 +33,7 @@ export type ClaudePatchProfile = {
   stylesIdentifier: string;
   spinnerFramesIdentifier: string;
   structuralSpinnerAnchor?: string;
+  structuralTextAnchor?: string;
   stateHookIdentifier?: string;
   effectHookIdentifier?: string;
   containerElementIdentifier?: string;
@@ -79,6 +80,32 @@ export const CLAUDE_2_1_214_PROFILE: ClaudePatchProfile = {
   ...CLAUDE_2_1_212_PROFILE,
 };
 
+const CLAUDE_2_1_238_SPINNER_ANCHOR =
+  'function urt({size:e=16,permissionMode:t,status:i,spinnerVerbsConfig:n}){let o=to(()=>sHt(n),[n]),r=to(()=>Math.max(...o.map((p)=>p.length)),[o]),[s,a]=ie(0),[l,c]=ie(()=>FG(o));re(()=>{let p=setInterval(()=>{a((f)=>(f+1)%crt.length)},120);return()=>clearInterval(p)},[]),_G(()=>{c(FG(o))},(p)=>{let f=[2000,3000,5000];return p<f.length?f[p]:5000});let u=l;if(i==="compacting")u="Compacting";let h=aHt(u+"...",r+3);return I("div",{className:OG.container,"data-permission-mode":t,children:[b("span",{"aria-hidden":"true",className:OG.icon,style:{fontSize:`${e}px`},children:crt[s]}),b("span",{"aria-hidden":"true",className:OG.text,children:h}),b("span",{className:H6.visuallyHidden,children:i==="compacting"?"Compacting conversation":"Claude is working"})]})}';
+
+export const CLAUDE_2_1_238_PROFILE: ClaudePatchProfile = {
+  cspFirstIdentifier: 'p',
+  cspSecondIdentifier: 'f',
+  cspThirdIdentifier: 'h',
+  cspNonceIdentifier: 'u',
+  cspFinalIdentifier: 'g',
+  componentIdentifier: 'urt',
+  verbsIdentifier: 'sHt',
+  randomIdentifier: 'FG',
+  schedulerIdentifier: '_G',
+  animateIdentifier: 'aHt',
+  stylesIdentifier: 'OG',
+  spinnerFramesIdentifier: 'crt',
+  structuralSpinnerAnchor: CLAUDE_2_1_238_SPINNER_ANCHOR,
+  structuralTextAnchor: 'b("span",{"aria-hidden":"true",className:OG.text,children:h})',
+  stateHookIdentifier: 'ie',
+  effectHookIdentifier: 're',
+  containerElementIdentifier: 'I',
+  childElementIdentifier: 'b',
+  statusLocalIdentifier: 'i',
+  animatedLocalIdentifier: 'h',
+};
+
 const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
   {
     version: '2.1.207',
@@ -103,6 +130,12 @@ const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
     hostSha256: '267cbd2f3cea2b5d13a36a70f34c1e0def2c6638e3960c1bdd29e6ec9ce118b3',
     webviewSha256: '83579b34af4114e1a124cf72c5845205ff49fc52862aec767f1e4bdf920b371e',
     profile: CLAUDE_2_1_214_PROFILE,
+  },
+  {
+    version: '2.1.238',
+    hostSha256: '70799d3bf0d558d19b102d4869ca53463f724c5f431d0d9df940bf6fbfd26a94',
+    webviewSha256: '6ba7df68ca165a0d694df51871c33869447cedce0157eb70d3f569d7b271bc0e',
+    profile: CLAUDE_2_1_238_PROFILE,
   },
 ] as const;
 
@@ -975,11 +1008,20 @@ function patchStructuralSpinnerComponent(source: string, profile: ClaudePatchPro
     1,
     'начало spinner-компонента Claude Code',
   );
-  const textAnchor = `${childElement}("span",{className:${profile.stylesIdentifier}.text,children:${animated}})`;
+  const textAnchor =
+    profile.structuralTextAnchor ??
+    `${childElement}("span",{className:${profile.stylesIdentifier}.text,children:${animated}})`;
+  const patchedTextAnchor = replaceExact(
+    textAnchor,
+    `children:${animated}`,
+    `children:__kpClaudeAd&&${status}!=="compacting"?${childElement}(__kpClaudeAdLink,{ad:__kpClaudeAd}):${animated}`,
+    1,
+    'содержимое текста spinner-компонента Claude Code',
+  );
   patched = replaceExact(
     patched,
     textAnchor,
-    `${childElement}("span",{className:${profile.stylesIdentifier}.text,children:__kpClaudeAd&&${status}!=="compacting"?${childElement}(__kpClaudeAdLink,{ad:__kpClaudeAd}):${animated}})`,
+    patchedTextAnchor,
     1,
     'текст spinner-компонента Claude Code',
   );
@@ -1030,7 +1072,12 @@ function validateProfile(profile: ClaudePatchProfile): void {
     (profile.structuralSpinnerAnchor !== undefined &&
       (profile.structuralSpinnerAnchor.length === 0 ||
         profile.structuralSpinnerAnchor.length > 100_000 ||
-        !profile.structuralSpinnerAnchor.startsWith(`function ${profile.componentIdentifier}(`)))
+        !profile.structuralSpinnerAnchor.startsWith(`function ${profile.componentIdentifier}(`))) ||
+    (profile.structuralTextAnchor !== undefined &&
+      (profile.structuralSpinnerAnchor === undefined ||
+        profile.structuralTextAnchor.length === 0 ||
+        profile.structuralTextAnchor.length > 10_000 ||
+        !profile.structuralSpinnerAnchor.includes(profile.structuralTextAnchor)))
   ) {
     throw new Error('Некорректный профиль UI-патча Claude Code.');
   }

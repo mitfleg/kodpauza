@@ -25,6 +25,7 @@ const {
   CODEX_26_810_52044_SHIMMER_PATCH_PROFILE,
   CODEX_26_814_41407_PATCH_PROFILE,
   CODEX_26_814_41407_SHIMMER_PATCH_PROFILE,
+  CODEX_26_818_31338_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -267,6 +268,20 @@ function codex2681441407FixtureWebview() {
 
 function codex2681441407FixtureHost() {
   return 'prefix;let n=[t,r,...Out,...Mut];suffix';
+}
+
+function codex2681831338FixtureWebview() {
+  return [
+    'function x(e){let i=e.message;return i??(0,$.jsx)(s,{...so.thinking})}',
+    'function y(e){let i=e.heading;return i??(0,$.jsx)(s,{...so.thinking})}',
+    'var to,no,ro,$,io,ao,oo,so,co,lo=e((()=>{',
+    'ro=t(T(),1),$=A(),so=u({thinking:{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`}});',
+    '(0,ro.useEffect)(()=>{},[])}));',
+  ].join('');
+}
+
+function codex2681831338FixtureHost() {
+  return 'prefix;let n=[t,r,...$ut,...Lut];suffix';
 }
 
 function inferredFixtureWebview() {
@@ -1006,6 +1021,41 @@ test('профиль Codex 26.814.41407 fail-closed при старом descript
 
   assert.throws(
     () => patchWebviewSource(changed, 'e'.repeat(64), CODEX_26_814_41407_PATCH_PROFILE),
+    /видимый placeholder Thinking/,
+  );
+});
+
+test('профиль Codex 26.818.31338 патчит descriptor-only UI без shimmer и новый CSP', () => {
+  const token = 'f'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2681831338FixtureWebview(),
+    token,
+    CODEX_26_818_31338_PATCH_PROFILE,
+  );
+  const host = patchHostSource(
+    codex2681831338FixtureHost(),
+    CODEX_26_818_31338_PATCH_PROFILE,
+  );
+
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 3);
+  assert.equal(
+    (webview.match(/__kpAdMessage,\{fallback:\(0,\$\.jsx\)\(s,\{\.\.\.so\.thinking\}\)\}/g) ?? [])
+      .length,
+    2,
+  );
+  assert.match(host, /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+});
+
+test('профиль Codex 26.818.31338 fail-closed при изменении descriptor', () => {
+  const changed = codex2681831338FixtureWebview().replace(
+    '(0,$.jsx)(s,{...so.thinking})',
+    '(0,$.jsx)(s,{...ao.thinking})',
+  );
+
+  assert.throws(
+    () => patchWebviewSource(changed, '0'.repeat(64), CODEX_26_818_31338_PATCH_PROFILE),
     /видимый placeholder Thinking/,
   );
 });
