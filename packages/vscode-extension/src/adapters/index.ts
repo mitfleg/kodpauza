@@ -7,7 +7,15 @@ export function createToolAdapters(): ToolAdapter[] {
       id: 'claude_code_vscode',
       name: 'Claude Code',
       extensionIdHints: ['claude'],
-      knownVersions: ['2.1.207', '2.1.209', '2.1.212', '2.1.214', '2.1.238', '2.1.239'],
+      knownVersions: [
+        '2.1.207',
+        '2.1.209',
+        '2.1.212',
+        '2.1.214',
+        '2.1.238',
+        '2.1.239',
+        '2.1.241',
+      ],
       versionedPatch: true,
     }),
     new SafeExtensionAdapter({

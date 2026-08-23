@@ -17,7 +17,7 @@ export type ClassifiedIntegrationVersionReport = {
 // supported by the extension and never reach this classifier.
 export const latestExactIntegrationVersions: Record<IntegrationTool, string> = {
   codex: '26.818.41705',
-  claude: '2.1.239',
+  claude: '2.1.241',
 };
 
 export function classifyUnsupportedIntegrationVersion(
