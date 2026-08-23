@@ -26,6 +26,7 @@ const {
   CODEX_26_814_41407_PATCH_PROFILE,
   CODEX_26_814_41407_SHIMMER_PATCH_PROFILE,
   CODEX_26_818_31338_PATCH_PROFILE,
+  CODEX_26_818_41705_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -282,6 +283,17 @@ function codex2681831338FixtureWebview() {
 
 function codex2681831338FixtureHost() {
   return 'prefix;let n=[t,r,...$ut,...Lut];suffix';
+}
+
+function codex2681841705FixtureWebview() {
+  return codex2681831338FixtureWebview().replaceAll(
+    '(0,$.jsx)(s,{...so.thinking})',
+    '(0,$.jsx)(M,{...so.thinking})',
+  );
+}
+
+function codex2681841705FixtureHost() {
+  return 'prefix;let n=[t,r,...Fut,...$ut];suffix';
 }
 
 function inferredFixtureWebview() {
@@ -1056,6 +1068,41 @@ test('профиль Codex 26.818.31338 fail-closed при изменении de
 
   assert.throws(
     () => patchWebviewSource(changed, '0'.repeat(64), CODEX_26_818_31338_PATCH_PROFILE),
+    /видимый placeholder Thinking/,
+  );
+});
+
+test('профиль Codex 26.818.41705 патчит новые intl и CSP-якорь без shimmer', () => {
+  const token = '1'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2681841705FixtureWebview(),
+    token,
+    CODEX_26_818_41705_PATCH_PROFILE,
+  );
+  const host = patchHostSource(
+    codex2681841705FixtureHost(),
+    CODEX_26_818_41705_PATCH_PROFILE,
+  );
+
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 3);
+  assert.equal(
+    (webview.match(/__kpAdMessage,\{fallback:\(0,\$\.jsx\)\(M,\{\.\.\.so\.thinking\}\)\}/g) ?? [])
+      .length,
+    2,
+  );
+  assert.match(host, /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+});
+
+test('профиль Codex 26.818.41705 fail-closed при старом intl-компоненте', () => {
+  const changed = codex2681841705FixtureWebview().replace(
+    '(0,$.jsx)(M,{...so.thinking})',
+    '(0,$.jsx)(s,{...so.thinking})',
+  );
+
+  assert.throws(
+    () => patchWebviewSource(changed, '2'.repeat(64), CODEX_26_818_41705_PATCH_PROFILE),
     /видимый placeholder Thinking/,
   );
 });
