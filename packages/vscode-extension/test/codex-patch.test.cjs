@@ -28,6 +28,7 @@ const {
   CODEX_26_818_31338_PATCH_PROFILE,
   CODEX_26_818_41705_PATCH_PROFILE,
   CODEX_26_818_61809_PATCH_PROFILE,
+  CODEX_26_820_60940_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -303,6 +304,20 @@ function codex2681861809FixtureWebview() {
 
 function codex2681861809FixtureHost() {
   return 'prefix;let n=[t,r,...But,...$ut];suffix';
+}
+
+function codex2682060940FixtureWebview() {
+  return [
+    'function x(e){let i=e.message;return i??(0,Z.jsx)(E,{...oa.thinking})}',
+    'function y(e){let i=e.heading;return i??(0,Z.jsx)(E,{...oa.thinking})}',
+    'var ea,ta,na,Z,ra,ia,aa,oa,sa,Q=e((()=>{',
+    'na=t(a(),1),Z=b(),oa=re({thinking:{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`}});',
+    '(0,na.useEffect)(()=>{},[])}));',
+  ].join('');
+}
+
+function codex2682060940FixtureHost() {
+  return 'prefix;let n=[t,r,...bdt,...vdt];suffix';
 }
 
 function inferredFixtureWebview() {
@@ -1143,6 +1158,41 @@ test('профиль Codex 26.818.61809 fail-closed при старом CSP-як
   assert.throws(
     () => patchHostSource(codex2681841705FixtureHost(), CODEX_26_818_61809_PATCH_PROFILE),
     /политика подключения webview/,
+  );
+});
+
+test('профиль Codex 26.820.60940 патчит новые React, intl и CSP-якоря без shimmer', () => {
+  const token = '4'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2682060940FixtureWebview(),
+    token,
+    CODEX_26_820_60940_PATCH_PROFILE,
+  );
+  const host = patchHostSource(
+    codex2682060940FixtureHost(),
+    CODEX_26_820_60940_PATCH_PROFILE,
+  );
+
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 3);
+  assert.equal(
+    (webview.match(/__kpAdMessage,\{fallback:\(0,Z\.jsx\)\(E,\{\.\.\.oa\.thinking\}\)\}/g) ?? [])
+      .length,
+    2,
+  );
+  assert.match(host, /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+});
+
+test('профиль Codex 26.820.60940 fail-closed при старом React-якоре', () => {
+  assert.throws(
+    () =>
+      patchWebviewSource(
+        codex2681861809FixtureWebview(),
+        '5'.repeat(64),
+        CODEX_26_820_60940_PATCH_PROFILE,
+      ),
+    /точка подключения React/,
   );
 });
 

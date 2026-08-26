@@ -13,6 +13,7 @@ const {
   CLAUDE_2_1_239_PROFILE,
   CLAUDE_2_1_241_PROFILE,
   CLAUDE_2_1_245_PROFILE,
+  CLAUDE_2_1_246_PROFILE,
   ClaudePatchInstaller,
   patchClaudeHostSource,
   patchClaudeWebviewSource,
@@ -426,6 +427,37 @@ test('профиль Claude Code 2.1.245 fail-closed при изменении a
   assert.throws(
     () => patchClaudeWebviewSource(changed, '8'.repeat(64), CLAUDE_2_1_245_PROFILE),
     /активный spinner Claude Code/,
+  );
+});
+
+test('профиль Claude Code 2.1.246 патчит переименованные accessibility spinner и CSP', () => {
+  const token = '9'.repeat(64);
+  const host =
+    'prefix;<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; ${B}; ${q}; ${N}; script-src \'nonce-${U}\'; ${O};">;suffix';
+  const webview = `prefix;${CLAUDE_2_1_246_PROFILE.structuralSpinnerAnchor};suffix`;
+  const patchedHost = patchClaudeHostSource(host, CLAUDE_2_1_246_PROFILE);
+  const patchedWebview = patchClaudeWebviewSource(webview, token, CLAUDE_2_1_246_PROFILE);
+
+  assert.match(patchedHost, /\$\{O\}; connect-src http:\/\/127\.0\.0\.1:37491;/);
+  assert.match(patchedWebview, /__KODPAUZA_CLAUDE_UI_START__/);
+  assert.match(
+    patchedWebview,
+    /"aria-hidden":"true",className:Wi\.text,children:__kpClaudeAd&&Y!=="compacting"/,
+  );
+  assert.match(
+    patchedWebview,
+    /className:dO\.visuallyHidden,children:Y==="compacting"\?"Compacting conversation":"Claude is working"/,
+  );
+  assert.doesNotThrow(() => new vm.Script(patchedWebview));
+});
+
+test('профиль Claude Code 2.1.246 fail-closed при изменении CSP', () => {
+  const oldHost =
+    'prefix;<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; ${B}; ${N}; ${q}; script-src \'nonce-${U}\'; ${D};">;suffix';
+
+  assert.throws(
+    () => patchClaudeHostSource(oldHost, CLAUDE_2_1_246_PROFILE),
+    /Content Security Policy Claude Code/,
   );
 });
 
