@@ -29,6 +29,7 @@ const {
   CODEX_26_818_41705_PATCH_PROFILE,
   CODEX_26_818_61809_PATCH_PROFILE,
   CODEX_26_820_60940_PATCH_PROFILE,
+  CODEX_26_820_71523_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -1191,6 +1192,41 @@ test('профиль Codex 26.820.60940 fail-closed при старом React-я
         codex2681861809FixtureWebview(),
         '5'.repeat(64),
         CODEX_26_820_60940_PATCH_PROFILE,
+      ),
+    /точка подключения React/,
+  );
+});
+
+test('профиль Codex 26.820.71523 патчит проверенную descriptor-only структуру', () => {
+  const token = '6'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2682060940FixtureWebview(),
+    token,
+    CODEX_26_820_71523_PATCH_PROFILE,
+  );
+  const host = patchHostSource(
+    codex2682060940FixtureHost(),
+    CODEX_26_820_71523_PATCH_PROFILE,
+  );
+
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 3);
+  assert.equal(
+    (webview.match(/__kpAdMessage,\{fallback:\(0,Z\.jsx\)\(E,\{\.\.\.oa\.thinking\}\)\}/g) ?? [])
+      .length,
+    2,
+  );
+  assert.match(host, /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+});
+
+test('профиль Codex 26.820.71523 fail-closed при старом React-якоре', () => {
+  assert.throws(
+    () =>
+      patchWebviewSource(
+        codex2681861809FixtureWebview(),
+        '7'.repeat(64),
+        CODEX_26_820_71523_PATCH_PROFILE,
       ),
     /точка подключения React/,
   );
