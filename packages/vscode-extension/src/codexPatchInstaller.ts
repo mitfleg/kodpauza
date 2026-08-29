@@ -251,6 +251,18 @@ export const CODEX_26_820_71523_PATCH_PROFILE: CodexPatchProfile = {
   ...CODEX_26_820_60940_PATCH_PROFILE,
 };
 
+export const CODEX_26_825_32147_PATCH_PROFILE: CodexPatchProfile = {
+  reactAnchor: 'var Vi,Hi,Ui,Z,Wi,Gi,Ki,qi,Ji,Yi=e((()=>{',
+  reactIdentifier: 'Ui',
+  jsxIdentifier: 'Z',
+  intlIdentifier: 'a',
+  thinkingCount: 0,
+  reasoningCount: 0,
+  thinkingDescriptorIdentifier: 'qi',
+  thinkingDescriptorCount: 2,
+  hostAnchor: 'let n=[t,r,...vpt,...ypt];',
+};
+
 const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
   {
     version: '26.623.141536',
@@ -371,6 +383,12 @@ const SUPPORTED_BUILDS: readonly CodexSupportedBuild[] = [
     hostSha256: '25f55ab3e51b121800e82d3ccab3db2907588ec826bf7041558ee53d482fe2b2',
     webviewSha256: '19ef2879282aea7c86d6b5ff541da61e360bba746b2b3b70e7baef8e589d3044',
     patchProfile: CODEX_26_820_71523_PATCH_PROFILE,
+  },
+  {
+    version: '26.825.32147',
+    hostSha256: '28b8f6bc699b13983eacf4c6c23e2ee17d4cce76a9cc8bfe4e466006ff0d2229',
+    webviewSha256: 'c729e372eedf83e39a9d141d7db7e7fdc8346e3aaf1f67421031ab6dd7fbb4a1',
+    patchProfile: CODEX_26_825_32147_PATCH_PROFILE,
   },
 ] as const;
 
