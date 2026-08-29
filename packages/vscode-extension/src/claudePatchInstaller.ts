@@ -262,6 +262,32 @@ export const CLAUDE_2_1_250_PROFILE: ClaudePatchProfile = {
   animatedLocalIdentifier: 'B',
 };
 
+const CLAUDE_2_1_251_SPINNER_ANCHOR =
+  'function L30({size:$=16,permissionMode:J,status:Y,spinnerVerbsConfig:X}){let Q=t2(()=>ac0(X),[X]),Z=t2(()=>Math.max(...Q.map((W)=>W.length)),[Q]),[G,q]=Y1(0),[z,U]=Y1(()=>Ki(Q));Z1(()=>{let W=setInterval(()=>{q((F)=>(F+1)%R30.length)},120);return()=>clearInterval(W)},[]),sk(()=>{U(Ki(Q))},(W)=>{let F=[2000,3000,5000];return W<F.length?F[W]:5000});let H=z;if(Y==="compacting")H="Compacting";let B=rc0(H+"...",Z+3);return E("div",{className:Fi.container,"data-permission-mode":J,children:[j("span",{"aria-hidden":"true",className:Fi.icon,style:{fontSize:`${$}px`},children:R30[G]}),j("span",{"aria-hidden":"true",className:Fi.text,children:B}),j("span",{className:aO.visuallyHidden,children:Y==="compacting"?"Compacting conversation":"Claude is working"})]})}';
+
+export const CLAUDE_2_1_251_PROFILE: ClaudePatchProfile = {
+  cspFirstIdentifier: 'B',
+  cspSecondIdentifier: 'q',
+  cspThirdIdentifier: 'N',
+  cspNonceIdentifier: 'U',
+  cspFinalIdentifier: 'O',
+  componentIdentifier: 'L30',
+  verbsIdentifier: 'ac0',
+  randomIdentifier: 'Ki',
+  schedulerIdentifier: 'sk',
+  animateIdentifier: 'rc0',
+  stylesIdentifier: 'Fi',
+  spinnerFramesIdentifier: 'R30',
+  structuralSpinnerAnchor: CLAUDE_2_1_251_SPINNER_ANCHOR,
+  structuralTextAnchor: 'j("span",{"aria-hidden":"true",className:Fi.text,children:B})',
+  stateHookIdentifier: 'Y1',
+  effectHookIdentifier: 'Z1',
+  containerElementIdentifier: 'E',
+  childElementIdentifier: 'j',
+  statusLocalIdentifier: 'Y',
+  animatedLocalIdentifier: 'B',
+};
+
 const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
   {
     version: '2.1.207',
@@ -328,6 +354,12 @@ const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
     hostSha256: '8dc9e924e755afd3f65fff266d50aef21afe5bf8ae25ead1c67d2fa6dc90db0d',
     webviewSha256: 'd00e7db099e2ba4f11cd4dae4dec6e433c5a3a632e9b8fb23c4b748957799c72',
     profile: CLAUDE_2_1_250_PROFILE,
+  },
+  {
+    version: '2.1.251',
+    hostSha256: '3976184231e566251a8e9c5f5e940ce2d3abb1ecce9ee4ec6e7d1067f00f43ba',
+    webviewSha256: 'a0751d183a681e8cc59696250bda26d7ae495fd82b8574a31e65bbfeb0b0d9ad',
+    profile: CLAUDE_2_1_251_PROFILE,
   },
 ] as const;
 
