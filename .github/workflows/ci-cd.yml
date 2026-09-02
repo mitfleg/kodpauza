@@ -341,8 +341,23 @@ jobs:
               -f compose.production.yml "$@"
           }
 
+          pull_images() {
+            local attempt
+
+            for attempt in {1..5}; do
+              if compose pull; then
+                return 0
+              fi
+              if [[ "$attempt" -eq 5 ]]; then
+                return 1
+              fi
+              echo "Image pull failed; retrying ($attempt/5)..." >&2
+              sleep "$((attempt * 5))"
+            done
+          }
+
           compose config --quiet
-          compose pull
+          pull_images
           compose up -d --remove-orphans
           compose ps
 
@@ -372,7 +387,7 @@ jobs:
               if test -f compose.previous.yml; then
                 cp compose.previous.yml compose.production.yml
               fi
-              compose pull
+              pull_images
               compose up -d --remove-orphans
             fi
             exit 1
