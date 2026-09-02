@@ -20,6 +20,7 @@ export function createToolAdapters(): ToolAdapter[] {
         '2.1.247',
         '2.1.250',
         '2.1.251',
+        '2.1.258',
       ],
       versionedPatch: true,
     }),

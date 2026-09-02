@@ -2,7 +2,7 @@
   "name": "kodpauza-vscode",
   "displayName": "Kodpauza",
   "description": "Доход во время ожидания Codex и Claude Code в VS Code и Cursor — без доступа к коду, промптам и ответам AI.",
-  "version": "0.7.44",
+  "version": "0.7.45",
   "publisher": "kodpauza",
   "icon": "resources/icon.png",
   "homepage": "https://kodpauza.ru/for-developers",

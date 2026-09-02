@@ -1872,7 +1872,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       integrationAlerts.find((alert) => alert.tool === 'claude' && alert.version === version),
     ).toMatchObject({
       attention: 'new_patch',
-      latestExactVersion: '2.1.251',
+      latestExactVersion: '2.1.258',
     });
 
     const outdatedClaudeVersion = '2.1.173';
@@ -1892,7 +1892,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       ),
     ).toMatchObject({
       attention: 'outdated_tool',
-      latestExactVersion: '2.1.251',
+      latestExactVersion: '2.1.258',
     });
 
     const structural = await app.inject({
@@ -1946,7 +1946,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
       supported: false,
       compatibilityMode: 'unsupported',
       attention: 'new_patch',
-      latestExactVersion: '2.1.251',
+      latestExactVersion: '2.1.258',
       acknowledgedAt: null,
     });
     expect(
@@ -1958,7 +1958,7 @@ describe('kodpauza api', { timeout: 15_000 }, () => {
         ),
     ).toMatchObject({
       attention: 'outdated_tool',
-      latestExactVersion: '2.1.251',
+      latestExactVersion: '2.1.258',
     });
 
     const acknowledged = await app.inject({
