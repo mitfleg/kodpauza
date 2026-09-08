@@ -32,6 +32,7 @@ const {
   CODEX_26_820_71523_PATCH_PROFILE,
   CODEX_26_825_32147_PATCH_PROFILE,
   CODEX_26_825_51511_PATCH_PROFILE,
+  CODEX_26_901_22334_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -346,6 +347,20 @@ function codex2682551511FixtureWebview() {
 
 function codex2682551511FixtureHost() {
   return 'prefix;let n=[t,r,...Spt,...bpt];suffix';
+}
+
+function codex2690122334FixtureWebview() {
+  return [
+    'function x(e){let i=e.message;return i??(0,X.jsx)(c,{...Qr.thinking})}',
+    'function y(e){let i=e.heading;return i??(0,X.jsx)(c,{...Qr.thinking})}',
+    'var qr,Jr,Yr,X,Z,Xr,Zr,Qr,$r,ei=e((()=>{',
+    'Yr=t(f(),1),X=a(),Qr=s({thinking:{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`}});',
+    '(0,Yr.useEffect)(()=>{},[])}));',
+  ].join('');
+}
+
+function codex2690122334FixtureHost() {
+  return 'prefix;let n=[t,r,...Iht,...Pht];suffix';
 }
 
 function inferredFixtureWebview() {
@@ -1326,6 +1341,41 @@ test('профиль Codex 26.825.51511 fail-closed при старом intl-я�
         CODEX_26_825_51511_PATCH_PROFILE,
       ),
     /видимый placeholder Thinking/,
+  );
+});
+
+test('профиль Codex 26.901.22334 патчит новые ESM и CSP-якоря', () => {
+  const token = 'c'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2690122334FixtureWebview(),
+    token,
+    CODEX_26_901_22334_PATCH_PROFILE,
+  );
+  const host = patchHostSource(
+    codex2690122334FixtureHost(),
+    CODEX_26_901_22334_PATCH_PROFILE,
+  );
+
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 3);
+  assert.equal(
+    (webview.match(/__kpAdMessage,\{fallback:\(0,X\.jsx\)\(c,\{\.\.\.Qr\.thinking\}\)\}/g) ?? [])
+      .length,
+    2,
+  );
+  assert.match(host, /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+});
+
+test('профиль Codex 26.901.22334 fail-closed при старой ESM-структуре', () => {
+  assert.throws(
+    () =>
+      patchWebviewSource(
+        codex2682551511FixtureWebview(),
+        'd'.repeat(64),
+        CODEX_26_901_22334_PATCH_PROFILE,
+      ),
+    /точка подключения React/,
   );
 });
 
