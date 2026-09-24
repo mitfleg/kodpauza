@@ -34,6 +34,7 @@ const {
   CODEX_26_825_51511_PATCH_PROFILE,
   CODEX_26_901_22334_PATCH_PROFILE,
   CODEX_26_917_61114_PATCH_PROFILE,
+  CODEX_26_917_62051_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -375,6 +376,10 @@ function codex2691761114FixtureWebview() {
 
 function codex2691761114FixtureHost() {
   return 'prefix;let n=[t,r,fkt,...gkt,...hkt];suffix';
+}
+
+function codex2691762051FixtureHost() {
+  return 'prefix;let n=[t,r,ukt,...lkt,...ckt];suffix';
 }
 
 function inferredFixtureWebview() {
@@ -1429,6 +1434,40 @@ test('профиль Codex 26.917.61114 fail-closed при старой ESM-ст
         CODEX_26_917_61114_PATCH_PROFILE,
       ),
     /точка подключения React/,
+  );
+});
+
+test('профиль Codex 26.917.62051 патчит точный descriptor и новый CSP-якорь', () => {
+  const token = '1'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2691761114FixtureWebview(),
+    token,
+    CODEX_26_917_62051_PATCH_PROFILE,
+  );
+  const host = patchHostSource(
+    codex2691762051FixtureHost(),
+    CODEX_26_917_62051_PATCH_PROFILE,
+  );
+
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 2);
+  assert.equal(
+    (webview.match(/__kpAdMessage,\{fallback:\(0,\$\.jsx\)\(C,\{\.\.\.kc\.thinking\}\)\}/g) ?? [])
+      .length,
+    1,
+  );
+  assert.match(
+    host,
+    /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/,
+  );
+  assert.match(host, /ukt,\.\.\.lkt,\.\.\.ckt/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+});
+
+test('профиль Codex 26.917.62051 fail-closed при старом CSP-якоре', () => {
+  assert.throws(
+    () => patchHostSource(codex2691761114FixtureHost(), CODEX_26_917_62051_PATCH_PROFILE),
+    /политика подключения webview/,
   );
 });
 

@@ -16,8 +16,8 @@ export type ClassifiedIntegrationVersionReport = {
 // packages/vscode-extension. Structurally compatible versions are reported as
 // supported by the extension and never reach this classifier.
 export const latestExactIntegrationVersions: Record<IntegrationTool, string> = {
-  codex: '26.917.61114',
-  claude: '2.1.280',
+  codex: '26.917.62051',
+  claude: '2.1.281',
 };
 
 export function classifyUnsupportedIntegrationVersion(

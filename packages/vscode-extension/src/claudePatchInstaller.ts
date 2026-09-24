@@ -20,11 +20,12 @@ const CSP_MARKER_END = '<!--__KODPAUZA_CLAUDE_CSP_END__-->';
 const MAX_PATCH_FILE_BYTES = 8 * 1024 * 1024;
 
 export type ClaudePatchProfile = {
-  cspFinalIdentifier: string;
+  cspFinalIdentifier?: string;
   cspFirstIdentifier?: string;
   cspSecondIdentifier?: string;
   cspThirdIdentifier?: string;
   cspNonceIdentifier?: string;
+  structuralCspAnchor?: string;
   componentIdentifier: string;
   verbsIdentifier: string;
   randomIdentifier: string;
@@ -392,6 +393,31 @@ export const CLAUDE_2_1_280_PROFILE: ClaudePatchProfile = {
   animatedLocalIdentifier: 'W',
 };
 
+const CLAUDE_2_1_281_CSP_ANCHOR =
+  "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-{{NONCE}}'; img-src data:;\">";
+
+const CLAUDE_2_1_281_SPINNER_ANCHOR =
+  'function De({size:$=16,permissionMode:J,status:Z,spinnerVerbsConfig:X}){let Y=D5(()=>u75(X),[X]),Q=D5(()=>Math.max(...Y.map((B)=>B.length)),[Y]),[z,G]=p(0),[q,U]=p(()=>Fe(Y));o(()=>{let B=setInterval(()=>{G((K)=>(K+1)%pU0.length)},120);return()=>clearInterval(B)},[]),lx(()=>{U(Fe(Y))},(B)=>{let K=[2000,3000,5000];return B<K.length?K[B]:5000});let H=q;if(Z==="compacting")H="Compacting";let W=m75(H+"...",Q+3);return R("div",{className:Ke.container,"data-permission-mode":J,children:[F("span",{"aria-hidden":"true",className:Ke.icon,style:{fontSize:`${$}px`},children:pU0[z]}),F("span",{"aria-hidden":"true",className:Ke.text,children:W}),F("span",{className:IU.visuallyHidden,children:Z==="compacting"?"Compacting conversation":"Claude is working"})]})}';
+
+export const CLAUDE_2_1_281_PROFILE: ClaudePatchProfile = {
+  structuralCspAnchor: CLAUDE_2_1_281_CSP_ANCHOR,
+  componentIdentifier: 'De',
+  verbsIdentifier: 'u75',
+  randomIdentifier: 'Fe',
+  schedulerIdentifier: 'lx',
+  animateIdentifier: 'm75',
+  stylesIdentifier: 'Ke',
+  spinnerFramesIdentifier: 'pU0',
+  structuralSpinnerAnchor: CLAUDE_2_1_281_SPINNER_ANCHOR,
+  structuralTextAnchor: 'F("span",{"aria-hidden":"true",className:Ke.text,children:W})',
+  stateHookIdentifier: 'p',
+  effectHookIdentifier: 'o',
+  containerElementIdentifier: 'R',
+  childElementIdentifier: 'F',
+  statusLocalIdentifier: 'Z',
+  animatedLocalIdentifier: 'W',
+};
+
 const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
   {
     version: '2.1.207',
@@ -488,6 +514,12 @@ const SUPPORTED_BUILDS: readonly ClaudeSupportedBuild[] = [
     hostSha256: '3860db58e46870cf9464ca4b34d3ed915009ab914bf51a4a6899581aed74a8a9',
     webviewSha256: '19ba8b6d409ef1fb56f122d9308e09473ba97e516e7ce1e2a0b9d4074d6df625',
     profile: CLAUDE_2_1_280_PROFILE,
+  },
+  {
+    version: '2.1.281',
+    hostSha256: 'b785aa8ddfc763844fe68d3a12b998fe70cb678306c0b86647ce8626a430d552',
+    webviewSha256: '951005826f932323d1f8f8f2c11290bc3269f5bcc45b80674572f9185e0cc307',
+    profile: CLAUDE_2_1_281_PROFILE,
   },
 ] as const;
 
@@ -1280,12 +1312,19 @@ export function patchClaudeHostSource(
 }
 
 function claudeCspAnchor(profile: ClaudePatchProfile, patched = false): string {
+  if (profile.structuralCspAnchor) {
+    if (!patched) {
+      return profile.structuralCspAnchor;
+    }
+    return `${profile.structuralCspAnchor.slice(0, -2)} connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};">`;
+  }
   const connectSource = patched ? ` connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};` : '';
   const first = profile.cspFirstIdentifier ?? 'p';
   const second = profile.cspSecondIdentifier ?? 'f';
   const third = profile.cspThirdIdentifier ?? 'm';
   const nonce = profile.cspNonceIdentifier ?? 'u';
-  return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; \${${first}}; \${${second}}; \${${third}}; script-src 'nonce-\${${nonce}}'; \${${profile.cspFinalIdentifier}};${connectSource}">`;
+  const final = requiredStructuralIdentifier(profile.cspFinalIdentifier, 'финальный CSP-идентификатор');
+  return `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; \${${first}}; \${${second}}; \${${third}}; script-src 'nonce-\${${nonce}}'; \${${final}};${connectSource}">`;
 }
 
 export function patchClaudeWebviewSource(
@@ -1393,11 +1432,15 @@ function claudeUiRuntime(token: string, profile: ClaudePatchProfile): string {
 
 function validateProfile(profile: ClaudePatchProfile): void {
   const identifiers = [
-    profile.cspFinalIdentifier,
-    profile.cspFirstIdentifier ?? 'p',
-    profile.cspSecondIdentifier ?? 'f',
-    profile.cspThirdIdentifier ?? 'm',
-    profile.cspNonceIdentifier ?? 'u',
+    ...(profile.structuralCspAnchor
+      ? []
+      : [
+          profile.cspFinalIdentifier,
+          profile.cspFirstIdentifier ?? 'p',
+          profile.cspSecondIdentifier ?? 'f',
+          profile.cspThirdIdentifier ?? 'm',
+          profile.cspNonceIdentifier ?? 'u',
+        ]),
     profile.componentIdentifier,
     profile.verbsIdentifier,
     profile.randomIdentifier,
@@ -1429,7 +1472,17 @@ function validateProfile(profile: ClaudePatchProfile): void {
       (profile.structuralSpinnerAnchor === undefined ||
         profile.structuralTextAnchor.length === 0 ||
         profile.structuralTextAnchor.length > 10_000 ||
-        !profile.structuralSpinnerAnchor.includes(profile.structuralTextAnchor)))
+        !profile.structuralSpinnerAnchor.includes(profile.structuralTextAnchor))) ||
+    (profile.structuralCspAnchor !== undefined &&
+      (profile.structuralCspAnchor.length === 0 ||
+        profile.structuralCspAnchor.length > 10_000 ||
+        !profile.structuralCspAnchor.startsWith(
+          '<meta http-equiv="Content-Security-Policy" content="',
+        ) ||
+        !profile.structuralCspAnchor.endsWith(';">') ||
+        profile.structuralCspAnchor.includes(
+          `connect-src http://127.0.0.1:${CODEX_UI_BRIDGE_PORT};`,
+        )))
   ) {
     throw new Error('Некорректный профиль UI-патча Claude Code.');
   }
