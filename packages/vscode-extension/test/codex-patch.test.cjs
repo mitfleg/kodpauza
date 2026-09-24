@@ -33,6 +33,7 @@ const {
   CODEX_26_825_32147_PATCH_PROFILE,
   CODEX_26_825_51511_PATCH_PROFILE,
   CODEX_26_901_22334_PATCH_PROFILE,
+  CODEX_26_917_61114_PATCH_PROFILE,
   CodexPatchInstaller,
   patchHostSource,
   patchThinkingShimmerSource,
@@ -361,6 +362,19 @@ function codex2690122334FixtureWebview() {
 
 function codex2690122334FixtureHost() {
   return 'prefix;let n=[t,r,...Iht,...Pht];suffix';
+}
+
+function codex2691761114FixtureWebview() {
+  return [
+    'function x(e){let i=e.heading;return i??(0,$.jsx)(C,{...kc.thinking})}',
+    'var Cc,wc,Tc,$,Ec,Dc,Oc,kc,Ac;function jc(){',
+    'Tc=h(),$=k(),kc=b({thinking:{id:`thinkingShimmer.default`,defaultMessage:`Thinking`,description:`Default placeholder shown while the assistant is thinking`}});',
+    '(0,Tc.useEffect)(()=>{},[])}',
+  ].join('');
+}
+
+function codex2691761114FixtureHost() {
+  return 'prefix;let n=[t,r,fkt,...gkt,...hkt];suffix';
 }
 
 function inferredFixtureWebview() {
@@ -1374,6 +1388,45 @@ test('профиль Codex 26.901.22334 fail-closed при старой ESM-ст
         codex2682551511FixtureWebview(),
         'd'.repeat(64),
         CODEX_26_901_22334_PATCH_PROFILE,
+      ),
+    /точка подключения React/,
+  );
+});
+
+test('профиль Codex 26.917.61114 патчит новый descriptor и расширенный CSP-якорь', () => {
+  const token = 'e'.repeat(64);
+  const webview = patchWebviewSource(
+    codex2691761114FixtureWebview(),
+    token,
+    CODEX_26_917_61114_PATCH_PROFILE,
+  );
+  const host = patchHostSource(
+    codex2691761114FixtureHost(),
+    CODEX_26_917_61114_PATCH_PROFILE,
+  );
+
+  assert.equal((webview.match(/__kpAdMessage/g) ?? []).length, 2);
+  assert.equal(
+    (webview.match(/__kpAdMessage,\{fallback:\(0,\$\.jsx\)\(C,\{\.\.\.kc\.thinking\}\)\}/g) ?? [])
+      .length,
+    1,
+  );
+  assert.match(
+    host,
+    /let n=\[t,r,\/\*__KODPAUZA_CSP_START__\*\/"http:\/\/127\.0\.0\.1:37491"/,
+  );
+  assert.match(host, /fkt,\.\.\.gkt,\.\.\.hkt/);
+  assert.doesNotThrow(() => new vm.Script(webview));
+  assert.doesNotThrow(() => new vm.Script(host));
+});
+
+test('профиль Codex 26.917.61114 fail-closed при старой ESM-структуре', () => {
+  assert.throws(
+    () =>
+      patchWebviewSource(
+        codex2690122334FixtureWebview(),
+        'f'.repeat(64),
+        CODEX_26_917_61114_PATCH_PROFILE,
       ),
     /точка подключения React/,
   );
