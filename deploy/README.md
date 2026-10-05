@@ -15,6 +15,11 @@ Create these repository variables in `Settings → Secrets and variables → Act
 - `PROD_SSH_PORT` — SSH port, usually `22`;
 - `ENABLE_PRODUCTION_DEPLOY` — keep `false` until the server is ready, then set `true`.
 
+Store `NEXT_PUBLIC_LEGAL_OPERATOR_NAME`, `NEXT_PUBLIC_LEGAL_OPERATOR_STATUS`,
+`NEXT_PUBLIC_LEGAL_OPERATOR_INN`, `NEXT_PUBLIC_LEGAL_OPERATOR_REGISTRATION_NUMBER`,
+`NEXT_PUBLIC_LEGAL_OPERATOR_ADDRESS` and `NEXT_PUBLIC_LEGAL_OPERATOR_EMAIL` as repository secrets.
+The values remain public on the website, but GitHub masks them in build logs.
+
 Create a protected GitHub Environment named `production` and add these environment secrets:
 
 - `PROD_HOST` — server hostname or IP;

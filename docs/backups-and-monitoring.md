@@ -15,6 +15,7 @@ Workflow `.github/workflows/backup-production.yml` каждый день в 04:1
 
 Нужные secrets окружения GitHub `production`:
 
+- `BACKUP_S3_BUCKET`;
 - `BACKUP_S3_ACCESS_KEY`;
 - `BACKUP_S3_SECRET_KEY`.
 
@@ -26,10 +27,13 @@ Workflow `.github/workflows/backup-production.yml` каждый день в 04:1
 `deploy/configure-backup-secrets.sh` устанавливает S3 secrets в GitHub, а фразу шифрования — напрямую
 на production через SSH, после чего запускает workflow вручную.
 
-S3-параметры зафиксированы в workflow:
+Перед запуском настройщика задайте `BACKUP_PROD_HOST` в окружении. Адрес сервера и имя бакета
+не хранятся в исходниках; настройщик запрашивает имя бакета без вывода введённого значения.
+
+Общие S3-параметры зафиксированы в workflow; имя бакета берётся из secret:
 
 - endpoint: `https://s3.twcstorage.ru`;
-- bucket: `example-backup-bucket`;
+- bucket: `BACKUP_S3_BUCKET`;
 - region: `ru-1`;
 - prefix: `kodpauza/postgres/`.
 
